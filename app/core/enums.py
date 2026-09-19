@@ -62,3 +62,4 @@ class Reject(str, Enum):
     NON_POSITIVE_PRICE = "placeholder or non-positive price"
     MIXED_LOT = "mixed lot"
     UNRESOLVED_IDENTITY = "no approved canonical wine id"
+    STALE = "captured outside the freshness window"

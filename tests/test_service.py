@@ -1,18 +1,26 @@
 """Service layer: API, migrations, RQ worker.
 
-Offline tests always run. Tests marked `pg` need a disposable Postgres and run
-only when TEST_DATABASE_URL is set; they DROP the public schema of that database.
+Offline tests always run and need neither Postgres nor Redis. Tests marked `pg`
+need a disposable Postgres and run only when TEST_DATABASE_URL is set; they DROP
+the public schema of that database. The queue is fakeredis unless TEST_REDIS_URL
+is set, in which case jobs go through that real Redis.
 
-    TEST_DATABASE_URL=postgresql://... python -m pytest -q
+    docker compose up -d
+    TEST_DATABASE_URL=postgresql://pricer:pricer@localhost:5432/pricer_test \\
+    TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 import subprocess
 import sys
+from dataclasses import replace
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
+from uuid import uuid4
 
 import fakeredis
 import pytest
@@ -28,6 +36,7 @@ from app.worker.queue import QUEUE_NAME
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_SQL = (ROOT / "app/db/schema.sql").read_text()
 TEST_DB = os.environ.get("TEST_DATABASE_URL")
+TEST_REDIS = os.environ.get("TEST_REDIS_URL")
 pg = pytest.mark.skipif(not TEST_DB, reason="TEST_DATABASE_URL not set")
 
 
@@ -71,6 +80,16 @@ def test_schema_has_no_float_column_types():
     assert not re.search(r"\b(float\d*|real|double\s+precision|money)\b", body)
 
 
+def test_every_money_column_is_numeric_14_2():
+    """One money type in Postgres. fx_rate and target_margin are rates, not money."""
+    body = re.sub(r"--[^\n]*", "", SCHEMA_SQL)
+    money = (r"(price|cost|cost_gbp|hammer|buyer_paid|uk_floor|uk_reference|uk_median|gp"
+             r"|unit_price|line_total|manual_price|sell_price)")
+    # Column types are lower case in schema.sql; CHECK keywords (cost IS NULL) are not.
+    cols = re.findall(rf"^\s*{money}\s+([a-z][\w(),]*)", body, re.M)
+    assert len(cols) >= 15 and all(t.startswith("numeric(14,2)") for _, t in cols), cols
+
+
 # ======================================================= offline: migrations
 
 
@@ -79,7 +98,9 @@ def test_offline_migration_sql_renders_the_whole_schema():
     out = subprocess.run([sys.executable, "-m", "alembic", "upgrade", "head", "--sql"],
                          cwd=ROOT, env=env, capture_output=True, text=True, check=True).stdout
     for table in ("wine", "wine_alias", "offer", "offer_reject", "seller_line",
-                  "benchmark_run", "benchmark_comp", "ai_decision"):
+                  "benchmark_run", "benchmark_comp", "ai_decision", "snapshot_merchant",
+                  "benchmark_run_snapshot", "seller_line_identity_history",
+                  "pricing_result", "buyer_offer", "buyer_offer_line"):
         assert f"CREATE TABLE {table} (" in out
     assert "INSERT INTO merchant" in out
 
@@ -100,6 +121,47 @@ def test_snapshot_request_enqueues_the_collection_job():
     assert job.kwargs == {"merchant_ids": ["farr"], "is_demo": False}
 
 
+def test_benchmark_as_of_in_the_future_is_refused():
+    api.app.dependency_overrides[api.db] = lambda: None
+    api.app.dependency_overrides[api.queue] = lambda: None
+    try:
+        r = TestClient(api.app).post(f"/deals/{uuid4()}/benchmark", json={
+            "as_of": (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()})
+    finally:
+        api.app.dependency_overrides.clear()
+    assert r.status_code == 422 and "future" in r.text
+
+
+# ============================================ offline: infrastructure contracts
+
+
+@pytest.mark.parametrize("name", ["anthropic", "openai", "gemini"])
+def test_unimplemented_ai_provider_fails_legibly(monkeypatch, name):
+    from app.ai.provider import get_provider
+    monkeypatch.setenv("AI_PROVIDER", name)
+    with pytest.raises(NotImplementedError, match=f"AI_PROVIDER='{name}' is not implemented"):
+        get_provider()
+
+
+def test_no_vendor_sdk_is_imported_outside_app_ai():
+    for path in (ROOT / "app").rglob("*.py"):
+        if "app/ai/" in path.as_posix():
+            continue
+        src = path.read_text()
+        assert not re.search(r"^\s*(import|from)\s+(anthropic|openai|google)\b", src, re.M), path
+
+
+def test_user_agent_comes_from_the_environment_only(monkeypatch):
+    from app.adapters.http import user_agent
+    monkeypatch.delenv("COLLECTOR_USER_AGENT", raising=False)
+    with pytest.raises(RuntimeError, match="COLLECTOR_USER_AGENT"):
+        user_agent()
+    monkeypatch.setenv("COLLECTOR_USER_AGENT", "Pricer/1 (+https://x.example/contact)")
+    assert user_agent() == "Pricer/1 (+https://x.example/contact)"
+    for path in (ROOT / "app").rglob("*.py"):
+        assert not re.search(r"""["']User-Agent["']\s*:\s*["']""", path.read_text()), path
+
+
 # ================================================================ Postgres
 
 
@@ -113,6 +175,14 @@ def _alembic(*args: str) -> None:
     subprocess.run([sys.executable, "-m", "alembic", *args], cwd=ROOT,
                    env={**os.environ, "DATABASE_URL": TEST_DB}, check=True,
                    capture_output=True)
+
+
+def _sql(query: str, params=None, *, fetch: bool = True):
+    import psycopg
+    from psycopg.rows import dict_row
+    with psycopg.connect(TEST_DB, row_factory=dict_row, prepare_threshold=None) as c:
+        cur = c.execute(query, params)
+        return cur.fetchall() if fetch and cur.description else None
 
 
 def _catalog(url: str) -> dict:
@@ -135,6 +205,14 @@ def _catalog(url: str) -> dict:
              WHERE schemaname = 'public' AND tablename <> 'alembic_version'
              ORDER BY 1""").fetchall()
     return {"columns": cols, "constraints": cons, "indexes": idx}
+
+
+def _apply_schema(sql: str) -> dict:
+    _reset(TEST_DB)
+    import psycopg
+    with psycopg.connect(TEST_DB, autocommit=True) as c:
+        c.execute(sql)
+    return _catalog(TEST_DB)
 
 
 @pytest.fixture
@@ -160,7 +238,12 @@ def db(monkeypatch):
 
 @pytest.fixture
 def client(db):
-    q = Queue(QUEUE_NAME, connection=fakeredis.FakeRedis())
+    if TEST_REDIS:
+        from redis import Redis
+        conn = Redis.from_url(TEST_REDIS)
+    else:
+        conn = fakeredis.FakeRedis()
+    q = Queue(f"test-{uuid4().hex}", connection=conn)
     api.app.dependency_overrides[api.queue] = lambda: q
     c = TestClient(api.app)
     c.queue = q
@@ -176,6 +259,9 @@ def _job(client: TestClient, job_id: str) -> dict:
     return client.get(f"/jobs/{job_id}").json()
 
 
+# --- migrations ---------------------------------------------------------------
+
+
 @pg
 def test_migrations_reproduce_schema_sql_exactly():
     """schema.sql is the head schema. If a migration and schema.sql disagree on
@@ -183,12 +269,26 @@ def test_migrations_reproduce_schema_sql_exactly():
     _reset(TEST_DB)
     _alembic("upgrade", "head")
     migrated = _catalog(TEST_DB)
-    _reset(TEST_DB)
-    import psycopg
-    with psycopg.connect(TEST_DB, autocommit=True) as c:
-        c.execute(SCHEMA_SQL)
-    assert migrated == _catalog(TEST_DB)
+    assert migrated == _apply_schema(SCHEMA_SQL)
     assert any(col[1] == "price" and col[5:7] == (14, 2) for col in migrated["columns"])
+
+
+@pg
+@pytest.mark.parametrize("old,new", [
+    ("price            numeric(14,2) NOT NULL", "price            numeric(14,3) NOT NULL"),
+    ("CHECK (wine_id_a < wine_id_b)", "CHECK (wine_id_a <> wine_id_b)"),
+    ("REFERENCES offer(offer_pk) ON DELETE SET NULL", "REFERENCES offer(offer_pk)"),
+    ("    WHERE status = 'ok';", "    ;"),
+])
+def test_equivalence_check_detects_a_one_line_drift(old, new):
+    """The deliberate-failure check, kept as a test: the comparator above must
+    notice a one-line change in scale, a CHECK, an ON DELETE rule or an index
+    predicate. If it cannot, a passing equivalence test means nothing."""
+    assert SCHEMA_SQL.count(old) == 1, old
+    _reset(TEST_DB)
+    _alembic("upgrade", "head")
+    migrated = _catalog(TEST_DB)
+    assert migrated != _apply_schema(SCHEMA_SQL.replace(old, new))
 
 
 @pg
@@ -199,20 +299,147 @@ def test_downgrade_to_base_removes_every_table():
     assert _catalog(TEST_DB) == {"columns": [], "constraints": [], "indexes": []}
 
 
-# --- live-shaped Farr records ----------------------------------------------
+@pg
+def test_downgrade_from_head_restores_the_previous_schema_exactly():
+    _reset(TEST_DB)
+    _alembic("upgrade", "0002_seed_verified_merchants")
+    before = _catalog(TEST_DB)
+    _alembic("upgrade", "head")
+    _alembic("downgrade", "0002_seed_verified_merchants")
+    assert _catalog(TEST_DB) == before
+
+
+@pg
+def test_0003_carries_existing_data_forward():
+    """Data written under 0002 survives 0003: unresolved offers move to
+    offer_reject, reversed exclusions are normalised, old runs gain provenance
+    and an offer_snapshot, unaudited identities are marked as such."""
+    _reset(TEST_DB)
+    _alembic("upgrade", "0002_seed_verified_merchants")
+    w = sorted(r["wine_id"] for r in _sql(
+        """INSERT INTO wine (producer, cuvee, wine_key) VALUES
+           ('P', 'A', 'p|a'), ('P', 'B', 'p|b'), ('P', 'C', 'p|c') RETURNING wine_id"""))
+    _sql("INSERT INTO wine_exclusion VALUES (%s, %s, 'reversed'), (%s, %s, 'one way'), "
+         "(%s, %s, 'other way')", (w[1], w[0], w[1], w[2], w[2], w[1]), fetch=False)
+    sid = _sql("""INSERT INTO snapshot (captured_at, schema_version, failures)
+                  VALUES ('2026-09-18T10:00Z', '1',
+                          '[{"merchant_id": "bordeaux-index", "error": "targeted"}]')
+                  RETURNING snapshot_id""")[0]["snapshot_id"]
+    offer_cols = """(snapshot_id, offer_id, merchant_id, wine_id, vintage, bottle_ml, pack_size,
+                     price, currency, duty_status, price_kind, is_buyable, captured_at)"""
+    resolved = _sql(f"""INSERT INTO offer {offer_cols} VALUES
+        (%s, 'farr:1', 'farr', %s, 2011, 750, 1, 610.00, 'GBP', 'IB', 'ASK', true,
+         '2026-09-18T10:00Z') RETURNING offer_pk""", (sid, w[0]))[0]["offer_pk"]
+    _sql(f"""INSERT INTO offer {offer_cols} VALUES
+        (%s, 'farr:2', 'farr', NULL, 2011, 750, 1, 300.00, 'GBP', 'IB', 'ASK', true,
+         '2026-09-18T10:00Z')""", (sid,), fetch=False)
+    _sql("""INSERT INTO offer_reject (snapshot_id, merchant_id, reason, raw)
+            VALUES (%s, 'goedhuis', 'MIXED_LOT', '{}')""", (sid,), fetch=False)
+    deal = _sql("INSERT INTO deal (name, created_by) VALUES ('d', 'op') RETURNING deal_id")[0]
+    line = _sql("""INSERT INTO seller_line (deal_id, row_index, raw_description, raw_row, wine_id,
+                   vintage, bottle_ml, pack_size, quantity)
+                   VALUES (%s, 0, 'x', '{}', %s, 2011, 750, 1, 1) RETURNING line_id""",
+                (deal["deal_id"], w[0]))[0]["line_id"]
+    run = _sql("""INSERT INTO benchmark_run (line_id, snapshot_id, computed_at, uk_floor,
+                  uk_reference, uk_median, comp_count, flags, state)
+                  VALUES (%s, %s, '2026-09-18T11:00Z', 610, 610, 610, 1, '{ONE_COMP}', 'REVIEW')
+                  RETURNING run_id""", (line, sid))[0]["run_id"]
+    _sql("INSERT INTO benchmark_comp VALUES (%s, %s, 'merchant_best', NULL)",
+         (run, resolved), fetch=False)
+
+    _alembic("upgrade", "head")
+
+    assert _sql("SELECT wine_id_a, wine_id_b, reason FROM wine_exclusion ORDER BY 1, 2") == [
+        {"wine_id_a": w[0], "wine_id_b": w[1], "reason": "reversed"},
+        {"wine_id_a": w[1], "wine_id_b": w[2], "reason": "one way / other way"}]
+    sm = {r["merchant_id"]: r for r in _sql("SELECT * FROM snapshot_merchant")}
+    assert (sm["farr"]["status"], sm["farr"]["offers_written"], sm["farr"]["offers_rejected"]) \
+        == ("ok", 1, 1)
+    assert sm["goedhuis"]["status"] == "ok"
+    assert (sm["bordeaux-index"]["status"], sm["bordeaux-index"]["error"]) == ("failed", "targeted")
+    assert _sql("SELECT count(*) AS n FROM offer")[0]["n"] == 1
+    moved = _sql("SELECT * FROM offer_reject WHERE reason = 'UNRESOLVED_IDENTITY'")
+    assert len(moved) == 1 and moved[0]["raw"]["offer_id"] == "farr:2"
+    ln = _sql("SELECT * FROM seller_line")[0]
+    assert ln["wine_id_approved_by"].startswith("unrecorded") and ln["flags"] == []
+    r = _sql("SELECT * FROM benchmark_run")[0]
+    assert r["as_of"] == r["computed_at"]
+    assert {x["merchant_id"] for x in _sql("SELECT * FROM benchmark_run_snapshot")} \
+        == {"farr", "goedhuis"}
+    comp = _sql("SELECT * FROM benchmark_comp")[0]
+    assert comp["offer_snapshot"]["price"] == "610.00"
+    assert comp["offer_snapshot"]["merchant"] == "Farr Vintners"
+
+
+# --- schema integrity ---------------------------------------------------------
+
+
+@pg
+@pytest.mark.parametrize("column,value", [
+    ("wine_id", None),
+    ("stock_type", "WAREHOUSE"),
+    ("condition_flags", ["ORIGINAL_CASE", "LOOKS_FINE"]),
+])
+def test_offer_integrity_constraints(db, column, value):
+    import psycopg
+    wid = _sql("INSERT INTO wine (producer, cuvee, wine_key) VALUES ('P','C','p|c') "
+               "RETURNING wine_id")[0]["wine_id"]
+    sid = _sql("INSERT INTO snapshot (captured_at, schema_version) VALUES (now(), '2') "
+               "RETURNING snapshot_id")[0]["snapshot_id"]
+    row = {"wine_id": wid, "stock_type": "UNKNOWN", "condition_flags": []}
+    row[column] = value
+    with pytest.raises(psycopg.errors.IntegrityError):
+        _sql("""INSERT INTO offer (snapshot_id, offer_id, merchant_id, wine_id, vintage,
+                bottle_ml, pack_size, price, currency, duty_status, price_kind, is_buyable,
+                captured_at, stock_type, condition_flags)
+                VALUES (%s, 'x', 'farr', %s, 2011, 750, 1, 1.00, 'GBP', 'IB', 'ASK', true,
+                        now(), %s, %s)""",
+             (sid, row["wine_id"], row["stock_type"], row["condition_flags"]), fetch=False)
+
+
+@pg
+def test_exclusion_pair_cannot_be_stored_in_both_orders(db):
+    import psycopg
+    a, b = sorted(r["wine_id"] for r in _sql(
+        "INSERT INTO wine (producer, cuvee, wine_key) VALUES ('P','A','p|a'), ('P','B','p|b') "
+        "RETURNING wine_id"))
+    _sql("INSERT INTO wine_exclusion VALUES (%s, %s, 'r')", (a, b), fetch=False)
+    with pytest.raises(psycopg.errors.CheckViolation):
+        _sql("INSERT INTO wine_exclusion VALUES (%s, %s, 'r')", (b, a), fetch=False)
+
+
+@pg
+def test_usd_cost_cannot_be_priced_without_its_fx_rate(client):
+    """Without the rate and its date, GP on a USD-cost parcel can never be
+    reproduced."""
+    import psycopg
+    wid = _seed_wine(client)
+    _collect(client)
+    deal_id, line_id = _deal(client, wid)
+    _benchmark(client, deal_id)
+    run_id = client.get(f"/lines/{line_id}/benchmark").json()["run_id"]
+    cols = "(line_id, run_id, priced_by, comp_count, cost, cost_currency, state"
+    with pytest.raises(psycopg.errors.CheckViolation):
+        _sql(f"INSERT INTO pricing_result {cols}) VALUES (%s, %s, 'op', 1, 500.00, 'USD', 'REVIEW')",
+             (line_id, run_id), fetch=False)
+    _sql(f"""INSERT INTO pricing_result {cols}, fx_rate, fx_rate_date, fx_source)
+             VALUES (%s, %s, 'op', 1, 500.00, 'USD', 'REVIEW', 0.74120000, '2026-09-19', 'ECB')""",
+         (line_id, run_id), fetch=False)
+
+
+# --- live-shaped Farr records ------------------------------------------------
 
 R = "Domaine Armand Rousseau"
 
 
-def farr(wine_id, wine, vintage, size, price, per, units, variation=None):
+def farr(wine_id, wine, vintage, size, price, per, units, variation=None, lwin7=None):
     return {"WineId": wine_id, "Wine": wine, "Vintage": vintage, "Size": size,
             "SellGBP": price, "Per": per, "Units": units, "Variation": variation,
-            "Url": f"https://www.farrvintners.com/wine.php?wine={wine_id}"}
+            "LWIN-7": lwin7, "Url": f"https://www.farrvintners.com/wine.php?wine={wine_id}"}
 
 
 FARR_BOOK = [
-    # Charmes 2011: one loose bottle at £610, and a 6x75cl case — the Bordeaux
-    # Index / Farr pair from decision 0001, reduced to Farr only.
+    # Charmes 2011: one loose bottle at £610, and a 6x75cl case.
     farr(1, "Charmes-Chambertin, Domaine Armand Rousseau", "2011", "1×75cl", "610.00", 1, 1,
          "Not in original carton"),
     farr(2, "Charmes-Chambertin, Domaine Armand Rousseau", "2011", "6×75cl", "4428.00", 6, 1),
@@ -222,33 +449,53 @@ FARR_BOOK = [
 ]
 
 
-def _seed_wine(client, producer=R, cuvee="Charmes-Chambertin") -> str:
-    r = client.post("/wines", json={"producer": producer, "cuvee": cuvee})
+def bi_card(price: str, vintage: int = 2011, cuvee: str = "Charmes-Chambertin Grand Cru") -> dict:
+    return {"title": f"{vintage} Domaine Armand Rousseau, {cuvee}", "code": "roush-2011",
+            "url": "https://bordeauxindex.com/livetrade/roush-2011",
+            "offers": [f"Bottle (75cl) CONDITION Original Case STATUS In-Bond ETA In Stock "
+                       f"You buy £{price} 2 Bottle(s) Available"]}
+
+
+def _seed_wine(client, producer=R, cuvee="Charmes-Chambertin", lwin7=None) -> str:
+    r = client.post("/wines", json={"producer": producer, "cuvee": cuvee, "lwin7": lwin7})
     assert r.status_code == 201, r.text
     return r.json()["wine_id"]
 
 
-def _collect(client, book=FARR_BOOK) -> str:
-    """Enqueue through the API, run the real job in-process with the network
-    replaced: fetch returns the captured book and robots.txt allows."""
-    jid = client.post("/snapshots", json={"merchant_ids": ["farr"]}).json()["job_id"]
-    orig = jobs.collect_snapshot
-
-    def offline(merchant_ids=None, is_demo=False):
-        return orig(merchant_ids, is_demo=is_demo,
-                    fetch=lambda a: book if a.id == "farr" else [], robots=lambda url: None)
-
-    jobs.collect_snapshot = offline
+def _run_patched(client, jid: str, name: str, offline) -> dict:
+    orig = getattr(jobs, name)
+    setattr(jobs, name, offline(orig))
     try:
         _work(client.queue)
     finally:
-        jobs.collect_snapshot = orig
+        setattr(jobs, name, orig)
     j = _job(client, jid)
     assert j["status"] == "finished", j
-    return j["result"]
+    return j
 
 
-def _deal(client, wine_id, quantity=6, pack=1) -> tuple[str, str]:
+def _collect(client, book=FARR_BOOK, merchant="farr") -> str:
+    """Enqueue through the API and run the real job in-process with the network
+    replaced: fetch returns the captured book and robots.txt allows."""
+    jid = client.post("/snapshots", json={"merchant_ids": [merchant]}).json()["job_id"]
+    return _run_patched(client, jid, "collect_snapshot", lambda orig: (
+        lambda merchant_ids=None, is_demo=False: orig(
+            merchant_ids, is_demo=is_demo, fetch=lambda a: book, robots=lambda url: None)
+    ))["result"]
+
+
+def _collect_bi(client, wine_id, cards, vintage=2011) -> str:
+    jid = client.post("/snapshots/targeted", json={
+        "merchant_id": "bordeaux-index", "wine_id": wine_id, "vintage": vintage,
+        "params": {"producer_slug": "domaine-armand-rousseau"}}).json()["job_id"]
+    return _run_patched(client, jid, "collect_targeted", lambda orig: (
+        lambda merchant_id, wine_id, vintage, params, is_demo=False: orig(
+            merchant_id, wine_id, vintage, params, is_demo=is_demo,
+            fetch=lambda a, p, v: cards, robots=lambda url: None)
+    ))["result"]
+
+
+def _deal(client, wine_id, quantity=6, pack=1, flags=()) -> tuple[str, str]:
     r = client.post("/deals", json={
         "name": "Rousseau parcel", "created_by": "op", "currency": "GBP",
         "lines": [{"row_index": 0, "raw_description": "Rousseau Charmes 2011 x6 loose",
@@ -258,15 +505,27 @@ def _deal(client, wine_id, quantity=6, pack=1) -> tuple[str, str]:
     deal = r.json()
     line_id = deal["lines"][0]["line_id"]
     r = client.put(f"/lines/{line_id}/identity", json={
-        "wine_id": wine_id, "vintage": 2011, "bottle_ml": 750, "pack_size": pack})
+        "wine_id": wine_id, "vintage": 2011, "bottle_ml": 750, "pack_size": pack,
+        "source": "operator", "approved_by": "op", "flags": list(flags)})
     assert r.status_code == 200, r.text
     return deal["deal_id"], line_id
 
 
-def _benchmark(client, deal_id) -> dict:
-    jid = client.post(f"/deals/{deal_id}/benchmark").json()["job_id"]
+def _benchmark(client, deal_id, as_of: datetime | None = None) -> dict:
+    body = {"as_of": as_of.isoformat()} if as_of else None
+    jid = client.post(f"/deals/{deal_id}/benchmark", json=body).json()["job_id"]
     _work(client.queue)
     return _job(client, jid)
+
+
+def _age_capture(snapshot_id: str, days: float) -> None:
+    """Make a capture look `days` old: its merchant row and every offer in it."""
+    for table in ("snapshot_merchant", "offer"):
+        _sql(f"UPDATE {table} SET captured_at = captured_at - %s WHERE snapshot_id = %s",
+             (timedelta(days=days), snapshot_id), fetch=False)
+
+
+# --- collection -------------------------------------------------------------
 
 
 @pg
@@ -275,11 +534,80 @@ def test_every_raw_record_ends_as_one_offer_or_one_reject(client):
     sid = _collect(client)
     snap = client.get(f"/snapshots/{sid}").json()
     assert (snap["offers_written"], snap["offers_rejected"]) == (2, 2)
-    import psycopg
-    with psycopg.connect(TEST_DB) as c:
-        rejects = dict(c.execute("SELECT reason, detail FROM offer_reject").fetchall())
+    [m] = snap["merchants"]
+    assert (m["merchant_id"], m["status"], m["scope_producer_key"]) == ("farr", "ok", None)
+    rejects = {r["reason"]: r["detail"] for r in _sql("SELECT reason, detail FROM offer_reject")}
     assert set(rejects) == {"MIXED_LOT", "UNRESOLVED_IDENTITY"}
     assert "Mazoyeres" in rejects["UNRESOLVED_IDENTITY"]
+
+
+@pg
+def test_one_float32_price_no_longer_aborts_the_whole_farr_capture(client):
+    """Farr WineId 230806 publishes SellGBP 308.329986. Before the whole-pence
+    screen that one record raised inside ingest and lost every Farr offer."""
+    _seed_wine(client)
+    book = [*FARR_BOOK, farr(230806, "Barolo Cascina Francia, Giacomo Conterno", "2008",
+                             "1×1.5L", 308.329986, 1, 1)]
+    snap = client.get(f"/snapshots/{_collect(client, book)}").json()
+    assert snap["merchants"][0]["status"] == "ok" and snap["offers_written"] == 2
+    [r] = _sql("SELECT * FROM offer_reject WHERE reason = 'NOT_WHOLE_PENCE'")
+    assert "308.329986" in r["detail"]
+
+
+@pg
+def test_ambiguous_farr_lwin_is_ignored_at_ingest(client):
+    """Using the captured feed: 1038217 names both Jadot Clos Saint Jacques and
+    Lavaux Saint Jacques. With only Clos Saint Jacques in the canonical table,
+    Lavaux must be UNRESOLVED, not priced as Clos Saint Jacques."""
+    feed = json.loads((ROOT / "tests/fixtures/farr-feed-2026-09-19.json").read_text())["data"]
+    jadot = [r for r in feed if r["LWIN-7"] == 1038217]
+    _seed_wine(client, "Louis Jadot", "Gevrey Chambertin Clos Saint Jacques", lwin7="1038217")
+    _collect(client, jadot)
+    assert [o["offer_id"] for o in _sql("SELECT offer_id FROM offer")] == ["farr:227986"]
+    [rej] = _sql("SELECT detail FROM offer_reject")
+    assert "Lavaux" in rej["detail"] and "(ambiguous)" in rej["detail"]
+
+
+@pg
+def test_unambiguous_farr_lwin_resolves_what_the_name_cannot(client):
+    feed = json.loads((ROOT / "tests/fixtures/farr-feed-2026-09-19.json").read_text())["data"]
+    lafite = [r for r in feed if r["WineId"] == 237136]
+    _seed_wine(client, "Chateau Lafite Rothschild", "Grand Vin", lwin7="1011872")
+    assert client.get(f"/snapshots/{_collect(client, lafite)}").json()["offers_written"] == 1
+
+
+@pg
+def test_bordeaux_index_card_with_no_parsable_row_is_a_reject_not_a_silence(client):
+    wid = _seed_wine(client, cuvee="Charmes-Chambertin Grand Cru")
+    card = {**bi_card("650.00"), "offers": ["Case (6 x 75cl) STATUS In-Bond price on request"]}
+    _collect_bi(client, wid, [card])
+    assert [r["reason"] for r in _sql("SELECT reason FROM offer_reject")] == ["NO_OFFER_ROWS"]
+
+
+@pg
+def test_whole_book_collection_refers_targeted_merchants_to_targeted_search(db):
+    sid = jobs.collect_snapshot(["farr", "bordeaux-index"],
+                                fetch=lambda a: [], robots=lambda url: None)
+    [snap] = _sql("SELECT failures, adapters_succeeded FROM snapshot WHERE snapshot_id = %s", (sid,))
+    assert snap["adapters_succeeded"] == 1
+    assert [f["merchant_id"] for f in snap["failures"]] == ["bordeaux-index"]
+    assert "collect_targeted" in snap["failures"][0]["error"]
+
+
+@pg
+def test_robots_disallow_is_a_recorded_failure(db):
+    from app.worker.politeness import RobotsDisallowed
+
+    def deny(url):
+        raise RobotsDisallowed(f"robots.txt disallows {url}")
+
+    sid = jobs.collect_snapshot(["farr"], fetch=lambda a: FARR_BOOK, robots=deny)
+    [m] = _sql("SELECT * FROM snapshot_merchant WHERE snapshot_id = %s", (sid,))
+    assert m["status"] == "failed" and "RobotsDisallowed" in m["error"]
+    assert _sql("SELECT count(*) AS n FROM offer")[0]["n"] == 0
+
+
+# --- benchmark: resolution, freshness, self-containment ---------------------
 
 
 @pg
@@ -296,13 +624,134 @@ def test_one_farr_bottle_is_review_not_ready_and_case_is_visible_not_priced(clie
     assert set(run["flags"]) == {"ONE_COMP", "QUANTITY_SHORTFALL"}
     assert (run["uk_floor"], run["uk_reference"], run["uk_median"]) == ("610.00",) * 3
     roles = {(c["role"], c["price"]) for c in run["comps"]}
-    assert ("merchant_best", "610.00") in roles
-    assert ("cross_unit", "4428.00") in roles
-    assert ("rejected", "4428.00") in roles
+    assert {("merchant_best", "610.00"), ("cross_unit", "4428.00"), ("rejected", "4428.00")} <= roles
     xu = next(c for c in run["comps"] if c["role"] == "cross_unit")
     assert Decimal(xu["per_bottle"]) == Decimal("738")
-    assert next(c for c in run["comps"] if c["role"] == "merchant_best")[
-        "condition_notes"] == "Not in original carton"
+    best = next(c for c in run["comps"] if c["role"] == "merchant_best")
+    assert best["condition_notes"] == "Not in original carton"
+    assert best["merchant_offer_id"] == "farr:1"
+    assert [s["merchant_id"] for s in run["sources"]] == ["farr"]
+
+
+@pg
+def test_bordeaux_index_producer_vintage_search_joins_the_market(client):
+    """A targeted BI capture covers Rousseau 2011 and nothing else. With Farr it
+    makes two merchants: the line is READY instead of ONE_COMP."""
+    wid = _seed_wine(client, cuvee="Charmes-Chambertin Grand Cru")
+    client.post(f"/wines/{wid}/aliases", json={
+        "producer_text": R, "cuvee_text": "Charmes-Chambertin", "source": "operator",
+        "approved_by": "op", "note": "Farr omits 'Grand Cru'"})
+    _collect(client)
+    sid = _collect_bi(client, wid, [bi_card("650.00")])
+    [m] = client.get(f"/snapshots/{sid}").json()["merchants"]
+    assert (m["scope_producer_key"], m["scope_vintage"]) == ("domaine armand rousseau", 2011)
+
+    deal_id, line_id = _deal(client, wid, quantity=1)
+    _benchmark(client, deal_id)
+    run = client.get(f"/lines/{line_id}/benchmark").json()
+    assert run["state"] == "READY" and run["comp_count"] == 2
+    assert (run["uk_floor"], run["uk_reference"]) == ("610.00", "650.00")
+    assert {s["merchant_id"] for s in run["sources"]} == {"farr", "bordeaux-index"}
+
+
+@pg
+def test_targeted_capture_does_not_cover_another_vintage(client):
+    wid = _seed_wine(client, cuvee="Charmes-Chambertin Grand Cru")
+    _collect_bi(client, wid, [bi_card("650.00", vintage=2012)], vintage=2012)
+    deal_id, line_id = _deal(client, wid)             # a 2011 line
+    j = _benchmark(client, deal_id)
+    assert j["result"]["no_coverage"] == [line_id]
+    assert client.get(f"/lines/{line_id}/benchmark").status_code == 404
+
+
+@pg
+def test_each_merchant_resolves_its_own_latest_capture(client):
+    """Farr captured twice: the later capture no longer lists the bottle. The
+    earlier £610 must not come back: a newer look that finds nothing wins."""
+    wid = _seed_wine(client)
+    first = _collect(client)
+    _age_capture(first, 2)
+    _collect(client, FARR_BOOK[1:])                     # the bottle has sold
+    deal_id, line_id = _deal(client, wid)
+    _benchmark(client, deal_id)
+    run = client.get(f"/lines/{line_id}/benchmark").json()
+    assert run["state"] == "NO_MARKET"
+    assert all(c["price"] != "610.00" for c in run["comps"])
+
+
+@pg
+def test_stale_capture_is_rejected_with_its_reason_and_prices_nothing(client):
+    """A Farr capture 20 days old is past MAX_OFFER_AGE_DAYS. The £610 bottle is
+    in the run, marked stale, and prices nothing; the stale case is not offered
+    as cross-unit evidence either."""
+    wid = _seed_wine(client)
+    _age_capture(_collect(client), 20)
+    deal_id, line_id = _deal(client, wid)
+    _benchmark(client, deal_id)
+    run = client.get(f"/lines/{line_id}/benchmark").json()
+    assert run["state"] == "NO_MARKET" and run["uk_reference"] is None
+    stale = [c for c in run["comps"] if c["reject_reason"] == "captured outside the freshness window"]
+    assert [c["price"] for c in stale] == ["610.00"]
+    assert not [c for c in run["comps"] if c["role"] == "cross_unit"]
+
+
+@pg
+def test_oldest_contributing_comp_age_is_on_the_run(client):
+    wid = _seed_wine(client)
+    sid = _collect(client)
+    _age_capture(sid, 3)
+    as_of = _sql("SELECT captured_at FROM snapshot_merchant")[0]["captured_at"] + timedelta(days=3)
+    deal_id, line_id = _deal(client, wid)
+    _benchmark(client, deal_id, as_of=as_of)
+    run = client.get(f"/lines/{line_id}/benchmark").json()
+    assert run["oldest_comp_age"] == "P3D"
+    assert datetime.fromisoformat(run["as_of"]) == as_of
+
+
+@pg
+def test_pruning_a_snapshot_leaves_the_run_whole(client):
+    """Snapshots are a cache. Deleting one must not be blocked by history, and
+    the run must read exactly as before, except that it no longer points at
+    rows that are gone."""
+    wid = _seed_wine(client)
+    sid = _collect(client)
+    deal_id, line_id = _deal(client, wid)
+    _benchmark(client, deal_id)
+    before = client.get(f"/lines/{line_id}/benchmark").json()
+
+    _sql("DELETE FROM snapshot WHERE snapshot_id = %s", (sid,), fetch=False)
+    after = client.get(f"/lines/{line_id}/benchmark").json()
+
+    assert all(c["offer_pk"] is None for c in after["comps"])
+    assert [s["snapshot_id"] for s in after["sources"]] == [None]
+    before["comps"] = [{**c, "offer_pk": None} for c in before["comps"]]
+    before["sources"] = [{**s, "snapshot_id": None} for s in before["sources"]]
+    assert before == after
+
+
+@pg
+def test_half_penny_median_is_rounded_by_the_core_and_stored_exactly(client):
+    """Two merchants at £610.01 and £610.02: the median is £610.015, rounded to
+    £610.02 in app/core/benchmark.py. Floor and Reference are never rounded."""
+    wid = _seed_wine(client)
+    sid = _collect(client, [farr(1, "Charmes-Chambertin, Domaine Armand Rousseau",
+                                 "2011", "1×75cl", "610.01", 1, 6)])
+    import psycopg
+    from psycopg.rows import dict_row
+    from app.db import repo
+    with psycopg.connect(TEST_DB, row_factory=dict_row, prepare_threshold=None) as c:
+        o = repo.offer_from_row(c.execute(
+            "SELECT o.*, m.name AS merchant_name FROM offer o JOIN merchant m USING (merchant_id)"
+        ).fetchone())
+        repo.write_offer(c, sid, replace(o, offer_id="goedhuis:X", merchant_id="goedhuis",
+                                         price=Decimal("610.02"), wine_id=wid))
+        repo.write_snapshot_merchant(c, sid, "goedhuis", captured_at=o.captured_at, written=1)
+    deal_id, line_id = _deal(client, wid)
+    _benchmark(client, deal_id)
+    run = client.get(f"/lines/{line_id}/benchmark").json()
+    assert run["state"] == "READY" and run["comp_count"] == 2
+    assert (run["uk_floor"], run["uk_reference"], run["uk_median"]) == (
+        "610.01", "610.02", "610.02")
 
 
 @pg
@@ -324,51 +773,28 @@ def test_api_never_emits_a_float_for_money(client):
 
     walk(client.get(f"/deals/{deal_id}").json())
     walk(client.get(f"/lines/{line_id}/benchmark").json())
-
-
-@pg
-def test_half_penny_median_is_rounded_explicitly_and_floor_reference_stay_exact(client):
-    """Two merchants at £610.01 and £610.02: the median is £610.015. uk_median
-    is numeric(14,2), so it is banker's-rounded in code, not by Postgres.
-    Floor and Reference are real offer prices and are never rounded."""
-    wid = _seed_wine(client)
-    sid = _collect(client, [farr(1, "Charmes-Chambertin, Domaine Armand Rousseau",
-                                 "2011", "1×75cl", "610.01", 1, 6)])
-    import psycopg
-    from dataclasses import replace
-    from app.db import repo
-    with psycopg.connect(TEST_DB, row_factory=psycopg.rows.dict_row) as c:
-        o = repo.offer_from_row(c.execute(
-            "SELECT o.*, m.name AS merchant_name FROM offer o JOIN merchant m USING (merchant_id)"
-        ).fetchone())
-        repo.write_offer(c, sid, replace(o, offer_id="goedhuis:X", merchant_id="goedhuis",
-                                         price=Decimal("610.02"), wine_id=wid))
-    deal_id, line_id = _deal(client, wid)
-    _benchmark(client, deal_id)
-    run = client.get(f"/lines/{line_id}/benchmark").json()
-    assert run["state"] == "READY" and run["comp_count"] == 2
-    assert (run["uk_floor"], run["uk_reference"], run["uk_median"]) == (
-        "610.01", "610.02", "610.02")
+    # offer_snapshot keeps money as strings too, not JSON numbers.
+    for c in _sql("SELECT offer_snapshot FROM benchmark_comp"):
+        assert isinstance(c["offer_snapshot"]["price"], str)
 
 
 @pg
 def test_unapproved_merchant_is_outside_the_universe(client):
     wid = _seed_wine(client)
     _collect(client)
-    import psycopg
-    with psycopg.connect(TEST_DB) as c:
-        c.execute("UPDATE merchant SET approved = false WHERE merchant_id = 'farr'")
+    _sql("UPDATE merchant SET approved = false WHERE merchant_id = 'farr'", fetch=False)
     deal_id, line_id = _deal(client, wid)
-    _benchmark(client, deal_id)
-    assert client.get(f"/lines/{line_id}/benchmark").json()["state"] == "NO_MARKET"
+    j = _benchmark(client, deal_id)
+    assert j["result"]["no_coverage"] == [line_id]
 
 
 @pg
-def test_benchmark_with_no_snapshot_fails_closed_instead_of_no_market(client):
+def test_no_capture_at_all_is_no_coverage_not_no_market(client):
+    """Nobody has looked, so NO_MARKET would be a claim nobody made."""
     wid = _seed_wine(client)
     deal_id, line_id = _deal(client, wid)
     j = _benchmark(client, deal_id)
-    assert j["status"] == "failed" and "NoSnapshot" in j["error"]
+    assert j["status"] == "finished" and j["result"]["no_coverage"] == [line_id]
     assert client.get(f"/lines/{line_id}/benchmark").status_code == 404
 
 
@@ -378,9 +804,28 @@ def test_line_without_approved_identity_is_not_benchmarked(client):
     _collect(client)
     r = client.post("/deals", json={"name": "d", "created_by": "op", "lines": [
         {"row_index": 0, "raw_description": "Rousseau ?", "raw_row": {}, "quantity": 1}]})
-    deal_id = r.json()["deal_id"]
-    j = _benchmark(client, deal_id)
+    j = _benchmark(client, r.json()["deal_id"])
     assert j["result"]["runs"] == {} and len(j["result"]["unapproved_identity"]) == 1
+
+
+# --- identity approval, history, line flags ---------------------------------
+
+
+@pg
+def test_identity_approval_is_recorded_with_its_history(client):
+    a = _seed_wine(client, cuvee="Charmes-Chambertin")
+    b = _seed_wine(client, cuvee="Mazoyeres-Chambertin")
+    _, line_id = _deal(client, a)
+    r = client.put(f"/lines/{line_id}/identity", json={
+        "wine_id": b, "vintage": 2011, "bottle_ml": 750, "pack_size": 1,
+        "source": "ai_reviewed", "approved_by": "reviewer", "flags": ["NAME_REVIEW"]})
+    line = r.json()
+    assert (line["wine_id"], line["wine_id_source"], line["wine_id_approved_by"],
+            line["flags"]) == (b, "ai_reviewed", "reviewer", ["NAME_REVIEW"])
+    first, second = client.get(f"/lines/{line_id}/identity-history").json()
+    assert (first["prev_wine_id"], first["new_wine_id"], first["changed_by"]) == (None, a, "op")
+    assert (second["prev_wine_id"], second["new_wine_id"], second["source"]) == (a, b, "ai_reviewed")
+    assert (second["prev_flags"], second["new_flags"]) == ([], ["NAME_REVIEW"])
 
 
 @pg
@@ -391,6 +836,36 @@ def test_setting_identity_never_touches_the_original_seller_text(client):
     assert line["raw_description"] == "Rousseau Charmes 2011 x6 loose"
     assert line["raw_row"] == {"A": "Rousseau Charmes 2011", "B": "6", "C": "£480"}
     assert line["wine_id"] == wid
+
+
+@pg
+def test_persisted_name_review_holds_a_ready_market_in_review(client):
+    """Two merchants make the market READY. The line carries NAME_REVIEW from
+    identity verification, so it must come out REVIEW."""
+    wid = _seed_wine(client, cuvee="Charmes-Chambertin Grand Cru")
+    client.post(f"/wines/{wid}/aliases", json={
+        "producer_text": R, "cuvee_text": "Charmes-Chambertin", "source": "operator",
+        "approved_by": "op"})
+    _collect(client)
+    _collect_bi(client, wid, [bi_card("650.00")])
+    deal_id, line_id = _deal(client, wid, quantity=1, flags=["NAME_REVIEW"])
+    _benchmark(client, deal_id)
+    run = client.get(f"/lines/{line_id}/benchmark").json()
+    assert run["comp_count"] == 2 and run["state"] == "REVIEW"
+    assert "NAME_REVIEW" in run["flags"]
+
+
+@pg
+def test_only_line_flags_can_be_persisted_on_a_line(client):
+    wid = _seed_wine(client)
+    _, line_id = _deal(client, wid)
+    r = client.put(f"/lines/{line_id}/identity", json={
+        "wine_id": wid, "vintage": 2011, "bottle_ml": 750, "pack_size": 1,
+        "source": "operator", "approved_by": "op", "flags": ["WIDE_SPREAD"]})
+    assert r.status_code == 422
+
+
+# --- aliases ------------------------------------------------------------------
 
 
 @pg
@@ -427,32 +902,3 @@ def test_approved_alias_resolves_merchant_spelling_on_next_collection(client):
 
 def _collect_written(client) -> int:
     return client.get(f"/snapshots/{_collect(client)}").json()["offers_written"]
-
-
-@pg
-def test_targeted_only_merchant_is_a_recorded_failure_not_a_silent_gap(db):
-    sid = jobs.collect_snapshot(["farr", "bordeaux-index"],
-                                fetch=lambda a: [], robots=lambda url: None)
-    import psycopg
-    with psycopg.connect(TEST_DB) as c:
-        failures, ok = c.execute(
-            "SELECT failures, adapters_succeeded FROM snapshot WHERE snapshot_id = %s",
-            (sid,)).fetchone()
-    assert ok == 1
-    assert [f["merchant_id"] for f in failures] == ["bordeaux-index"]
-
-
-@pg
-def test_robots_disallow_is_a_recorded_failure(db):
-    from app.worker.politeness import RobotsDisallowed
-
-    def deny(url):
-        raise RobotsDisallowed(f"robots.txt disallows {url}")
-
-    sid = jobs.collect_snapshot(["farr"], fetch=lambda a: FARR_BOOK, robots=deny)
-    import psycopg
-    with psycopg.connect(TEST_DB) as c:
-        failures, written = c.execute(
-            "SELECT failures, offers_written FROM snapshot WHERE snapshot_id = %s",
-            (sid,)).fetchone()
-    assert written == 0 and "RobotsDisallowed" in failures[0]["error"]

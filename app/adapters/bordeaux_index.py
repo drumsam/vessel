@@ -44,7 +44,8 @@ from typing import Iterator, Sequence
 from app.core.enums import DutyStatus, PriceKind, Reject, StockType
 from app.core.models import Offer
 from .base import Adapter, Candidate, Rejected
-from .condition import normalise_condition
+from .condition import condition_evidence
+from .http import user_agent
 
 BASE = "https://bordeauxindex.com"
 LIST_URL = BASE + "/fine-wine/all"
@@ -120,7 +121,7 @@ class BordeauxIndexAdapter(Adapter):
     def fetch(self, producer_slug: str, vintage: int) -> Sequence[dict]:  # pragma: no cover
         import httpx
         with httpx.Client(timeout=60, follow_redirects=True,
-                          headers={"User-Agent": "UKFineWinePricer/1.0"}) as c:
+                          headers={"User-Agent": user_agent()}) as c:
             c.get(CURRENCY_URL)                     # pin GBP for this session
             r = c.get(LIST_URL, params={"producer": producer_slug, "vintage": vintage})
             r.raise_for_status()
@@ -139,7 +140,7 @@ class BordeauxIndexAdapter(Adapter):
                 continue
             if p["price"] <= 0:
                 continue
-            flags = normalise_condition(p["condition_notes"])
+            flags, _ = condition_evidence(p["condition_notes"])
             out.append(Candidate(
                 offer=Offer(
                     offer_id=f"bi:{raw.get('code') or raw.get('url')}:{i}",
@@ -158,7 +159,7 @@ class BordeauxIndexAdapter(Adapter):
                     stock_type=StockType.UNKNOWN if p["third_party_marker"] else StockType.MERCHANT_STOCK,
                     stock_type_basis="unconfirmed" if p["third_party_marker"] else "inferred",
                     condition_flags=flags,
-                    condition_notes=p["condition_notes"],
+                    condition_notes=p["condition_notes"],   # all of CONDITION, flagged or not
                     source_url=raw.get("url"),
                     captured_at=captured_at or datetime.now(timezone.utc),
                     raw={"card": raw.get("title"), "offer_row": row},

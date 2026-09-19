@@ -5,21 +5,35 @@ If one of these fails, a wrong price is about to reach a client.
 """
 from __future__ import annotations
 
+import json
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from itertools import combinations
+from pathlib import Path
 
 import pytest
 
+from app.adapters.base import Candidate, whole_pence
 from app.adapters.bordeaux_index import BordeauxIndexAdapter, parse_offer_row, parse_title
 from app.adapters.condition import normalise_condition
 from app.adapters.farr import FarrAdapter, parse_size, split_wine_field
 from app.adapters.goedhuis import GoedhuisAdapter, is_eligible_variant, parse_sku
-from app.core.benchmark import benchmark
+from app.core.benchmark import benchmark as _benchmark
 from app.core.enums import ConditionFlag, DutyStatus, PriceKind, Reject, State, StockType
-from app.core.flags import Flag
+from app.core.flags import MAX_OFFER_AGE_DAYS, REVIEW_FLAGS, Flag
 from app.core.models import Offer, SellerLine
-from app.identity.resolver import STRUCTURAL_EXCLUSIONS, Registry, CanonicalWine, wine_key
+from app.identity.resolver import (
+    STRUCTURAL_EXCLUSIONS, CanonicalWine, Registry, ambiguous_lwins, wine_key)
 
 WINE = "w-rousseau-chambertin"
+
+#: Every offer below is captured at the moment it is benchmarked unless a test
+#: says otherwise, so freshness only decides the tests that are about it.
+AS_OF = datetime(2026, 9, 19, 12, 0, tzinfo=timezone.utc)
+
+
+def benchmark(line, offers, as_of=AS_OF):
+    return _benchmark(line, offers, as_of=as_of)
 
 
 def offer(**kw) -> Offer:
@@ -27,7 +41,7 @@ def offer(**kw) -> Offer:
         offer_id="x", merchant_id="m1", merchant="M1", wine_id=WINE, vintage=2011,
         bottle_ml=750, pack_size=1, price=Decimal("600"), currency="GBP",
         duty_status=DutyStatus.IN_BOND, price_kind=PriceKind.ASK,
-        is_buyable=True, offered_units=1,
+        is_buyable=True, offered_units=1, captured_at=AS_OF,
     )
     base.update(kw)
     return Offer(**base)
@@ -357,3 +371,243 @@ def test_condition_normalisation_from_live_strings():
     flags = normalise_condition("Excellent levels, not in original carton, stained labels")
     assert ConditionFlag.LABEL_DAMAGE in flags
     assert ConditionFlag.NO_ORIGINAL_CASE in flags
+
+
+# -------------------------------------------------- freshness (decision 0003)
+
+def test_six_month_old_capture_never_becomes_the_uk_reference():
+    """Before 0003 nothing stopped a March capture of a sold-out Rousseau
+    Chambertin at £600 from being the Reference in September: an undercut of
+    whatever the market now is, with nothing on the line to say so."""
+    old = offer(merchant_id="m1", price=Decimal("600"), captured_at=AS_OF - timedelta(days=182))
+    fresh = offer(merchant_id="m2", price=Decimal("900"))
+    r = benchmark(line(), [old, fresh])
+    assert r.uk_reference == Decimal("900") and r.comp_count == 1
+    assert [x.reason for x in r.rejections] == [Reject.STALE]
+    assert r.state is State.REVIEW
+
+
+@pytest.mark.parametrize("age,fresh", [
+    (timedelta(0), True),
+    (timedelta(days=MAX_OFFER_AGE_DAYS), True),                        # boundary is inclusive
+    (timedelta(days=MAX_OFFER_AGE_DAYS, seconds=1), False),
+    (timedelta(seconds=-1), False),                                     # captured after as_of
+])
+def test_freshness_window_boundaries(age, fresh):
+    r = benchmark(line(), [offer(captured_at=AS_OF - age)])
+    assert (r.comp_count == 1) is fresh
+    if not fresh:
+        assert r.rejections[0].reason is Reject.STALE
+
+
+def test_undated_offer_is_not_provably_fresh():
+    r = benchmark(line(), [offer(captured_at=None)])
+    assert r.state is State.NO_MARKET
+    assert r.rejections[0].reason is Reject.STALE
+
+
+def test_stale_case_is_not_shown_as_cross_unit_evidence():
+    """Cross-unit evidence is 'otherwise a valid In Bond ask'. A stale case price
+    shown per bottle next to a fresh line would read as current."""
+    r = benchmark(line(), [offer(pack_size=6, price=Decimal("3600"),
+                                 captured_at=AS_OF - timedelta(days=30))])
+    assert r.cross_unit == []
+
+
+def test_oldest_contributing_comp_age_is_exposed():
+    r = benchmark(line(), [offer(merchant_id="m1", captured_at=AS_OF - timedelta(days=9)),
+                           offer(merchant_id="m2", price=Decimal("650"),
+                                 captured_at=AS_OF - timedelta(days=2))])
+    assert r.oldest_comp_age == timedelta(days=9)
+    assert benchmark(line(), []).oldest_comp_age is None
+
+
+def test_as_of_must_be_timezone_aware():
+    with pytest.raises(ValueError):
+        benchmark(line(), [offer()], as_of=AS_OF.replace(tzinfo=None))
+
+
+# ------------------------------------------------------------- median rounding
+
+
+@pytest.mark.parametrize("a,b,median", [
+    ("610.01", "610.02", "610.02"),     # £610.015 -> up to the even penny
+    ("610.02", "610.03", "610.02"),     # £610.025 -> down to the even penny
+    ("0.99", "1.00", "1.00"),           # £0.995 -> up, across the pound
+    ("100.00", "100.01", "100.00"),     # £100.005 -> down
+])
+def test_even_count_median_is_banker_rounded_both_directions(a, b, median):
+    """uk_median is numeric(14,2). Rounding it here, once, by a stated rule means
+    Postgres never rounds it silently on insert."""
+    r = benchmark(line(), [offer(merchant_id="m1", price=Decimal(a)),
+                           offer(merchant_id="m2", price=Decimal(b))])
+    assert str(r.uk_median) == median
+    assert (str(r.uk_floor), str(r.uk_reference)) == (a, b)     # never rounded
+
+
+def test_odd_count_median_is_an_offer_price_unchanged():
+    r = benchmark(line(), [offer(merchant_id=m, price=Decimal(p)) for m, p in
+                           (("m1", "600.00"), ("m2", "610.01"), ("m3", "700.00"))])
+    assert str(r.uk_median) == "610.01"
+
+
+# ------------------------------------------------ inherited flags (decision 0005)
+
+INHERITABLE = (Flag.NAME_REVIEW, Flag.FORMAT_REVIEW, Flag.DERIVED_FROM_CASE)
+MARKETS = {
+    "ready": [offer(merchant_id="m1"), offer(merchant_id="m2", price=Decimal("650"))],
+    "one_comp": [offer()],
+    "no_market": [],
+}
+SUBSETS = [frozenset(c) for n in range(len(INHERITABLE) + 1)
+           for c in combinations(INHERITABLE, n)]
+
+
+@pytest.mark.parametrize("market", MARKETS)
+@pytest.mark.parametrize("inherited", SUBSETS, ids=lambda s: "+".join(sorted(f.value for f in s)) or "none")
+def test_inherited_flags_only_ever_move_a_line_towards_review(market, inherited):
+    """A line flagged NAME_REVIEW by identity verification must never come out
+    of the benchmark READY. Adding flags can hold a line back; it cannot release
+    one, and it cannot conjure a market where there is none."""
+    rank = {State.READY: 0, State.REVIEW: 1}
+    base = benchmark(line(), MARKETS[market])
+    got = benchmark(line(inherited_flags=inherited), MARKETS[market])
+    assert inherited <= got.flags
+    if base.state is State.NO_MARKET:
+        assert got.state is State.NO_MARKET
+    else:
+        assert rank[got.state] >= rank[base.state]
+        assert got.state is (State.REVIEW if inherited else base.state)
+    assert (got.uk_floor, got.uk_reference, got.uk_median) == \
+           (base.uk_floor, base.uk_reference, base.uk_median)
+
+
+@pytest.mark.parametrize("flag", sorted(set(Flag) - REVIEW_FLAGS, key=lambda f: f.value))
+def test_a_non_review_flag_cannot_be_inherited(flag):
+    """Only review flags can be inherited. An upstream WIDE_SPREAD or NO_MARKET
+    on the line would be a claim about the market the benchmark did not make."""
+    with pytest.raises(ValueError):
+        benchmark(line(inherited_flags=frozenset({flag})), [offer()])
+
+
+# ------------------------------------------- Farr: LWIN, float prices, wording
+
+FARR_FEED = json.loads((Path(__file__).parent / "fixtures/farr-feed-2026-09-19.json").read_text())
+FARR = {r["WineId"]: r for r in FARR_FEED["data"]}
+
+
+def farr_candidate(wine_id: int) -> Candidate:
+    out = FarrAdapter().normalise(FARR[wine_id], captured_at=AS_OF)
+    assert isinstance(out, Candidate), out
+    return out
+
+
+def test_farr_lwin7_is_carried_not_discarded():
+    """Farr publishes LWIN-7 for Bordeaux as an integer; we used to throw it away."""
+    assert farr_candidate(237136).lwin7 == "1011872"          # Lafite Rothschild
+    assert farr_candidate(236920).lwin7 is None               # Rousseau: null in feed
+
+
+def test_farr_lwin_resolves_lafite_that_the_name_alone_cannot():
+    """'Lafite Rothschild' has no comma, so the name gives no producer/cuvee
+    split and wine_key misses. LWIN finds it."""
+    c = farr_candidate(237136)
+    reg = Registry([CanonicalWine("lafite", "Chateau Lafite Rothschild", "Grand Vin", "1011872"),
+                    CanonicalWine("carruades", "Chateau Lafite Rothschild", "Carruades", "1718931")])
+    assert reg.resolve_candidate(c.producer_text, c.cuvee_text, c.lwin7) == "lafite"
+    k = farr_candidate(215140)
+    assert reg.resolve_candidate(k.producer_text, k.cuvee_text, k.lwin7) == "carruades"
+
+
+def test_farr_shared_lwin_never_prices_lavaux_off_clos_saint_jacques():
+    """Farr, 2026-09-19: LWIN-7 1038217 on both Jadot Gevrey-Chambertin Clos
+    Saint Jacques (£960/6) and Lavaux Saint Jacques (£520/6). Trusting it would
+    price one climat off the other: an 85% error either way."""
+    csj, lav = farr_candidate(227986), farr_candidate(227984)
+    assert csj.lwin7 == lav.lwin7 == "1038217"
+    reg = Registry([
+        CanonicalWine("csj", "Louis Jadot", "Gevrey Chambertin Clos Saint Jacques", "1038217"),
+        CanonicalWine("lavaux", "Louis Jadot", "Gevrey Chambertin Lavaux Saint Jacques"),
+    ])
+    # LWIN says Clos Saint Jacques, the name says Lavaux: neither is trusted.
+    assert reg.resolve_candidate(lav.producer_text, lav.cuvee_text, lav.lwin7) is None
+    # The same capture shows Farr using 1038217 for two names: it is ignored.
+    batch = [(c.lwin7, c.producer_text, c.cuvee_text) for c in (csj, lav)]
+    assert "1038217" in ambiguous_lwins(batch)
+    assert reg.resolve_candidate(lav.producer_text, lav.cuvee_text, None) == "lavaux"
+
+
+def test_farr_shared_lwin_is_ambiguous_when_both_wines_are_listed():
+    """Veuve Clicquot and Veuve Clicquot Rosé share 1083129 in the same feed."""
+    b, r = farr_candidate(179275), farr_candidate(179277)
+    assert b.lwin7 == r.lwin7 == "1083129"
+    assert "1083129" in ambiguous_lwins([(c.lwin7, c.producer_text, c.cuvee_text) for c in (b, r)])
+    assert ambiguous_lwins([(b.lwin7, b.producer_text, b.cuvee_text)]) == frozenset()
+
+
+@pytest.mark.xfail(strict=True, reason=(
+    "Known gap: if a merchant lists ONLY the Rosé under the Brut's LWIN, and the "
+    "canonical table has only the Brut, LWIN resolves the Rosé to the Brut. "
+    "Closing it needs a policy decision on LWIN trust; see the 2026-09-19 report."))
+def test_farr_rose_alone_under_brut_lwin_is_not_priced_as_brut():
+    r = farr_candidate(179277)
+    reg = Registry([CanonicalWine("vcp-brut", "Veuve Clicquot", "Brut", "1083129")])
+    assert reg.resolve_candidate(r.producer_text, r.cuvee_text, r.lwin7) is None
+
+
+def test_farr_float32_price_is_not_whole_pence():
+    """Farr, WineId 230806, Conterno Cascina Francia 2008 magnum: SellGBP is
+    308.329986. Stored as-is it breaks numeric(14,2); rounded it is an estimate.
+    It is rejected. Before this screen it aborted ALL Farr ingest for the run."""
+    c = FarrAdapter().normalise(FARR[230806], captured_at=AS_OF)
+    assert c.offer.price == Decimal("308.329986")
+    assert not whole_pence(c.offer.price)
+    assert whole_pence(farr_candidate(145009).offer.price)             # 112.5 is fine
+    assert whole_pence(farr_candidate(237136).offer.price)
+
+
+def test_every_farr_fixture_record_normalises_without_exception():
+    for rec in FARR_FEED["data"]:
+        FarrAdapter().normalise(rec, captured_at=AS_OF)
+
+
+# --------------------------------- condition wording kept (all three adapters)
+
+
+def test_a_flag_without_the_merchants_wording_is_refused_by_the_contract():
+    o = offer(condition_flags=frozenset({ConditionFlag.LABEL_DAMAGE}), condition_notes=None)
+    with pytest.raises(ValueError, match="without the merchant's wording"):
+        Candidate(offer=o, producer_text="p", cuvee_text="c")
+
+
+def test_farr_keeps_condition_wording():
+    """Farr, Armailhac 2000 12x75cl: 'OWC, 1 slightly damaged label'."""
+    c = farr_candidate(238416)
+    assert ConditionFlag.LABEL_DAMAGE in c.offer.condition_flags
+    assert c.offer.condition_notes == "OWC, 1 slightly damaged label"
+
+
+def test_bordeaux_index_keeps_condition_wording():
+    card = {"title": "2009 Domaine Armand Rousseau Chambertin Grand Cru", "url": "u",
+            "offers": ["Case (6 x 75cl) CONDITION Original Case, stained labels STATUS In-Bond "
+                       "ETA In Stock You buy £31,800.00 1 Buy 1 Case(s) Remaining"]}
+    [c] = BordeauxIndexAdapter().normalise(card, captured_at=AS_OF)
+    assert ConditionFlag.LABEL_DAMAGE in c.offer.condition_flags
+    assert c.offer.condition_notes == "Original Case, stained labels"
+
+
+@pytest.mark.parametrize("wording,flag", [
+    ("Non OC", ConditionFlag.NO_ORIGINAL_CASE),
+    ("Repack", ConditionFlag.REPACK),                 # was flagged but DROPPED before
+    ("Stained Labels", ConditionFlag.LABEL_DAMAGE),   # was flagged but DROPPED before
+])
+def test_goedhuis_keeps_condition_wording_not_only_for_non_oc(wording, flag):
+    """Goedhuis writes condition into the title. Only 'Non OC' used to be kept;
+    any other flagged wording reached the operator as a bare flag."""
+    product = {"handle": "h", "title": f"09A6CCBR1PK _ 2006 - Chambertin Clos de Beze Grand Cru "
+                                       f"Armand Rousseau {wording} - 1x75cl",
+               "variants": [{"sku": "09A6CCBR1PK-IB-InBond-ExcVAT", "price": "2400.00",
+                             "available": True}]}
+    c = GoedhuisAdapter().normalise(product, captured_at=AS_OF)
+    assert flag in c.offer.condition_flags
+    assert wording in c.offer.condition_notes

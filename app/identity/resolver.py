@@ -11,7 +11,8 @@ The pricing core never sees a producer or a cuvee. It receives an approved
 `wine_id` or the record does not reach it.
 
 Resolution order (spec section 2):
-  1. LWIN, where the merchant publishes one
+  1. LWIN, where the merchant publishes one, unless the merchant uses that LWIN
+     for more than one wine name, or the name resolves to a different wine
   2. the canonical wine table, by normalised key
   3. controlled aliases
   4. an AI proposal, which must then pass an independent AI verification
@@ -121,9 +122,15 @@ class Registry:
             self._by_key.setdefault(a.key, a.wine_id)
 
     def resolve(self, producer: str, cuvee: str, lwin7: str | None = None) -> Optional[str]:
-        if lwin7 and str(lwin7) in self._by_lwin7:
-            return self._by_lwin7[str(lwin7)]
-        return self._by_key.get(wine_key(producer, cuvee))
+        """LWIN first, then wine_key and controlled aliases, with one guard: if
+        the LWIN and the name each resolve and they DISAGREE, return None.
+
+        A merchant's LWIN is its claim, not an approval. Farr's live feed on
+        2026-09-19 published LWIN-7 1038217 for both Jadot Clos Saint Jacques
+        and Lavaux Saint Jacques, and 1083129 for both Veuve Clicquot and Veuve
+        Clicquot Rosé. Where the name says otherwise, neither is trusted.
+        """
+        return self._agree(self._lwin(lwin7), self._by_key.get(wine_key(producer, cuvee)))
 
     def resolve_candidate(self, producer_text: str, cuvee_text: str,
                           lwin7: str | None = None) -> Optional[str]:
@@ -135,9 +142,36 @@ class Registry:
         """
         if producer_text:
             return self.resolve(producer_text, cuvee_text, lwin7)
-        combined = norm(cuvee_text)
+        return self._agree(self._lwin(lwin7), self._combined(cuvee_text))
+
+    def _lwin(self, lwin7: str | None) -> Optional[str]:
+        return self._by_lwin7.get(str(lwin7)) if lwin7 else None
+
+    def _combined(self, text: str) -> Optional[str]:
+        combined = norm(text)
         for key, wid in self._by_key.items():
             p, _, c = key.partition("|")
             if p and c and p in combined and c in combined:
                 return wid
         return None
+
+    @staticmethod
+    def _agree(by_lwin: Optional[str], by_name: Optional[str]) -> Optional[str]:
+        if by_lwin and by_name and by_lwin != by_name:
+            return None
+        return by_lwin or by_name
+
+
+def ambiguous_lwins(candidates: list[tuple[Optional[str], str, str]]) -> frozenset[str]:
+    """LWIN-7s a merchant uses for more than one wine name in the same capture.
+
+    `candidates` is [(lwin7, producer_text, cuvee_text), ...]. An LWIN that the
+    merchant itself applies to two different names cannot identify either, so
+    identity resolution ignores it for those records and uses the name alone.
+    Differences of accent, case and punctuation are not ambiguity.
+    """
+    names: dict[str, set[str]] = {}
+    for lwin7, producer_text, cuvee_text in candidates:
+        if lwin7:
+            names.setdefault(lwin7, set()).add(wine_key(producer_text, cuvee_text))
+    return frozenset(k for k, v in names.items() if len(v) > 1)

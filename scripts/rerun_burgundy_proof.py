@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import sys
+from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 
@@ -20,6 +21,12 @@ from app.adapters.condition import normalise_condition
 from app.identity.resolver import CanonicalWine, Registry, wine_key
 
 EV = json.load(open(Path(__file__).parent.parent / "tests/fixtures/evidence-2026-09-19.json"))
+
+# The proof is a replay: every offer carries the evidence file's capture time and
+# every benchmark is taken as of that same moment, so freshness (decision 0003)
+# admits exactly the evidence that was live when it was captured.
+CAPTURED_AT = datetime.fromisoformat(EV["captured_at"].replace("Z", "+00:00"))
+AS_OF = CAPTURED_AT
 
 R = "Domaine Armand Rousseau"
 V = "Domaine Comte Georges de Vogue"
@@ -72,6 +79,7 @@ for i, o in enumerate(EV["offers"]):
         condition_flags=normalise_condition(o.get("cond")),
         condition_notes=o.get("cond"),
         source_url=o.get("url"),
+        captured_at=CAPTURED_AT,
     ))
 
 SET = [
@@ -109,7 +117,7 @@ print("-" * 140)
 ready = review = nomkt = 0
 for i, (raw, wid, vintage, qty) in enumerate(SET, 1):
     ln = SellerLine(f"L{i}", raw, wid, vintage, 750, 1, qty)
-    r = benchmark(ln, offers)
+    r = benchmark(ln, offers, as_of=AS_OF)
     f = lambda x: "-" if x is None else f"£{x:,.0f}"
     xs = ", ".join(f"{c.offer.pack_size}x@£{c.per_bottle:,.0f}/btl" for c in r.cross_unit) or "-"
     print(hdr.format(ln.line_id, raw[:34], r.comp_count, f(r.uk_floor), f(r.uk_reference),
@@ -128,8 +136,8 @@ print(hdr2.format("ID", "WINE", "BTL", "6PK", "FLOOR", "REF", "MERCHANTS"))
 print("-" * 120)
 d1 = d2 = 0
 for i, (raw, wid, vintage, qty) in enumerate(SET, 1):
-    b = benchmark(SellerLine(f"L{i}", raw, wid, vintage, 750, 1, qty), offers)
-    c = benchmark(SellerLine(f"L{i}", raw, wid, vintage, 750, 6, 1), offers)
+    b = benchmark(SellerLine(f"L{i}", raw, wid, vintage, 750, 1, qty), offers, as_of=AS_OF)
+    c = benchmark(SellerLine(f"L{i}", raw, wid, vintage, 750, 6, 1), offers, as_of=AS_OF)
     d1 += b.comp_count >= 2
     d2 += c.comp_count >= 2
     f = lambda x: "-" if x is None else f"£{x:,.0f}"

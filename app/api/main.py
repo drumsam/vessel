@@ -132,7 +132,8 @@ def set_line_identity(line_id: UUID, body: s.IdentityIn,
         with conn.transaction():
             row = repo.set_line_identity(conn, str(line_id), wine_id=str(body.wine_id),
                                          vintage=body.vintage, bottle_ml=body.bottle_ml,
-                                         pack_size=body.pack_size)
+                                         pack_size=body.pack_size, flags=list(body.flags),
+                                         source=body.source, approved_by=body.approved_by)
     except psycopg.Error as e:
         raise _translate(e)
     if row is None:
@@ -140,19 +141,26 @@ def set_line_identity(line_id: UUID, body: s.IdentityIn,
     return _line_out(conn, row)
 
 
+@app.get("/lines/{line_id}/identity-history", response_model=list[s.IdentityHistoryOut])
+def get_identity_history(line_id: UUID, conn: psycopg.Connection = Depends(db)):
+    if repo.get_line(conn, str(line_id)) is None:
+        raise HTTPException(404, "line not found")
+    return repo.identity_history(conn, str(line_id))
+
+
 @app.get("/lines/{line_id}/benchmark", response_model=s.RunOut)
 def get_line_benchmark(line_id: UUID, conn: psycopg.Connection = Depends(db)):
     run = repo.latest_run(conn, str(line_id))
     if run is None:
         raise HTTPException(404, "line has not been benchmarked")
-    comps = []
-    for r in repo.run_comps(conn, run["run_id"]):
-        per_bottle = r["price"] / r["pack_size"] if r["role"] == "cross_unit" else None
-        comps.append(s.CompOut.model_validate(
-            {**r, "merchant": r["merchant_name"], "per_bottle": per_bottle}))
-    snap = repo.get_snapshot(conn, run["snapshot_id"]) if run["snapshot_id"] else None
+    # Everything below is read from the run itself, so it is unchanged after
+    # the snapshots it drew on have been pruned.
+    comps = [s.CompOut.model_validate({**c["offer_snapshot"], "role": c["role"],
+                                       "reject_reason": c["reject_reason"],
+                                       "offer_pk": c["offer_pk"]})
+             for c in repo.run_comps(conn, run["run_id"])]
     return s.RunOut.model_validate(
-        {**run, "snapshot_failures": snap["failures"] if snap else [], "comps": comps})
+        {**run, "sources": repo.run_sources(conn, run["run_id"]), "comps": comps})
 
 
 # ------------------------------------------------------ snapshots and jobs
@@ -162,6 +170,15 @@ def get_line_benchmark(line_id: UUID, conn: psycopg.Connection = Depends(db)):
 def collect_snapshot(body: s.SnapshotIn, q: Queue = Depends(queue)):
     job = q.enqueue_call(func="app.worker.jobs.collect_snapshot",
                          kwargs=body.model_dump(), timeout=JOB_TIMEOUT)
+    return s.JobOut(job_id=job.id, status=job.get_status())
+
+
+@app.post("/snapshots/targeted", response_model=s.JobOut, status_code=202)
+def collect_targeted(body: s.TargetedSnapshotIn, q: Queue = Depends(queue)):
+    kwargs = body.model_dump()
+    kwargs["wine_id"] = str(body.wine_id)
+    job = q.enqueue_call(func="app.worker.jobs.collect_targeted",
+                         kwargs=kwargs, timeout=JOB_TIMEOUT)
     return s.JobOut(job_id=job.id, status=job.get_status())
 
 
@@ -178,10 +195,10 @@ def benchmark_deal(deal_id: UUID, body: Optional[s.BenchmarkIn] = None,
                    conn: psycopg.Connection = Depends(db), q: Queue = Depends(queue)):
     if repo.get_deal(conn, str(deal_id)) is None:
         raise HTTPException(404, "deal not found")
-    snapshot_id = body.snapshot_id if body else None
+    as_of = body.as_of if body else None
     job = q.enqueue_call(func="app.worker.jobs.benchmark_deal",
                          kwargs={"deal_id": str(deal_id),
-                                 "snapshot_id": str(snapshot_id) if snapshot_id else None},
+                                 "as_of": as_of.isoformat() if as_of else None},
                          timeout=JOB_TIMEOUT)
     return s.JobOut(job_id=job.id, status=job.get_status())
 

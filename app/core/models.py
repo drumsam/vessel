@@ -10,6 +10,7 @@ from decimal import Decimal
 from typing import FrozenSet, Optional
 
 from .enums import CommercialUnit, ConditionFlag, DutyStatus, PriceKind, StockType
+from .flags import Flag
 
 GBP = "GBP"
 
@@ -79,6 +80,12 @@ class SellerLine:
 
     cost: Optional[Decimal] = None
     cost_currency: Optional[str] = None
+
+    #: Flags set upstream of the benchmark and persisted on the line
+    #: (NAME_REVIEW, FORMAT_REVIEW, DERIVED_FROM_CASE). benchmark() unions them
+    #: into the result. They may only ever move a line towards review; see
+    #: docs/decisions/0005-inherited-line-flags.md.
+    inherited_flags: FrozenSet[Flag] = frozenset()
 
     @property
     def unit(self) -> CommercialUnit:

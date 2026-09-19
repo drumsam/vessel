@@ -80,11 +80,23 @@ scripts/         proof runners
 5. Duty status, price kind, currency, buyability and positive price are all hard
    screens. Every rejection is retained with a reason.
 6. Zero comparables ⇒ `NO_MARKET`.
+7. **Freshness.** Only offers captured within 14 days before `as_of` (and not
+   after it) are comparable; the rest are rejected as `STALE` and stay visible.
+   See `docs/decisions/0003`.
+8. **Inherited line flags** can hold a line in review, never release one. See
+   `docs/decisions/0005`.
+
+Benchmark runs resolve each merchant's latest covering capture independently and
+keep every offer exactly as used, so snapshots are a prunable cache. See
+`docs/decisions/0004`.
 
 ## Money
 
 `Decimal` in Python, `numeric(14,2)` in Postgres. No float touches a price at any
 point. `£2,353.10` stays `£2,353.10` through calculation, persistence and output.
+The API carries money as JSON strings and refuses JSON numbers with a 422. The
+Median is the only figure ever rounded (banker's rounding, in `benchmark.py`);
+any other value that is not whole pence is refused, not rounded.
 
 ## Review gating
 
@@ -138,7 +150,7 @@ response shape appears in `schema.sql`.
 | `REDIS_URL` | queue backend |
 | `AI_PROVIDER` | `anthropic` \| `openai` \| `gemini` |
 | `AI_MODEL` | provider model id |
-| `COLLECTOR_USER_AGENT` | honest, identifiable UA with a contact URL |
+| `COLLECTOR_USER_AGENT` | **required** for collection: honest, identifiable UA with a contact URL |
 | `SNAPSHOT_RETENTION` | how many snapshots to keep for run-diffing |
 
 ## Local development
@@ -149,14 +161,19 @@ pip install -e ".[dev]"
 pytest -q
 python scripts/rerun_burgundy_proof.py
 
-export DATABASE_URL=postgresql://... REDIS_URL=redis://...
+docker compose up -d                  # Postgres 17 + Redis 7
+export DATABASE_URL=postgresql://pricer:pricer@localhost:5432/pricer
+export REDIS_URL=redis://localhost:6379/0
+export COLLECTOR_USER_AGENT="UKFineWinePricer/1.0 (+https://your.site/contact)"
 alembic upgrade head                  # schema + the three verified merchants
 uvicorn app.api.main:app --reload     # API
 python -m app.worker                  # RQ worker, queue "pricer"
 ```
 
 Postgres-backed tests run only when `TEST_DATABASE_URL` points at a disposable
-database; they drop and recreate its `public` schema.
+database; they drop and recreate its `public` schema. Compose creates one,
+`pricer_test`. Set `TEST_REDIS_URL` (e.g. `redis://localhost:6379/15`) to run the
+queue path through real Redis instead of fakeredis.
 
 `pytest` needs no network: every adapter test runs against committed fixtures.
 

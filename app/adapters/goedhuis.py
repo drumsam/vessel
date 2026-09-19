@@ -37,7 +37,8 @@ from typing import Sequence
 from app.core.enums import DutyStatus, PriceKind, Reject, StockType
 from app.core.models import Offer
 from .base import Adapter, Candidate, Rejected
-from .condition import normalise_condition
+from .condition import condition_evidence
+from .http import user_agent
 
 PRODUCTS_URL = "https://goedhuiswaddesdon.com/products.json"
 
@@ -108,7 +109,7 @@ class GoedhuisAdapter(Adapter):
         out, page = [], 1
         while page <= 40:
             r = httpx.get(PRODUCTS_URL, params={"limit": 250, "page": page},
-                          timeout=60, headers={"User-Agent": "UKFineWinePricer/1.0"})
+                          timeout=60, headers={"User-Agent": user_agent()})
             r.raise_for_status()
             products = r.json().get("products", [])
             if not products:
@@ -138,6 +139,8 @@ class GoedhuisAdapter(Adapter):
                 continue
 
             brokered = parts["broker_price"] is not None
+            # Goedhuis writes condition into the wine string ("... Non OC").
+            flags, notes = condition_evidence(t["wine"])
             return Candidate(
                 offer=Offer(
                     offer_id=f"goedhuis:{v.get('sku')}",
@@ -155,8 +158,8 @@ class GoedhuisAdapter(Adapter):
                     offered_units=None,          # Shopify does not publish a count here
                     stock_type=StockType.BROKERED if brokered else StockType.MERCHANT_STOCK,
                     stock_type_basis="declared",  # the SKU states it
-                    condition_flags=normalise_condition(t["wine"]),
-                    condition_notes=t["wine"] if "Non OC" in t["wine"] else None,
+                    condition_flags=flags,
+                    condition_notes=notes,
                     source_url=f"https://goedhuiswaddesdon.com/products/{raw.get('handle')}",
                     captured_at=captured_at or datetime.now(timezone.utc),
                     raw={"product": {k: raw.get(k) for k in ("id", "handle", "title", "vendor")},

@@ -45,10 +45,21 @@ The invariants, in short:
    Every rejection is retained with its reason.
 6. Zero comparables ⇒ `NO_MARKET`.
 7. Money is `Decimal` in Python and `numeric(14,2)` in Postgres. No float ever
-   touches a price.
+   touches a price. The Median is the one figure ever rounded (ROUND_HALF_EVEN,
+   in `benchmark.py`); anything else that is not whole pence is refused.
+8. Freshness: an offer is comparable only if captured within
+   `MAX_OFFER_AGE_DAYS` (14) before `as_of`, and not after it. Undated ⇒ `STALE`.
+   `as_of` is an argument, never the clock. See `docs/decisions/0003`.
+9. Inherited line flags (`NAME_REVIEW`, `FORMAT_REVIEW`, `DERIVED_FROM_CASE`)
+   are unioned in before state is derived, and only review flags may be
+   inherited: they can hold a line in review, never release one. See 0005.
 
 `REVIEW_FLAGS` in `app/core/flags.py` is the single definition of what forces
 operator review. `ONE_COMP` is in it deliberately: one merchant is not a market.
+
+A benchmark run is self-contained: it records every contributing capture and
+every offer exactly as used, so snapshots can be pruned without touching history.
+Never add a cascade from `offer` into benchmark history. See 0004.
 
 ## Non-negotiables
 
@@ -79,14 +90,19 @@ INGEST → IDENTITY PROPOSAL → IDENTITY VERIFICATION → SNAPSHOT LOOKUP
 ## Testing
 
 ```bash
-python -m pytest -q                      # 63 pass, 15 skip; no network, no database
-TEST_DATABASE_URL=postgresql://... python -m pytest -q   # 78; DROPS that db's public schema
+python -m pytest -q                      # 127 pass, 39 skip, 1 xfail; no network, no services
+docker compose up -d                     # Postgres + Redis, then:
+TEST_DATABASE_URL=postgresql://pricer:pricer@localhost:5432/pricer_test \
+TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q   # 166 pass, 1 xfail
 python scripts/rerun_burgundy_proof.py   # expect READY 0  REVIEW 5  NO_MARKET 15
 ```
 
 `app/db/schema.sql` is the head schema. Change it only together with a new
 Alembic revision in `migrations/versions/`; `0001_baseline` is frozen.
-`test_migrations_reproduce_schema_sql_exactly` fails if the two disagree.
+`test_migrations_reproduce_schema_sql_exactly` fails if the two disagree, and
+`test_equivalence_check_detects_a_one_line_drift` proves that comparison can fail.
+Spell out constraint names in migrations so they match what `CREATE TABLE` in
+schema.sql generates.
 
 Money crosses the API as JSON strings. A JSON number is refused, not converted.
 
@@ -101,9 +117,16 @@ network, no clock, no randomness.
 
 1. Investigate the live source. Official feed > plain HTTP > Playwright.
 2. Capture a real response into `tests/fixtures/`.
-3. Implement `fetch()` (network only) and `normalise()` (pure).
-4. Write a regression test for every trap found, before calling it done.
-5. Register the merchant in the `merchant` table.
+3. Implement `fetch()` (network only) and `normalise()` (pure). The User-Agent
+   comes from `app.adapters.http.user_agent()` (`COLLECTOR_USER_AGENT`), never a
+   literal. Whole-book feeds go in `WHOLE_BOOK`, producer/vintage searches in
+   `TARGETED` (`app/worker/jobs.py`).
+4. Keep the merchant's condition wording whenever a condition flag is set
+   (`condition_evidence()`); `Candidate` refuses a flag without its prose.
+   Publish the merchant's LWIN-7 on `Candidate.lwin7` if it has one, but treat it
+   as a claim: the resolver ignores ambiguous LWINs and refuses conflicts.
+5. Write a regression test for every trap found, before calling it done.
+6. Register the merchant in the `merchant` table with a migration.
 
 ## Collector politeness
 

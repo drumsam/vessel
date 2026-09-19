@@ -19,6 +19,11 @@ Two things this adapter exists to get right:
 
 Also: Burgundy grand cru carries LWIN-7 = null here while Bordeaux carries it.
 That is expected, not an error — identity falls through to wine_key.
+
+LWIN-7 is published as an integer under the key "LWIN-7" and is passed on as a
+string. It is NOT trusted blindly: on 2026-09-19 the feed used 1038217 for both
+Jadot Clos Saint Jacques and Lavaux Saint Jacques, and 1083129 for both Veuve
+Clicquot and Veuve Clicquot Rosé. See Registry.resolve for how that is guarded.
 """
 from __future__ import annotations
 
@@ -30,7 +35,8 @@ from typing import Sequence
 from app.core.enums import DutyStatus, PriceKind, Reject, StockType
 from app.core.models import Offer
 from .base import Adapter, Candidate, Rejected
-from .condition import normalise_condition
+from .condition import condition_evidence
+from .http import user_agent
 
 FEED_URL = "https://www.farrvintners.com/winelist_json.php"
 
@@ -71,13 +77,9 @@ class FarrAdapter(Adapter):
 
     def fetch(self) -> Sequence[dict]:  # pragma: no cover - network
         import httpx
-        r = httpx.get(FEED_URL, timeout=60, headers={"User-Agent": self._ua()})
+        r = httpx.get(FEED_URL, timeout=60, headers={"User-Agent": user_agent()})
         r.raise_for_status()
         return r.json()["data"]
-
-    @staticmethod
-    def _ua() -> str:
-        return "UKFineWinePricer/1.0 (+https://example.invalid/contact)"
 
     def normalise(self, raw: dict, captured_at: datetime | None = None) -> Candidate | Rejected:
         wine = (raw.get("Wine") or "").strip()
@@ -111,6 +113,8 @@ class FarrAdapter(Adapter):
         offered = int(units) if units is not None else None
 
         producer_text, cuvee_text = split_wine_field(wine)
+        flags, _ = condition_evidence(variation)
+        lwin7 = raw.get("LWIN-7")
 
         offer = Offer(
             offer_id=f"farr:{raw.get('WineId')}",
@@ -129,10 +133,11 @@ class FarrAdapter(Adapter):
             stock_type=StockType.MERCHANT_STOCK,
             stock_type_basis="inferred",      # own offer book, no per-line flag
             is_mixed_lot=False,
-            condition_flags=normalise_condition(variation),
-            condition_notes=variation,
+            condition_flags=flags,
+            condition_notes=variation,        # all of Variation, flagged or not
             source_url=raw.get("Url"),
             captured_at=captured_at or datetime.now(timezone.utc),
             raw=raw,
         )
-        return Candidate(offer=offer, producer_text=producer_text, cuvee_text=cuvee_text)
+        return Candidate(offer=offer, producer_text=producer_text, cuvee_text=cuvee_text,
+                         lwin7=str(lwin7) if lwin7 not in (None, "") else None)

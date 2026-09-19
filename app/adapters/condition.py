@@ -47,3 +47,16 @@ def normalise_condition(*parts: str | None) -> FrozenSet[C]:
     if C.NO_ORIGINAL_CASE in found:
         found.discard(C.ORIGINAL_CASE)
     return frozenset(found)
+
+
+def condition_evidence(*parts: str | None) -> tuple[FrozenSet[C], str | None]:
+    """(flags, verbatim wording). The general adapter rule: whenever any flag is
+    read from merchant text, that text is kept word for word alongside it.
+
+    Adapters whose condition field is pure condition prose (Farr's Variation,
+    Bordeaux Index's CONDITION) may keep it even when no flag matches; this is
+    the minimum, not the maximum.
+    """
+    flags = normalise_condition(*parts)
+    text = " ; ".join(p for p in parts if p)
+    return flags, (text if flags else None)

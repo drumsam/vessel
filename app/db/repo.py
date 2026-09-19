@@ -5,8 +5,9 @@ needs, hands it over, and persists exactly what the core returned.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime
-from decimal import ROUND_HALF_EVEN, Decimal
+from decimal import Decimal
 from typing import Any, Optional
 
 import psycopg
@@ -15,6 +16,7 @@ from psycopg.types.json import Jsonb
 from app.adapters.base import Candidate
 from app.core.benchmark import BenchmarkResult
 from app.core.enums import ConditionFlag, DutyStatus, PriceKind, StockType
+from app.core.flags import Flag
 from app.core.models import Offer, SellerLine
 from app.identity.resolver import (
     STRUCTURAL_EXCLUSIONS,
@@ -35,23 +37,16 @@ class Conflict(Exception):
 
 
 def exact_money(value: Optional[Decimal]) -> Optional[Decimal]:
-    """A price that must already be whole pence. numeric(14,2) would round a
-    third decimal place silently on insert, so refuse instead."""
+    """Every money value written to a numeric(14,2) column passes through here.
+    numeric(14,2) would round a third decimal place silently on insert, so a
+    value that is not whole pence is refused, never rounded. The one figure that
+    is rounded (the Median) is rounded in app/core/benchmark.py, before it
+    arrives here."""
     if value is None:
         return None
     if value != value.quantize(CENT):
         raise ValueError(f"{value} is not a whole number of pence")
     return value
-
-
-def median_money(value: Optional[Decimal]) -> Optional[Decimal]:
-    """The median of an even number of merchant-bests can land on half a penny
-    (e.g. £100.01 and £100.02). uk_median is numeric(14,2), so round it here,
-    explicitly and banker's-rounded, rather than let Postgres do it silently.
-    The median is internal evidence; Floor and Reference are always exact."""
-    if value is None:
-        return None
-    return value.quantize(CENT, rounding=ROUND_HALF_EVEN)
 
 
 # ---------------------------------------------------------------- identity
@@ -167,16 +162,41 @@ def get_line(conn: psycopg.Connection, line_id: str) -> Optional[dict]:
 
 
 def set_line_identity(conn: psycopg.Connection, line_id: str, *, wine_id: str,
-                      vintage: int, bottle_ml: int, pack_size: int) -> Optional[dict]:
-    """Writes the approved identity columns and nothing else. raw_description
-    and raw_row are not in this statement and cannot be touched by it."""
-    return conn.execute(
+                      vintage: int, bottle_ml: int, pack_size: int, flags: list[str],
+                      source: str, approved_by: str) -> Optional[dict]:
+    """Writes the approved identity, its approval and the line flags, and records
+    the change, old and new, in seller_line_identity_history. raw_description
+    and raw_row are not in either statement and cannot be touched by them."""
+    prev = conn.execute("SELECT * FROM seller_line WHERE line_id = %s FOR UPDATE",
+                        (line_id,)).fetchone()
+    if prev is None:
+        return None
+    flags = sorted(set(flags))
+    row = conn.execute(
         """UPDATE seller_line
-              SET wine_id = %s, vintage = %s, bottle_ml = %s, pack_size = %s
+              SET wine_id = %s, vintage = %s, bottle_ml = %s, pack_size = %s, flags = %s,
+                  wine_id_source = %s, wine_id_approved_by = %s, wine_id_approved_at = now()
             WHERE line_id = %s
         RETURNING *""",
-        (wine_id, vintage, bottle_ml, pack_size, line_id),
+        (wine_id, vintage, bottle_ml, pack_size, flags, source, approved_by, line_id),
     ).fetchone()
+    conn.execute(
+        """INSERT INTO seller_line_identity_history
+               (line_id, prev_wine_id, prev_vintage, prev_bottle_ml, prev_pack_size, prev_flags,
+                new_wine_id, new_vintage, new_bottle_ml, new_pack_size, new_flags,
+                source, changed_by, changed_at)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+        (line_id, prev["wine_id"], prev["vintage"], prev["bottle_ml"], prev["pack_size"],
+         prev["flags"], wine_id, vintage, bottle_ml, pack_size, flags, source, approved_by,
+         row["wine_id_approved_at"]),
+    )
+    return row
+
+
+def identity_history(conn: psycopg.Connection, line_id: str) -> list[dict]:
+    return conn.execute(
+        """SELECT * FROM seller_line_identity_history WHERE line_id = %s
+            ORDER BY changed_at, history_id""", (line_id,)).fetchall()
 
 
 def seller_line_for_benchmark(row: dict) -> Optional[SellerLine]:
@@ -194,6 +214,7 @@ def seller_line_for_benchmark(row: dict) -> Optional[SellerLine]:
         quantity=row["quantity"],
         cost=row["cost"],
         cost_currency=row["cost_currency"],
+        inherited_flags=frozenset(Flag(f) for f in row["flags"]),
     )
 
 
@@ -220,17 +241,30 @@ def finish_snapshot(conn: psycopg.Connection, snapshot_id: str, *, attempted: in
     )
 
 
+def write_snapshot_merchant(conn: psycopg.Connection, snapshot_id: str, merchant_id: str, *,
+                            captured_at: datetime, error: str | None = None,
+                            scope_producer_key: str | None = None,
+                            scope_vintage: int | None = None, scope_params: dict | None = None,
+                            written: int = 0, rejected: int = 0) -> None:
+    conn.execute(
+        """INSERT INTO snapshot_merchant (snapshot_id, merchant_id, status, captured_at,
+                                          scope_producer_key, scope_vintage, scope_params,
+                                          offers_written, offers_rejected, error)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+        (snapshot_id, merchant_id, "failed" if error else "ok", captured_at,
+         scope_producer_key, scope_vintage, Jsonb(scope_params or {}),
+         written, rejected, error),
+    )
+
+
 def get_snapshot(conn: psycopg.Connection, snapshot_id: str) -> Optional[dict]:
-    return conn.execute("SELECT * FROM snapshot WHERE snapshot_id = %s",
-                        (snapshot_id,)).fetchone()
-
-
-def latest_snapshot_id(conn: psycopg.Connection) -> Optional[str]:
-    row = conn.execute(
-        """SELECT snapshot_id FROM snapshot
-            WHERE NOT is_demo AND adapters_succeeded > 0
-            ORDER BY captured_at DESC LIMIT 1""").fetchone()
-    return row and row["snapshot_id"]
+    row = conn.execute("SELECT * FROM snapshot WHERE snapshot_id = %s",
+                       (snapshot_id,)).fetchone()
+    if row is not None:
+        row["merchants"] = conn.execute(
+            "SELECT * FROM snapshot_merchant WHERE snapshot_id = %s ORDER BY merchant_id",
+            (snapshot_id,)).fetchall()
+    return row
 
 
 def write_offer(conn: psycopg.Connection, snapshot_id: str, o: Offer) -> None:
@@ -277,7 +311,7 @@ _OFFER_COLUMNS = """o.offer_pk, o.merchant_id, m.name AS merchant_name, o.wine_i
     o.vintage, o.bottle_ml, o.pack_size, o.price, o.currency, o.duty_status,
     o.price_kind, o.is_buyable, o.offered_units, o.is_mixed_lot, o.stock_type,
     o.stock_type_basis, o.condition_flags, o.condition_notes, o.source_url,
-    o.captured_at, o.raw"""
+    o.captured_at, o.raw, o.offer_id AS merchant_offer_id"""
 
 
 def offer_from_row(r: dict) -> Offer:
@@ -308,55 +342,132 @@ def offer_from_row(r: dict) -> Offer:
     )
 
 
-def offers_for_wine(conn: psycopg.Connection, snapshot_id: str, wine_id: str) -> list[Offer]:
-    """Every offer in the snapshot for this approved wine, from approved
-    merchants only. All vintages and formats are loaded on purpose: the core
-    decides comparability and records why each one was rejected."""
+# Per merchant, independently: the latest successful capture at or before as_of
+# whose scope covers this producer and vintage. A whole-book capture covers
+# everything; a targeted search covers only what it searched. If a merchant's
+# latest covering capture no longer lists the wine, the merchant contributes
+# nothing: an older capture is never used to resurrect a sold listing.
+_SOURCES_CTE = """
+WITH ranked AS (
+    SELECT sm.merchant_id, sm.snapshot_id, sm.captured_at,
+           ROW_NUMBER() OVER (PARTITION BY sm.merchant_id
+                              ORDER BY sm.captured_at DESC, sm.snapshot_id DESC) AS rn
+      FROM snapshot_merchant sm
+      JOIN snapshot s ON s.snapshot_id = sm.snapshot_id
+      JOIN merchant m ON m.merchant_id = sm.merchant_id
+     WHERE sm.status = 'ok' AND NOT s.is_demo AND m.approved
+       AND sm.captured_at <= %(as_of)s
+       AND (sm.scope_producer_key IS NULL
+            OR (sm.scope_producer_key = %(producer_key)s AND sm.scope_vintage = %(vintage)s))
+), src AS (SELECT merchant_id, snapshot_id, captured_at FROM ranked WHERE rn = 1)
+"""
+
+
+def producer_key_of(wine_row: dict) -> str:
+    """The normalised producer, exactly as it appears in wine_key."""
+    return wine_row["wine_key"].partition("|")[0]
+
+
+@dataclass(frozen=True)
+class Resolution:
+    offers: list[Offer]
+    sources: list[dict]                  # merchant_id, snapshot_id, captured_at
+    merchant_offer_ids: dict[str, str]   # offer_pk -> the merchant's own offer id
+
+
+def resolve_offers(conn: psycopg.Connection, *, wine_id: str, vintage: int,
+                   as_of: datetime) -> Resolution:
+    """Every offer for this approved wine from each
+    merchant's resolved capture. All vintages and formats are loaded on purpose:
+    the core decides comparability and records why each one was rejected."""
+    wine = get_wine(conn, wine_id)
+    params = {"as_of": as_of, "producer_key": producer_key_of(wine), "vintage": vintage,
+              "wine_id": wine_id}
+    sources = conn.execute(
+        _SOURCES_CTE + "SELECT * FROM src ORDER BY merchant_id", params).fetchall()
     rows = conn.execute(
-        f"""SELECT {_OFFER_COLUMNS}
-              FROM offer o JOIN merchant m USING (merchant_id)
-             WHERE o.snapshot_id = %s AND o.wine_id = %s AND m.approved""",
-        (snapshot_id, wine_id),
-    ).fetchall()
-    return [offer_from_row(r) for r in rows]
+        _SOURCES_CTE + f"""
+        SELECT {_OFFER_COLUMNS}
+          FROM src
+          JOIN offer o ON o.snapshot_id = src.snapshot_id AND o.merchant_id = src.merchant_id
+          JOIN merchant m ON m.merchant_id = o.merchant_id
+         WHERE o.wine_id = %(wine_id)s""", params).fetchall()
+    return Resolution(offers=[offer_from_row(r) for r in rows], sources=sources,
+                      merchant_offer_ids={str(r["offer_pk"]): r["merchant_offer_id"] for r in rows})
+
+
+def offer_snapshot(o: Offer, merchant_offer_id: str,
+                   per_bottle: Optional[Decimal] = None) -> dict:
+    """The offer exactly as the benchmark used it. Money is a string, so it
+    survives JSON without passing through a float. Migration 0003 builds the
+    same document in SQL for runs that predate it."""
+    return {
+        "merchant_id": o.merchant_id, "merchant": o.merchant,
+        "merchant_offer_id": merchant_offer_id,
+        "wine_id": o.wine_id, "vintage": o.vintage, "bottle_ml": o.bottle_ml,
+        "pack_size": o.pack_size, "price": str(exact_money(o.price)), "currency": o.currency,
+        "duty_status": o.duty_status.value, "price_kind": o.price_kind.value,
+        "is_buyable": o.is_buyable, "offered_units": o.offered_units,
+        "is_mixed_lot": o.is_mixed_lot, "stock_type": o.stock_type.value,
+        "stock_type_basis": o.stock_type_basis,
+        "condition_flags": sorted(f.value for f in o.condition_flags),
+        "condition_notes": o.condition_notes, "source_url": o.source_url,
+        "captured_at": o.captured_at.isoformat() if o.captured_at else None,
+        "per_bottle": str(per_bottle) if per_bottle is not None else None,
+    }
 
 
 def save_benchmark(conn: psycopg.Connection, result: BenchmarkResult,
-                   snapshot_id: str) -> str:
+                   resolution: Resolution) -> str:
     run_id = conn.execute(
-        """INSERT INTO benchmark_run (line_id, snapshot_id, uk_floor, uk_reference,
-                                      uk_median, comp_count, duplicate_listings,
-                                      flags, state)
-           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING run_id""",
-        (result.line.line_id, snapshot_id, exact_money(result.uk_floor),
-         exact_money(result.uk_reference), median_money(result.uk_median),
+        """INSERT INTO benchmark_run (line_id, as_of, uk_floor, uk_reference, uk_median,
+                                      comp_count, duplicate_listings, flags, state,
+                                      oldest_comp_age)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING run_id""",
+        (result.line.line_id, result.as_of, exact_money(result.uk_floor),
+         exact_money(result.uk_reference), exact_money(result.uk_median),
          result.comp_count, result.duplicate_listings,
-         sorted(f.value for f in result.flags), result.state.value),
+         sorted(f.value for f in result.flags), result.state.value,
+         result.oldest_comp_age),
     ).fetchone()["run_id"]
 
-    rows: list[tuple[Any, ...]] = []
-    rows += [(run_id, o.offer_id, "comparable", None) for o in result.comparables]
-    rows += [(run_id, o.offer_id, "merchant_best", None) for o in result.merchant_bests]
-    rows += [(run_id, c.offer.offer_id, "cross_unit", None) for c in result.cross_unit]
-    rows += [(run_id, r.offer.offer_id, "rejected", r.reason.value) for r in result.rejections]
     with conn.cursor() as cur:
         cur.executemany(
-            """INSERT INTO benchmark_comp (run_id, offer_pk, role, reject_reason)
-               VALUES (%s, %s, %s, %s)""", rows)
+            """INSERT INTO benchmark_run_snapshot (run_id, merchant_id, snapshot_id, captured_at)
+               VALUES (%s, %s, %s, %s)""",
+            [(run_id, s["merchant_id"], s["snapshot_id"], s["captured_at"])
+             for s in resolution.sources])
+
+        rows: list[tuple[Any, ...]] = []
+        rows += [(o, "comparable", None, None) for o in result.comparables]
+        rows += [(o, "merchant_best", None, None) for o in result.merchant_bests]
+        rows += [(c.offer, "cross_unit", None, c.per_bottle) for c in result.cross_unit]
+        rows += [(r.offer, "rejected", r.reason.value, None) for r in result.rejections]
+        cur.executemany(
+            """INSERT INTO benchmark_comp (run_id, offer_pk, role, reject_reason, offer_snapshot)
+               VALUES (%s, %s, %s, %s, %s)""",
+            [(run_id, o.offer_id, role, reason,
+              Jsonb(offer_snapshot(o, resolution.merchant_offer_ids[o.offer_id], pb)))
+             for o, role, reason, pb in rows])
     return run_id
 
 
 def latest_run(conn: psycopg.Connection, line_id: str) -> Optional[dict]:
     return conn.execute(
         """SELECT * FROM benchmark_run WHERE line_id = %s
-            ORDER BY computed_at DESC LIMIT 1""", (line_id,)).fetchone()
+            ORDER BY computed_at DESC, run_id DESC LIMIT 1""", (line_id,)).fetchone()
+
+
+def run_sources(conn: psycopg.Connection, run_id: str) -> list[dict]:
+    return conn.execute(
+        """SELECT merchant_id, snapshot_id, captured_at FROM benchmark_run_snapshot
+            WHERE run_id = %s ORDER BY merchant_id""", (run_id,)).fetchall()
 
 
 def run_comps(conn: psycopg.Connection, run_id: str) -> list[dict]:
+    """Read from the run alone. The offer rows may have been pruned."""
     return conn.execute(
-        f"""SELECT c.role, c.reject_reason, {_OFFER_COLUMNS}, o.offer_id AS merchant_offer_id
-              FROM benchmark_comp c
-              JOIN offer o USING (offer_pk)
-              JOIN merchant m ON m.merchant_id = o.merchant_id
-             WHERE c.run_id = %s
-             ORDER BY c.role, o.price""", (run_id,)).fetchall()
+        """SELECT role, reject_reason, offer_pk, offer_snapshot FROM benchmark_comp
+            WHERE run_id = %s
+            ORDER BY role, (offer_snapshot->>'price')::numeric, comp_id""",
+        (run_id,)).fetchall()

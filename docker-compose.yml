@@ -1,0 +1,42 @@
+# Postgres and Redis for local development and for the service tests.
+#
+#   docker compose up -d
+#   export DATABASE_URL=postgresql://pricer:pricer@localhost:5432/pricer
+#   export REDIS_URL=redis://localhost:6379/0
+#   alembic upgrade head
+#
+# Service tests against real services (they DROP the public schema of the
+# test database and use Redis db 15, never the development ones):
+#
+#   TEST_DATABASE_URL=postgresql://pricer:pricer@localhost:5432/pricer_test \
+#   TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: pricer
+      POSTGRES_PASSWORD: pricer
+      POSTGRES_DB: pricer
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres-init.sql:/docker-entrypoint-initdb.d/10-test-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pricer -d pricer"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  pgdata:

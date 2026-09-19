@@ -6,17 +6,12 @@ for a 404, which by convention means no restrictions.
 """
 from __future__ import annotations
 
-import os
 from urllib.parse import urlsplit
 from urllib.robotparser import RobotFileParser
 
 import httpx
 
-DEFAULT_USER_AGENT = "UKFineWinePricer/1.0 (+https://example.invalid/contact)"
-
-
-def user_agent() -> str:
-    return os.environ.get("COLLECTOR_USER_AGENT", DEFAULT_USER_AGENT)
+from app.adapters.http import user_agent
 
 
 class RobotsDisallowed(Exception):

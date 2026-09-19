@@ -20,23 +20,48 @@ added. The adapter contract may evolve; this must not.
      merchant-bests. Reference is what drives pricing; Floor and Median are
      internal evidence.
   6. Zero comparables => NO_MARKET. Never a guess, never a substitute.
+  7. Freshness. An offer is comparable only if it was captured within
+     MAX_OFFER_AGE_DAYS before `as_of`, and not after it. An undated offer is
+     not provably fresh and is rejected. `as_of` is an argument, never the
+     clock: this function stays pure. See docs/decisions/0003.
+  8. Inherited line flags (NAME_REVIEW, FORMAT_REVIEW, DERIVED_FROM_CASE) are
+     unioned into the result before state is derived. Only review flags may be
+     inherited, so inheriting can add a reason for review and never remove one.
+     See docs/decisions/0005.
+
+Rounding. Exactly one figure is ever rounded: the Median, which for an even
+number of merchant-bests is the mean of the middle two and can land on half a
+penny (£610.01, £610.02 -> £610.015). It is quantised to whole pence with
+ROUND_HALF_EVEN (banker's rounding: £610.015 -> £610.02, £610.025 -> £610.02),
+so a run of ties does not drift upwards. Floor and Reference are real offer
+prices and are never rounded; a price that is not whole pence is refused before
+it is stored, not rounded here.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from decimal import Decimal
+from datetime import datetime, timedelta
+from decimal import ROUND_HALF_EVEN, Decimal
 from statistics import median
 from typing import Iterable, Optional
 
 from .enums import DutyStatus, PriceKind, Reject, State
 from .flags import (
     CONDITION_REVIEW_FLAGS,
+    MAX_OFFER_AGE_DAYS,
     REQUIRE_QUANTITY_COVER,
     REVIEW_FLAGS,
     WIDE_SPREAD_THRESHOLD,
     Flag,
 )
 from .models import GBP, Offer, SellerLine
+
+CENT = Decimal("0.01")
+
+#: The one rounding mode in the pricing core. Applied to the Median only.
+MEDIAN_ROUNDING = ROUND_HALF_EVEN
+
+MAX_OFFER_AGE = timedelta(days=MAX_OFFER_AGE_DAYS)
 
 
 @dataclass(frozen=True)
@@ -61,6 +86,7 @@ class CrossUnitEvidence:
 @dataclass
 class BenchmarkResult:
     line: SellerLine
+    as_of: datetime
     comparables: list[Offer] = field(default_factory=list)
     rejections: list[Rejection] = field(default_factory=list)
     cross_unit: list[CrossUnitEvidence] = field(default_factory=list)
@@ -74,6 +100,10 @@ class BenchmarkResult:
 
     flags: set[Flag] = field(default_factory=set)
 
+    #: as_of minus the capture time of the OLDEST merchant-best: how old the
+    #: stalest evidence behind these figures is. None when there is none.
+    oldest_comp_age: Optional[timedelta] = None
+
     @property
     def comp_count(self) -> int:
         """Depth in merchants — the number always shown to the operator."""
@@ -86,7 +116,11 @@ class BenchmarkResult:
         return State.REVIEW if (self.flags & REVIEW_FLAGS) else State.READY
 
 
-def _screen(line: SellerLine, o: Offer) -> Optional[Reject]:
+def _is_fresh(o: Offer, as_of: datetime) -> bool:
+    return o.captured_at is not None and as_of - MAX_OFFER_AGE <= o.captured_at <= as_of
+
+
+def _screen(line: SellerLine, o: Offer, as_of: datetime) -> Optional[Reject]:
     """Return the reason this offer is not comparable, or None if it is.
 
     Order matters only for which reason gets reported; the outcome does not.
@@ -116,14 +150,16 @@ def _screen(line: SellerLine, o: Offer) -> Optional[Reject]:
         return Reject.NO_QUANTITY
     if o.price is None or o.price <= Decimal("0"):
         return Reject.NON_POSITIVE_PRICE
+    if not _is_fresh(o, as_of):
+        return Reject.STALE
     if REQUIRE_QUANTITY_COVER and (o.offered_units or 0) < line.quantity:
         return Reject.NO_QUANTITY
     return None
 
 
-def _is_cross_unit(line: SellerLine, o: Offer) -> bool:
+def _is_cross_unit(line: SellerLine, o: Offer, as_of: datetime) -> bool:
     """Right wine, right vintage, right bottle size, wrong commercial unit —
-    and otherwise a valid In Bond ask."""
+    and otherwise a valid, fresh In Bond ask."""
     return (
         o.wine_id == line.wine_id
         and not o.is_mixed_lot
@@ -136,19 +172,27 @@ def _is_cross_unit(line: SellerLine, o: Offer) -> bool:
         and o.is_buyable is True
         and o.price is not None
         and o.price > Decimal("0")
+        and _is_fresh(o, as_of)
     )
 
 
-def benchmark(line: SellerLine, offers: Iterable[Offer]) -> BenchmarkResult:
-    result = BenchmarkResult(line=line)
+def benchmark(line: SellerLine, offers: Iterable[Offer], *, as_of: datetime) -> BenchmarkResult:
+    if as_of.tzinfo is None:
+        raise ValueError("as_of must be timezone-aware")
+    not_review = set(line.inherited_flags) - REVIEW_FLAGS
+    if not_review:
+        raise ValueError(f"only review flags can be inherited, got {sorted(f.value for f in not_review)}")
+
+    result = BenchmarkResult(line=line, as_of=as_of)
+    result.flags |= line.inherited_flags
 
     for o in offers:
-        reason = _screen(line, o)
+        reason = _screen(line, o, as_of)
         if reason is None:
             result.comparables.append(o)
             continue
         result.rejections.append(Rejection(offer=o, reason=reason))
-        if reason is Reject.UNIT and _is_cross_unit(line, o):
+        if reason is Reject.UNIT and _is_cross_unit(line, o, as_of):
             result.cross_unit.append(
                 CrossUnitEvidence(offer=o, per_bottle=o.price / o.pack_size)
             )
@@ -168,7 +212,7 @@ def benchmark(line: SellerLine, offers: Iterable[Offer]) -> BenchmarkResult:
 
     prices = [o.price for o in result.merchant_bests]
     result.uk_floor = prices[0]
-    result.uk_median = Decimal(str(median(prices)))
+    result.uk_median = Decimal(str(median(prices))).quantize(CENT, rounding=MEDIAN_ROUNDING)
     result.uk_reference = prices[0] if len(prices) == 1 else prices[1]
 
     if len(prices) == 1:
@@ -181,6 +225,8 @@ def benchmark(line: SellerLine, offers: Iterable[Offer]) -> BenchmarkResult:
             result.flags.add(Flag.CONDITION_REVIEW)
         if o.stock_type_basis == "unconfirmed":
             result.flags.add(Flag.STOCK_BASIS_UNCONFIRMED)
+
+    result.oldest_comp_age = as_of - min(o.captured_at for o in result.merchant_bests)
 
     covering = [o for o in result.merchant_bests
                 if o.offered_units is None or o.offered_units >= line.quantity]

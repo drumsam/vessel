@@ -67,3 +67,9 @@ WIDE_SPREAD_THRESHOLD = 0.25
 #:           is surfaced as the informational flag QUANTITY_SHORTFALL only.
 #: True   -> an offer must cover the seller's quantity to be comparable.
 REQUIRE_QUANTITY_COVER = False
+
+#: See docs/decisions/0003-offer-freshness.md.
+#: An offer captured more than this many days before the benchmark's `as_of`
+#: (or after it, or at an unknown time) is rejected as STALE. It cannot become a
+#: Floor, a Reference or a Median, however cheap it is.
+MAX_OFFER_AGE_DAYS = 14
