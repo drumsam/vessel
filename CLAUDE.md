@@ -1,0 +1,117 @@
+# UK Fine Wine Deal Pricer — working agreement
+
+Read `README.md` and everything in `docs/decisions/` before changing code.
+
+## What this is
+
+An operator loads a seller's wine list. The system finds the lowest verified
+comparable UK In Bond offer from an approved merchant universe, applies a
+discount or target margin, and produces a client-facing offer.
+
+**Accuracy beats coverage. Never invent, estimate or silently substitute a market
+price. Fail closed.** A missing price is a fine outcome. A wrong price that looks
+right is the failure this whole system exists to prevent.
+
+## The rule that governs everything
+
+> Agents propose. Deterministic code disposes.
+
+AI interprets messy seller text, searches awkward merchant sites, extracts
+candidate evidence and challenges proposed matches. AI never decides identity
+approval, format comparability, duty filtering, benchmark arithmetic, margins, or
+any figure on a client document.
+
+> The adapter contract may evolve as new merchants are investigated.
+> The deterministic pricing invariants must not.
+
+## `app/core/` is locked
+
+`app/core/benchmark.py`, `models.py`, `flags.py` and `enums.py` encode invariants
+that were established by measuring live merchant data. Do not relax one to make a
+merchant fit — the fix belongs in an adapter or in `app/identity/`.
+
+If you believe an invariant is wrong, say so and cite evidence. Do not change it
+quietly.
+
+The invariants, in short:
+
+1. Identity is compared by approved `wine_id` only. The pricing core does not
+   know what a producer or a cuvée is. No name matching lives here.
+2. Commercial unit equality is exact. No division, no multiplication, ever.
+3. Depth counts merchants, not listings.
+4. Floor = lowest merchant-best · Reference = second-lowest (or the only one,
+   flagged `ONE_COMP`) · Median = median of merchant-bests.
+5. Hard screens: In Bond, ASK, GBP, buyable, positive price, not a mixed lot.
+   Every rejection is retained with its reason.
+6. Zero comparables ⇒ `NO_MARKET`.
+7. Money is `Decimal` in Python and `numeric(14,2)` in Postgres. No float ever
+   touches a price.
+
+`REVIEW_FLAGS` in `app/core/flags.py` is the single definition of what forces
+operator review. `ONE_COMP` is in it deliberately: one merchant is not a market.
+
+## Non-negotiables
+
+- **Never destroy the original seller description.** `raw_description` and
+  `raw_row` are preserved verbatim, always.
+- **Never destroy original merchant wording.** Condition is normalised to flags
+  *and* kept as prose in `condition_notes`.
+- **No provider-specific AI response shape in the database schema.** All AI calls
+  go through `app/ai/provider.py`. Nothing outside `app/ai/` imports a vendor SDK.
+- **Portability.** Standard Postgres, standard SQL, Dockerised services. No
+  platform-specific features that would make migration hard.
+
+## Stack
+
+Python + FastAPI · PostgreSQL · Next.js/React (responsive, must work on mobile) ·
+Redis + RQ for background jobs. No distributed infrastructure, no multi-agent
+framework. Each "agent" is a plain job with structured input, structured output,
+provenance and validation.
+
+Pipeline:
+
+```
+INGEST → IDENTITY PROPOSAL → IDENTITY VERIFICATION → SNAPSHOT LOOKUP
+→ DEEP MERCHANT SEARCH (gaps only) → AUCTION SEARCH → COMP VERIFICATION
+→ DETERMINISTIC BENCHMARK → PRICING → HUMAN REVIEW → BUYER EXPORT
+```
+
+## Testing
+
+```bash
+python -m pytest -q                      # 55 tests, no network
+python scripts/rerun_burgundy_proof.py   # expect READY 0  REVIEW 5  NO_MARKET 15
+```
+
+**Every trap found against live merchant data becomes a permanent regression
+test**, not a note in a doc. House style in `tests/test_traps.py`: name the
+merchant, the wine, and the size of the error the test prevents.
+
+Adapter tests run offline against committed fixtures. `normalise()` is pure — no
+network, no clock, no randomness.
+
+## Adding a merchant adapter
+
+1. Investigate the live source. Official feed > plain HTTP > Playwright.
+2. Capture a real response into `tests/fixtures/`.
+3. Implement `fetch()` (network only) and `normalise()` (pure).
+4. Write a regression test for every trap found, before calling it done.
+5. Register the merchant in the `merchant` table.
+
+## Collector politeness
+
+Honest identifiable User-Agent with a contact URL. Never impersonate a browser.
+Parse `robots.txt` per host at runtime. Respect `Crawl-delay`. Cache aggressively.
+Never follow blackhole trap paths. Where a merchant states an anti-automation
+position, ask for a trade feed rather than scraping.
+
+## Current state
+
+Done: deterministic core, identity resolver, three verified adapters (Farr,
+Bordeaux Index, Goedhuis Waddesdon), 55 regression tests, Postgres schema, AI
+provider interface.
+
+Not built yet: FastAPI service, migrations, RQ worker, Next.js frontend, the
+remaining ten merchant adapters, the auction layer.
+
+Known open questions are in `docs/decisions/` and in the Burgundy proof report.
