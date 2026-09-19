@@ -148,7 +148,15 @@ python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 pytest -q
 python scripts/rerun_burgundy_proof.py
+
+export DATABASE_URL=postgresql://... REDIS_URL=redis://...
+alembic upgrade head                  # schema + the three verified merchants
+uvicorn app.api.main:app --reload     # API
+python -m app.worker                  # RQ worker, queue "pricer"
 ```
+
+Postgres-backed tests run only when `TEST_DATABASE_URL` points at a disposable
+database; they drop and recreate its `public` schema.
 
 `pytest` needs no network: every adapter test runs against committed fixtures.
 

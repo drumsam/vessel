@@ -79,9 +79,16 @@ INGEST → IDENTITY PROPOSAL → IDENTITY VERIFICATION → SNAPSHOT LOOKUP
 ## Testing
 
 ```bash
-python -m pytest -q                      # 55 tests, no network
+python -m pytest -q                      # 63 pass, 15 skip; no network, no database
+TEST_DATABASE_URL=postgresql://... python -m pytest -q   # 78; DROPS that db's public schema
 python scripts/rerun_burgundy_proof.py   # expect READY 0  REVIEW 5  NO_MARKET 15
 ```
+
+`app/db/schema.sql` is the head schema. Change it only together with a new
+Alembic revision in `migrations/versions/`; `0001_baseline` is frozen.
+`test_migrations_reproduce_schema_sql_exactly` fails if the two disagree.
+
+Money crosses the API as JSON strings. A JSON number is refused, not converted.
 
 **Every trap found against live merchant data becomes a permanent regression
 test**, not a note in a doc. House style in `tests/test_traps.py`: name the
@@ -108,10 +115,13 @@ position, ask for a trade feed rather than scraping.
 ## Current state
 
 Done: deterministic core, identity resolver, three verified adapters (Farr,
-Bordeaux Index, Goedhuis Waddesdon), 55 regression tests, Postgres schema, AI
-provider interface.
+Bordeaux Index, Goedhuis Waddesdon), Postgres schema, AI provider interface,
+FastAPI service (`app/api/`), Alembic migrations (`migrations/`), RQ worker
+(`app/worker/`) for snapshot collection and deterministic benchmark.
 
-Not built yet: FastAPI service, migrations, RQ worker, Next.js frontend, the
-remaining ten merchant adapters, the auction layer.
+Not built yet: Next.js frontend, the remaining ten merchant adapters, deep
+merchant search (Bordeaux Index is targeted-fetch only, so it is not in
+snapshots yet), AI provider implementations, pricing and buyer export, the
+auction layer.
 
 Known open questions are in `docs/decisions/` and in the Burgundy proof report.

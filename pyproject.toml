@@ -2,10 +2,11 @@
 name = "uk-fine-wine-pricer"
 version = "0.1.0"
 requires-python = ">=3.11"
-dependencies = ["fastapi", "uvicorn", "httpx", "psycopg[binary]", "redis", "rq", "selectolax", "pydantic"]
+dependencies = ["fastapi", "uvicorn", "httpx", "psycopg[binary]", "redis", "rq", "selectolax", "pydantic",
+                "sqlalchemy", "alembic"]
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-cov", "ruff"]
+dev = ["pytest", "pytest-cov", "ruff", "fakeredis"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
