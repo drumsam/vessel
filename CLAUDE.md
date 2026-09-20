@@ -111,11 +111,12 @@ INGEST → IDENTITY PROPOSAL → IDENTITY VERIFICATION → SNAPSHOT LOOKUP
 ## Testing
 
 ```bash
-python -m pytest -q                      # 167 pass, 79 skip; no network, no services
+python -m pytest -q                      # 167 pass, 86 skip; no network, no services
 docker compose up -d                     # Postgres + Redis, then:
 TEST_DATABASE_URL=postgresql://pricer:pricer@localhost:5432/pricer_test \
-TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q   # 246 pass
+TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q   # 253 pass
 python scripts/rerun_burgundy_proof.py   # expect READY 0  REVIEW 5  NO_MARKET 15
+cd web && npm test                       # 5 tests: the browser-side parsing rules
 ```
 
 `app/db/schema.sql` is the head schema. Change it only together with a new
@@ -171,10 +172,15 @@ Snapshot retention (`prune_snapshots`, per merchant) and alias suggestions over
 the identity trail are built.
 
 Operator accounts and sessions are built (`app/api/auth.py`,
-`scripts/manage_operators.py`).
+`scripts/manage_operators.py`). The Next.js operator console is in `web/`:
+deals and upload, one deal (identity, evidence, price, sign-off), the exception
+queue, and an issued offer.
 
-Not built yet: Next.js frontend (deal upload parses the spreadsheet in the
-browser), the remaining ten merchant adapters, AI provider implementations,
-buyer export documents (the tables and the gate exist), the auction layer.
+The seller's spreadsheet is parsed **in the browser** (`web/lib/lines.js`,
+covered by `npm test`); the original row goes to the API verbatim as `raw_row`,
+which the API requires and refuses empty.
+
+Not built yet: the remaining ten merchant adapters, AI provider
+implementations, a rendered buyer document (PDF), the auction layer.
 
 Known open questions are in `docs/decisions/` and in the Burgundy proof report.

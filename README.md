@@ -221,6 +221,20 @@ queue path through real Redis instead of fakeredis.
 
 `pytest` needs no network: every adapter test runs against committed fixtures.
 
+## Operator console
+
+```bash
+cd web && npm install
+NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev
+npm test                                   # the browser-side parsing rules
+```
+
+The API must list the app's origin in `FRONTEND_ORIGINS`, and for local HTTP
+also needs `INSECURE_COOKIES=1`, because the session cookie is `Secure` by
+default. Screens: deals and upload, one deal, the exception queue, an issued
+offer. The seller's spreadsheet is parsed in the browser and the original row is
+sent verbatim.
+
 ## Deployment
 
 Frontend on Vercel · backend and jobs on Railway or Render · PostgreSQL on
