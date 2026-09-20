@@ -8,10 +8,10 @@ import { api, format, money, rate } from "../../../lib/api";
  *  do not change when the market does.
  *
  *  A line may only carry a market claim where there is a UK Reference to claim
- *  against, so the two kinds of line are printed in two tables. A line priced
- *  on cost has no "UK market" cell to leave blank — the column does not exist
- *  for it at all (decision 0010). The data makes this hard to get wrong: the
- *  API sends market_claim only where a claim exists.
+ *  against AND the price is below it, so the two kinds of line are printed in
+ *  two tables. A line without a claim has no "UK market" cell to leave blank —
+ *  the column does not exist for it at all (decision 0010). The data makes this
+ *  hard to get wrong: the API sends market_claim only where a claim exists.
  */
 export default function OfferPage({ params }) {
   const { offerId } = use(params);
@@ -88,7 +88,7 @@ export default function OfferPage({ params }) {
 
       {costPlus.length > 0 && (
         <>
-          <h2>Priced on cost</h2>
+          <h2>Priced without a UK market comparison</h2>
           <div className="card scroll">
             <table>
               <thead>

@@ -50,20 +50,26 @@ from .http import user_agent
 BASE = "https://bordeauxindex.com"
 LIST_URL = BASE + "/fine-wine/all"
 CURRENCY_URL = BASE + "/currency-set/GBP"
-PRODUCER_INDEX_URL = BASE + "/fine-wine"
+#: The machine-readable index of every producer BI filters by: 1,778 of them on
+#: 2026-09-20. The /fine-wine page lists only the nine it is featuring, which is
+#: not an index — a deep search built on it silently has no key for anyone else.
+PRODUCER_INDEX_URL = BASE + "/filters.xml"
 
-# Bordeaux Index's own producer index: /fine-wine/producer/<slug>. The slug form
-# matters and cannot be guessed from the name — `domaine_armand_rousseau` works
-# and `domaine-armand-rousseau` is a 404 (verified live 2026-09-20). These are
-# read from the merchant's own index and stored in merchant_search_key.
-_PRODUCER_LINK = re.compile(r'href="/fine-wine/producer/([^"]+)"[^>]*>([^<]+)</a>', re.I)
+# The slug form matters and cannot be guessed from the name:
+# producer=domaine_armand_rousseau works and domaine-armand-rousseau is a 404
+# (verified live 2026-09-20). Read from the merchant's own index, never invented.
+_PRODUCER_URL = re.compile(r"<loc>[^<]*/fine-wine/producer/([^<]+)</loc>", re.I)
 
 
-def parse_producer_index(html: str) -> dict[str, str]:
-    """{printed producer name: the merchant's slug for it}."""
-    import html as html_module
-    return {html_module.unescape(name).strip(): slug
-            for slug, name in _PRODUCER_LINK.findall(html or "")}
+def parse_producer_index(xml: str) -> dict[str, str]:
+    """{producer as the slug spells it: the merchant's slug}.
+
+    BI's slug is its producer name with spaces as underscores, so the name is
+    recoverable from it and normalises to the same wine_key producer part:
+    `jacques-frederic_mugnier` -> "jacques-frederic mugnier" -> the key for
+    Jacques-Frederic Mugnier.
+    """
+    return {slug.replace("_", " "): slug for slug in _PRODUCER_URL.findall(xml or "")}
 
 # "Case (6 x 75cl)" | "Case (1 x 150cl)" | "Bottle (75cl)"
 _PACK = re.compile(r"(?:Case\s*\(\s*(?P<pack>\d+)\s*x\s*(?P<csize>\d+)\s*cl\s*\)"

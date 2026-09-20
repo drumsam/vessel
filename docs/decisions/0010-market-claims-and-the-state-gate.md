@@ -36,6 +36,14 @@ This is enforced by structure, not by a template convention:
 A line can still be sold on cost-plus. We know our cost and our price. The
 document simply may not imply a basis we do not have.
 
+**Nor is a price above the market a negative discount.** The second rehearsal
+printed "£1,306.67 vs UK £610.00 (-114.2% below)" on four lines: a price above
+the market, rendered as a very large discount. "12% below the UK market" is a
+claim about being below it, so a line priced at or above the Reference carries
+no claim either, and `below_reference` has a `CHECK (>= 0)` so no code path can
+write one. Those lines are gated by `SELL_ABOVE_UK_REFERENCE` anyway — but an
+operator accepting a price does not make a false sentence true.
+
 ## 2. The gate: NO_MARKET and REVIEW need a name
 
 `pricing_result.requires_acknowledgement` already fired on `NEGATIVE_GP` and

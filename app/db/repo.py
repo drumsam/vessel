@@ -765,13 +765,20 @@ def _offer_line(conn: psycopg.Connection, line: dict, ask: dict) -> dict:
         "ack_id": pricing["acknowledgement"]["ack_id"] if pricing["acknowledgement"] else None,
         "sell_currency": pricing["sell_currency"],
         # A market claim only exists where there is a UK Reference to claim
-        # against. No reference, no row, nothing for a document to print.
-        "claim": ({"run_id": pricing["run_id"], "uk_reference": pricing["uk_reference"],
-                   "comp_count": pricing["comp_count"],
-                   "below_reference": ((pricing["uk_reference"] - pricing["sell_price"])
-                                       / pricing["uk_reference"]).quantize(RATE)}
-                  if pricing["uk_reference"] else None),
+        # against AND the price is actually below it. No reference, or a price
+        # above the market, means no row: nothing for a document to print.
+        # A price above the market is not a negative discount, it is not a
+        # discount (decision 0010).
+        "claim": (_claim(pricing) if pricing["uk_reference"]
+                  and pricing["sell_price"] <= pricing["uk_reference"] else None),
     }
+
+
+def _claim(pricing: dict) -> dict:
+    return {"run_id": pricing["run_id"], "uk_reference": pricing["uk_reference"],
+            "comp_count": pricing["comp_count"],
+            "below_reference": ((pricing["uk_reference"] - pricing["sell_price"])
+                                / pricing["uk_reference"]).quantize(RATE)}
 
 
 def create_buyer_offer(conn: psycopg.Connection, *, deal_id: str, client: str, currency: str,

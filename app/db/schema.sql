@@ -521,7 +521,10 @@ CREATE TABLE buyer_offer_market_claim (
     as_of          timestamptz NOT NULL,          -- when that market was measured
     uk_reference   numeric(14,2) NOT NULL,        -- never null: that is the point
     comp_count     int NOT NULL CHECK (comp_count > 0),
-    below_reference numeric(6,4) NOT NULL,        -- (reference - sell) / reference
+    -- (reference - sell) / reference, and never negative: "12% below the UK
+    -- market" is a claim, and a price ABOVE the market is not a smaller one.
+    -- Such a line carries no claim at all, like a line with no reference.
+    below_reference numeric(6,4) NOT NULL CHECK (below_reference >= 0),
     PRIMARY KEY (buyer_offer_id, line_no),
     FOREIGN KEY (buyer_offer_id, line_no)
         REFERENCES buyer_offer_line (buyer_offer_id, line_no) ON DELETE CASCADE

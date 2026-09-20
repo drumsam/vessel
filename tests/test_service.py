@@ -1913,3 +1913,29 @@ def test_search_keys_are_read_from_the_merchants_own_index(client, monkeypatch):
             client.get("/merchants/bordeaux-index/search-keys").json()}
     assert keys["domaine armand rousseau"]["params"] == {"producer_slug": "domaine_armand_rousseau"}
     assert keys["chateau haut brion"]["source"] == "merchant_index"
+
+
+@pg
+def test_a_price_above_the_market_is_not_a_negative_discount(client):
+    """Found in the second rehearsal: a line priced above the Reference printed
+    as "-114.2% below UK Market". A price above the market is not a smaller
+    discount — it is not a discount, so the line carries no claim at all."""
+    import psycopg
+    deal_id, line_id = _priced_deal(client, manual="900.00")     # the Reference is £650
+    p = client.get(f"/lines/{line_id}/pricing").json()
+    assert "SELL_ABOVE_UK_REFERENCE" in p["flags"] and p["uk_reference"] == "650.00"
+    client.post(f"/lines/{line_id}/pricing/acknowledge", json={"note": "agreed above market"})
+
+    offer = client.post(f"/deals/{deal_id}/buyer-offers", json={
+        "client": "A Merchant Ltd", "lines": [{"line_id": line_id}]}).json()
+    assert offer["lines"][0]["market_claim"] is None
+    assert _sql("SELECT count(*) AS n FROM buyer_offer_market_claim")[0]["n"] == 0
+
+    # And no code path can write one: the claim itself refuses to be negative.
+    run_id = client.get(f"/lines/{line_id}/benchmark").json()["run_id"]
+    with pytest.raises(psycopg.errors.CheckViolation):
+        _sql("""INSERT INTO buyer_offer_market_claim
+                    (buyer_offer_id, line_no, run_id, as_of, uk_reference, comp_count,
+                     below_reference)
+                VALUES (%s, 1, %s, now(), 650.00, 2, -1.1420)""",
+             (offer["buyer_offer_id"], run_id), fetch=False)
