@@ -11,8 +11,8 @@ The pricing core never sees a producer or a cuvee. It receives an approved
 `wine_id` or the record does not reach it.
 
 Resolution order (spec section 2):
-  1. LWIN, where the merchant publishes one, unless the merchant uses that LWIN
-     for more than one wine name, or the name resolves to a different wine
+  1. the canonical wine table, by normalised key, cross-checked against the
+     merchant's LWIN where it publishes one
   2. the canonical wine table, by normalised key
   3. controlled aliases
   4. an AI proposal, which must then pass an independent AI verification
@@ -122,13 +122,18 @@ class Registry:
             self._by_key.setdefault(a.key, a.wine_id)
 
     def resolve(self, producer: str, cuvee: str, lwin7: str | None = None) -> Optional[str]:
-        """LWIN first, then wine_key and controlled aliases, with one guard: if
-        the LWIN and the name each resolve and they DISAGREE, return None.
+        """The name resolves; the LWIN only ever cross-checks it.
 
-        A merchant's LWIN is its claim, not an approval. Farr's live feed on
-        2026-09-19 published LWIN-7 1038217 for both Jadot Clos Saint Jacques
-        and Lavaux Saint Jacques, and 1083129 for both Veuve Clicquot and Veuve
-        Clicquot Rosé. Where the name says otherwise, neither is trusted.
+        A merchant-published LWIN NEVER resolves identity on its own. It is the
+        merchant's mapping of its own listing, not the LWIN database: Farr's
+        live feed on 2026-09-19 published 1083129 for both Veuve Clicquot and
+        Veuve Clicquot Rosé, so a feed carrying only the Rosé would resolve it
+        to the Brut with nothing to contradict it.
+
+        So: no name, no identity. If the name resolves and the LWIN resolves to
+        a DIFFERENT wine, that disagreement is itself evidence and neither is
+        used. See docs/decisions/0006-merchant-lwin-policy.md; when the real
+        LWIN database is imported this can be revisited.
         """
         return self._agree(self._lwin(lwin7), self._by_key.get(wine_key(producer, cuvee)))
 
@@ -157,21 +162,33 @@ class Registry:
 
     @staticmethod
     def _agree(by_lwin: Optional[str], by_name: Optional[str]) -> Optional[str]:
-        if by_lwin and by_name and by_lwin != by_name:
-            return None
-        return by_lwin or by_name
+        if by_name is None:
+            return None                      # a LWIN alone never resolves
+        if by_lwin and by_lwin != by_name:
+            return None                      # the merchant contradicts itself
+        return by_name
 
 
-def ambiguous_lwins(candidates: list[tuple[Optional[str], str, str]]) -> frozenset[str]:
-    """LWIN-7s a merchant uses for more than one wine name in the same capture.
+def collided_lwins(candidates: list[tuple[Optional[str], str, str]]) -> dict[str, list[str]]:
+    """LWIN-7s a merchant uses for more than one wine name in the same capture,
+    mapped to those names.
 
-    `candidates` is [(lwin7, producer_text, cuvee_text), ...]. An LWIN that the
-    merchant itself applies to two different names cannot identify either, so
-    identity resolution ignores it for those records and uses the name alone.
-    Differences of accent, case and punctuation are not ambiguity.
+    `candidates` is [(lwin7, producer_text, cuvee_text), ...]. A collision is
+    NOT evidence that the merchant is wrong. In Farr's 2026-09-19 feed four of
+    six collisions are mapping errors (Jadot Clos Saint Jacques vs Lavaux Saint
+    Jacques; Veuve Clicquot vs Rosé; Giacosa Rocche del Falletto vs the
+    Riserva; H&H Verdelho vs Verdelho Solera) and two are not: Gaja's Costa
+    Russi and Sorì San Lorenzo appear as both "Barbaresco X" and "X" because
+    the wine changed appellation. There the LWIN is right and our name key is
+    wrong to split them.
+
+    So a collision is routed to an operator, who decides which it is. Discarding
+    the LWIN would lose real depth on the Gaja pattern.
+    Differences of accent, case and punctuation are not a collision.
     """
-    names: dict[str, set[str]] = {}
+    seen: dict[str, dict[str, str]] = {}           # lwin7 -> {wine_key: printed name}
     for lwin7, producer_text, cuvee_text in candidates:
         if lwin7:
-            names.setdefault(lwin7, set()).add(wine_key(producer_text, cuvee_text))
-    return frozenset(k for k, v in names.items() if len(v) > 1)
+            printed = " / ".join(x for x in (producer_text, cuvee_text) if x)
+            seen.setdefault(lwin7, {}).setdefault(wine_key(producer_text, cuvee_text), printed)
+    return {lwin7: sorted(names.values()) for lwin7, names in seen.items() if len(names) > 1}

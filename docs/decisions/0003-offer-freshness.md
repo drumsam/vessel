@@ -40,9 +40,11 @@ cover a single day, so no rate of listing turnover can be derived from them.
 Fourteen days is long enough that a weekly collection cadence never starves a
 line, and short enough that the market cannot have turned over.
 
-Revisit it when there are enough snapshots to measure how often a merchant's
+It stands as a **placeholder**. Once the collector has run daily for a few
+weeks, measure actual listing turnover per merchant — how often a merchant's
 listing for the same wine, vintage and format changes price or disappears
-between captures. Change the constant and this record together.
+between captures — and set the threshold from that, per merchant if the rates
+differ. Change the constant and this record together.
 
 ## Consequence
 

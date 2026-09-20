@@ -23,7 +23,7 @@ from app.core.enums import ConditionFlag, DutyStatus, PriceKind, Reject, State, 
 from app.core.flags import MAX_OFFER_AGE_DAYS, REVIEW_FLAGS, Flag
 from app.core.models import Offer, SellerLine
 from app.identity.resolver import (
-    STRUCTURAL_EXCLUSIONS, CanonicalWine, Registry, ambiguous_lwins, wine_key)
+    STRUCTURAL_EXCLUSIONS, CanonicalWine, Registry, collided_lwins, wine_key)
 
 WINE = "w-rousseau-chambertin"
 
@@ -508,15 +508,37 @@ def test_farr_lwin7_is_carried_not_discarded():
     assert farr_candidate(236920).lwin7 is None               # Rousseau: null in feed
 
 
-def test_farr_lwin_resolves_lafite_that_the_name_alone_cannot():
-    """'Lafite Rothschild' has no comma, so the name gives no producer/cuvee
-    split and wine_key misses. LWIN finds it."""
+def test_a_merchant_lwin_never_resolves_identity_on_its_own():
+    """Farr's 'Lafite Rothschild' has no comma, so wine_key misses it. The LWIN
+    knows what it is, but it is the MERCHANT's mapping of its own listing, not
+    the LWIN database: see the Rosé case below for what that buys. The record
+    waits for an alias instead (decision 0006)."""
     c = farr_candidate(237136)
-    reg = Registry([CanonicalWine("lafite", "Chateau Lafite Rothschild", "Grand Vin", "1011872"),
-                    CanonicalWine("carruades", "Chateau Lafite Rothschild", "Carruades", "1718931")])
+    reg = Registry([CanonicalWine("lafite", "Chateau Lafite Rothschild", "Grand Vin", "1011872")])
+    assert reg.resolve_candidate(c.producer_text, c.cuvee_text, c.lwin7) is None
+    # With the merchant's own spelling approved as an alias, it resolves, and
+    # the LWIN agrees with the name.
+    reg._by_key[wine_key("Lafite Rothschild", "")] = "lafite"
     assert reg.resolve_candidate(c.producer_text, c.cuvee_text, c.lwin7) == "lafite"
-    k = farr_candidate(215140)
-    assert reg.resolve_candidate(k.producer_text, k.cuvee_text, k.lwin7) == "carruades"
+
+
+def test_farr_rose_alone_under_brut_lwin_is_not_priced_as_brut():
+    """Farr publishes LWIN-7 1083129 for both Veuve Clicquot and Veuve Clicquot
+    Rosé. A feed carrying only the Rosé would have resolved it to the Brut with
+    nothing to contradict it. Requiring name agreement closes that."""
+    r = farr_candidate(179277)
+    reg = Registry([CanonicalWine("vcp-brut", "Veuve Clicquot", "Brut", "1083129")])
+    assert reg.resolve_candidate(r.producer_text, r.cuvee_text, r.lwin7) is None
+
+
+def test_lwin_disagreeing_with_an_approved_name_stops_the_record():
+    """The cross-check earns its keep here: an alias says Carruades, Farr's LWIN
+    says Lafite. One of them is wrong, so the record prices nothing."""
+    k = farr_candidate(215140)                    # Carruades de Lafite, LWIN 1718931
+    reg = Registry([CanonicalWine("lafite", "Chateau Lafite Rothschild", "Grand Vin", "1718931"),
+                    CanonicalWine("carruades", "Chateau Lafite Rothschild", "Carruades")])
+    reg._by_key[wine_key(k.producer_text, k.cuvee_text)] = "carruades"
+    assert reg.resolve_candidate(k.producer_text, k.cuvee_text, k.lwin7) is None
 
 
 def test_farr_shared_lwin_never_prices_lavaux_off_clos_saint_jacques():
@@ -531,28 +553,69 @@ def test_farr_shared_lwin_never_prices_lavaux_off_clos_saint_jacques():
     ])
     # LWIN says Clos Saint Jacques, the name says Lavaux: neither is trusted.
     assert reg.resolve_candidate(lav.producer_text, lav.cuvee_text, lav.lwin7) is None
-    # The same capture shows Farr using 1038217 for two names: it is ignored.
-    batch = [(c.lwin7, c.producer_text, c.cuvee_text) for c in (csj, lav)]
-    assert "1038217" in ambiguous_lwins(batch)
+    # Once an operator has judged this LWIN unreliable it is not consulted, and
+    # the name stands on its own.
     assert reg.resolve_candidate(lav.producer_text, lav.cuvee_text, None) == "lavaux"
 
 
-def test_farr_shared_lwin_is_ambiguous_when_both_wines_are_listed():
-    """Veuve Clicquot and Veuve Clicquot Rosé share 1083129 in the same feed."""
-    b, r = farr_candidate(179275), farr_candidate(179277)
-    assert b.lwin7 == r.lwin7 == "1083129"
-    assert "1083129" in ambiguous_lwins([(c.lwin7, c.producer_text, c.cuvee_text) for c in (b, r)])
-    assert ambiguous_lwins([(b.lwin7, b.producer_text, b.cuvee_text)]) == frozenset()
+@pytest.mark.parametrize("ids,collides", [
+    ((227986, 227984), True),     # Jadot Clos vs Lavaux Saint Jacques: a mapping error
+    ((179275, 179277), True),     # Veuve Clicquot vs Rosé: a mapping error
+    ((237136,), False),           # one name, no collision
+])
+def test_collided_lwins_are_reported_with_the_merchants_own_wording(ids, collides):
+    cs = [farr_candidate(i) for i in ids]
+    found = collided_lwins([(c.lwin7, c.producer_text, c.cuvee_text) for c in cs])
+    assert bool(found) is collides
+    if collides:
+        [names] = found.values()
+        assert len(names) == 2 and all(any(w in n for w in ("Jadot", "Clicquot")) for n in names)
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "Known gap: if a merchant lists ONLY the Rosé under the Brut's LWIN, and the "
-    "canonical table has only the Brut, LWIN resolves the Rosé to the Brut. "
-    "Closing it needs a policy decision on LWIN trust; see the 2026-09-19 report."))
-def test_farr_rose_alone_under_brut_lwin_is_not_priced_as_brut():
-    r = farr_candidate(179277)
-    reg = Registry([CanonicalWine("vcp-brut", "Veuve Clicquot", "Brut", "1083129")])
-    assert reg.resolve_candidate(r.producer_text, r.cuvee_text, r.lwin7) is None
+def test_a_collision_is_not_proof_the_merchant_is_wrong():
+    """Gaja's Costa Russi appears as both 'Barbaresco Costa Russi' and 'Costa
+    Russi' because the wine changed appellation. Here the LWIN is right and our
+    name key is wrong to split it, so a collision goes to an operator rather
+    than being discarded: discarding it would lose real depth."""
+    batch = [("1099722", "Gaja", "Barbaresco Costa Russi"), ("1099722", "Gaja", "Costa Russi")]
+    assert collided_lwins(batch) == {"1099722": ["Gaja / Barbaresco Costa Russi",
+                                                 "Gaja / Costa Russi"]}
+    # Once the operator approves the alias, both spellings are one wine and the
+    # LWIN agrees with the name.
+    reg = Registry([CanonicalWine("costa-russi", "Gaja", "Costa Russi", "1099722")])
+    reg._by_key[wine_key("Gaja", "Barbaresco Costa Russi")] = "costa-russi"
+    for _, p, c in batch:
+        assert reg.resolve_candidate(p, c, "1099722") == "costa-russi"
+
+
+@pytest.mark.parametrize("raw,vintage", [
+    ("2011", 2011), ("NV", 1000), ("N.V.", 1000),
+    ("M.V.", None),          # multi-vintage: meaning not established
+    ("BV14", None),          # coded form: meaning not established
+])
+def test_farr_non_vintage_is_1000_not_a_rejection(raw, vintage):
+    """166 of 5,841 Farr records carry a non-numeric Vintage. NV is the LWIN
+    convention's 1000; int('N.V.') raised and dropped every one of them,
+    including the vintage Champagne and Port that the NV wines sit beside."""
+    from app.adapters.farr import parse_vintage
+    assert parse_vintage(raw) == vintage
+    out = FarrAdapter().normalise({**FARR[237136], "Vintage": raw}, captured_at=AS_OF)
+    if vintage is None:
+        assert out.reason is Reject.VINTAGE
+    else:
+        assert out.offer.vintage == vintage
+
+
+def test_bordeaux_index_unreadable_row_is_kept_as_a_rejection():
+    """A card's rows were skipped silently when they did not parse. Evidence we
+    cannot read is still evidence that something was there."""
+    card = {"title": "2011 Domaine Armand Rousseau, Charmes-Chambertin Grand Cru", "url": "u",
+            "offers": ["Case (6 x 75cl) STATUS In-Bond price on application",
+                       "Bottle (75cl) CONDITION Original Case STATUS In-Bond "
+                       "You buy £650.00 2 Bottle(s) Available"]}
+    bad, good = BordeauxIndexAdapter().normalise(card, captured_at=AS_OF)
+    assert bad.reason is Reject.ROW_UNREADABLE and "price on application" in bad.detail
+    assert good.offer.price == Decimal("650.00")
 
 
 def test_farr_float32_price_is_not_whole_pence():
@@ -569,6 +632,20 @@ def test_farr_float32_price_is_not_whole_pence():
 def test_every_farr_fixture_record_normalises_without_exception():
     for rec in FARR_FEED["data"]:
         FarrAdapter().normalise(rec, captured_at=AS_OF)
+
+
+def test_a_price_that_is_not_whole_pence_never_becomes_floor_or_reference():
+    """The refusal is in the core too, not only at storage: a 308.329986 that
+    reached the benchmark would otherwise be the Floor."""
+    r = benchmark(line(), [offer(merchant_id="m1", price=Decimal("308.329986")),
+                           offer(merchant_id="m2", price=Decimal("900.00"))])
+    assert r.uk_floor == Decimal("900.00") and r.comp_count == 1
+    assert [x.reason for x in r.rejections] == [Reject.NOT_WHOLE_PENCE]
+
+
+def test_a_price_that_is_not_whole_pence_is_not_cross_unit_evidence_either():
+    r = benchmark(line(), [offer(pack_size=6, price=Decimal("1849.979980"))])
+    assert r.cross_unit == []
 
 
 # --------------------------------- condition wording kept (all three adapters)

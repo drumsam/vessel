@@ -128,17 +128,26 @@ class BordeauxIndexAdapter(Adapter):
             return list(extract_cards(r.text))
 
     def normalise(self, raw: dict, captured_at: datetime | None = None):
-        """`raw` is one card: {"title": str, "offers": [str, ...], "url": str}."""
+        """`raw` is one card: {"title": str, "offers": [str, ...], "url": str}.
+
+        Returns one result per offer row: a Candidate, or a Rejected carrying
+        that row's text. A card yields as many results as it has rows."""
         t = parse_title(raw.get("title", ""))
         if t is None:
             return Rejected(raw, Reject.UNRESOLVED_IDENTITY, f"unparseable title {raw.get('title')!r}")
 
-        out: list[Candidate] = []
+        out: list[Candidate | Rejected] = []
         for i, row in enumerate(raw.get("offers", [])):
             p = parse_offer_row(row)
             if p is None:
+                # Never dropped silently: a row we cannot read is a rejection
+                # with the row's own text, like every other rejection.
+                out.append(Rejected({"card": raw.get("title"), "offer_row": row},
+                                    Reject.ROW_UNREADABLE, row[:200]))
                 continue
             if p["price"] <= 0:
+                out.append(Rejected({"card": raw.get("title"), "offer_row": row},
+                                    Reject.NON_POSITIVE_PRICE, row[:200]))
                 continue
             flags, _ = condition_evidence(p["condition_notes"])
             out.append(Candidate(

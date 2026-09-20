@@ -6,11 +6,13 @@ values and opens its own database connection.
     SNAPSHOT LOOKUP ......... collect_snapshot  (whole-book merchant feeds)
     DEEP MERCHANT SEARCH .... collect_targeted  (producer + vintage searches)
     DETERMINISTIC BENCHMARK . benchmark_deal
+    PRICING ................. price_deal
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Callable, Iterable, Optional, Sequence
 
 import psycopg
@@ -23,7 +25,8 @@ from app.core.benchmark import benchmark
 from app.core.enums import Reject
 from app.db import repo
 from app.db.connection import transaction
-from app.identity.resolver import ambiguous_lwins
+from app.identity.resolver import collided_lwins
+from app.pricing.pricer import DEEP_DISCOUNT_THRESHOLD, CannotPrice, price_line
 from app.worker.politeness import check_robots
 
 #: Bumped when the adapter output contract changes shape.
@@ -86,9 +89,15 @@ def ingest(conn: psycopg.Connection, snapshot_id: str, adapter: Adapter,
     registry = registry or repo.load_registry(conn)
     normalised = [(raw, _outputs(adapter, raw, captured_at)) for raw in records]
     candidates = [c for _, outs in normalised for c in outs if isinstance(c, Candidate)]
-    # An LWIN the merchant applies to two different names in this capture
-    # identifies neither of them.
-    ambiguous = ambiguous_lwins([(c.lwin7, c.producer_text, c.cuvee_text) for c in candidates])
+
+    # An LWIN this merchant applies to two different names goes to the operator
+    # queue: it may be the merchant's mapping error or our name key splitting one
+    # wine (decision 0006). Until an operator says otherwise it still
+    # cross-checks, so a record it contradicts stays unresolved rather than
+    # being priced. LWINs already judged unreliable are skipped entirely.
+    collisions = collided_lwins([(c.lwin7, c.producer_text, c.cuvee_text) for c in candidates])
+    repo.record_lwin_conflicts(conn, adapter.id, collisions)
+    untrusted = repo.untrusted_lwins(conn, adapter.id)
 
     written = rejected = 0
     for raw, outs in normalised:
@@ -108,12 +117,16 @@ def ingest(conn: psycopg.Connection, snapshot_id: str, adapter: Adapter,
                                   repo.unresolved_raw(out))
                 rejected += 1
                 continue
-            lwin7 = None if out.lwin7 in ambiguous else out.lwin7
+            lwin7 = None if out.lwin7 in untrusted else out.lwin7
             wine_id = registry.resolve_candidate(out.producer_text, out.cuvee_text, lwin7)
             if wine_id is None:
                 detail = f"{out.producer_text!r} / {out.cuvee_text!r}"
                 if out.lwin7:
-                    detail += f" / LWIN-7 {out.lwin7}" + (" (ambiguous)" if out.lwin7 in ambiguous else "")
+                    detail += f" / LWIN-7 {out.lwin7}"
+                    if out.lwin7 in untrusted:
+                        detail += " (untrusted, not used)"
+                    elif out.lwin7 in collisions:
+                        detail += " (conflict open)"
                 repo.write_reject(conn, snapshot_id, adapter.id,
                                   Reject.UNRESOLVED_IDENTITY.name, detail,
                                   repo.unresolved_raw(out))
@@ -264,3 +277,49 @@ def benchmark_deal(deal_id: str, as_of: Optional[str] = None) -> dict:
             runs[line.line_id] = str(repo.save_benchmark(conn, result, res))
     return {"as_of": when.isoformat(), "runs": runs,
             "unapproved_identity": unapproved, "no_coverage": no_coverage}
+
+
+# ------------------------------------------------------------------- pricing
+
+
+def price_deal(deal_id: str, priced_by: str, fx_rates: Optional[dict] = None,
+               deep_discount_threshold: Optional[str] = None) -> dict:
+    """Price every benchmarked line of a deal from its latest run.
+
+    `fx_rates` is {"USD": {"rate": "0.7412", "date": "2026-09-19", "source": "ECB"}}:
+    the operator's rate, kept with the result so a GP can be reproduced. A line
+    the rules do not determine a price for is skipped with its reason, never
+    guessed at. A line that has not been benchmarked is not priced at all.
+    """
+    fx_rates = fx_rates or {}
+    threshold = (Decimal(deep_discount_threshold) if deep_discount_threshold is not None
+                 else DEEP_DISCOUNT_THRESHOLD)
+    priced, skipped = {}, []
+    with transaction() as conn:
+        deal = repo.get_deal(conn, deal_id)
+        if deal is None:
+            raise LookupError(f"deal {deal_id} not found")
+        for row in repo.deal_lines(conn, deal_id):
+            line_id = str(row["line_id"])
+            run = repo.latest_run(conn, row["line_id"])
+            if run is None:
+                skipped.append({"line_id": line_id, "reason": "not benchmarked"})
+                continue
+            fx = fx_rates.get(row["cost_currency"] or "GBP", {})
+            try:
+                result = price_line(
+                    uk_reference=run["uk_reference"], cost=row["cost"],
+                    cost_currency=row["cost_currency"],
+                    fx_rate=Decimal(fx["rate"]) if fx.get("rate") else None,
+                    manual_price=row["manual_price"], line_margin=row["target_margin"],
+                    line_discount=row["target_discount"], deal_margin=deal["target_margin"],
+                    deep_discount_threshold=threshold)
+            except CannotPrice as e:
+                skipped.append({"line_id": line_id, "reason": str(e)})
+                continue
+            priced[line_id] = str(repo.save_pricing(
+                conn, line_id=line_id, run=run, priced=result, priced_by=priced_by,
+                cost=row["cost"], cost_currency=row["cost_currency"],
+                fx_rate=Decimal(fx["rate"]) if fx.get("rate") else None,
+                fx_rate_date=fx.get("date"), fx_source=fx.get("source")))
+    return {"priced": priced, "skipped": skipped}

@@ -418,12 +418,14 @@ def test_usd_cost_cannot_be_priced_without_its_fx_rate(client):
     deal_id, line_id = _deal(client, wid)
     _benchmark(client, deal_id)
     run_id = client.get(f"/lines/{line_id}/benchmark").json()["run_id"]
-    cols = "(line_id, run_id, priced_by, comp_count, cost, cost_currency, state"
+    cols = ("(line_id, run_id, priced_by, comp_count, cost, cost_currency, state, "
+            "price_basis, deep_discount_threshold")
+    values = "'op', 1, 500.00, 'USD', 'REVIEW', 'manual', 0.2500"
     with pytest.raises(psycopg.errors.CheckViolation):
-        _sql(f"INSERT INTO pricing_result {cols}) VALUES (%s, %s, 'op', 1, 500.00, 'USD', 'REVIEW')",
+        _sql(f"INSERT INTO pricing_result {cols}) VALUES (%s, %s, {values})",
              (line_id, run_id), fetch=False)
     _sql(f"""INSERT INTO pricing_result {cols}, fx_rate, fx_rate_date, fx_source)
-             VALUES (%s, %s, 'op', 1, 500.00, 'USD', 'REVIEW', 0.74120000, '2026-09-19', 'ECB')""",
+             VALUES (%s, %s, {values}, 0.74120000, '2026-09-19', 'ECB')""",
          (line_id, run_id), fetch=False)
 
 
@@ -555,32 +557,36 @@ def test_one_float32_price_no_longer_aborts_the_whole_farr_capture(client):
 
 
 @pg
-def test_ambiguous_farr_lwin_is_ignored_at_ingest(client):
+def test_a_collided_lwin_blocks_the_contradicted_record_while_the_conflict_is_open(client):
     """Using the captured feed: 1038217 names both Jadot Clos Saint Jacques and
     Lavaux Saint Jacques. With only Clos Saint Jacques in the canonical table,
-    Lavaux must be UNRESOLVED, not priced as Clos Saint Jacques."""
-    feed = json.loads((ROOT / "tests/fixtures/farr-feed-2026-09-19.json").read_text())["data"]
-    jadot = [r for r in feed if r["LWIN-7"] == 1038217]
+    Lavaux must be UNRESOLVED, not priced as Clos Saint Jacques, and the reject
+    must point at the open conflict."""
     _seed_wine(client, "Louis Jadot", "Gevrey Chambertin Clos Saint Jacques", lwin7="1038217")
-    _collect(client, jadot)
+    _collect(client, _farr_pair({227986, 227984}))
     assert [o["offer_id"] for o in _sql("SELECT offer_id FROM offer")] == ["farr:227986"]
     [rej] = _sql("SELECT detail FROM offer_reject")
-    assert "Lavaux" in rej["detail"] and "(ambiguous)" in rej["detail"]
+    assert "Lavaux" in rej["detail"] and "(conflict open)" in rej["detail"]
 
 
 @pg
-def test_unambiguous_farr_lwin_resolves_what_the_name_cannot(client):
-    feed = json.loads((ROOT / "tests/fixtures/farr-feed-2026-09-19.json").read_text())["data"]
-    lafite = [r for r in feed if r["WineId"] == 237136]
-    _seed_wine(client, "Chateau Lafite Rothschild", "Grand Vin", lwin7="1011872")
+def test_a_merchant_lwin_alone_does_not_resolve_a_name_we_do_not_know(client):
+    """Farr's 'Lafite Rothschild' carries LWIN-7 1011872 and nothing else names
+    it. The LWIN is the merchant's own mapping, so it waits for an alias."""
+    lafite = _farr_pair({237136})
+    wid = _seed_wine(client, "Chateau Lafite Rothschild", "Grand Vin", lwin7="1011872")
+    assert client.get(f"/snapshots/{_collect(client, lafite)}").json()["offers_written"] == 0
+    r = client.post(f"/wines/{wid}/aliases", json={
+        "producer_text": "Lafite Rothschild", "cuvee_text": "",
+        "source": "operator", "approved_by": "op", "note": "Farr prints no cuvee"})
+    assert r.status_code == 201
     assert client.get(f"/snapshots/{_collect(client, lafite)}").json()["offers_written"] == 1
 
 
 @pg
-def test_bordeaux_index_card_with_no_parsable_row_is_a_reject_not_a_silence(client):
+def test_bordeaux_index_card_with_no_rows_at_all_is_a_reject_not_a_silence(client):
     wid = _seed_wine(client, cuvee="Charmes-Chambertin Grand Cru")
-    card = {**bi_card("650.00"), "offers": ["Case (6 x 75cl) STATUS In-Bond price on request"]}
-    _collect_bi(client, wid, [card])
+    _collect_bi(client, wid, [{**bi_card("650.00"), "offers": []}])
     assert [r["reason"] for r in _sql("SELECT reason FROM offer_reject")] == ["NO_OFFER_ROWS"]
 
 
@@ -902,3 +908,254 @@ def test_approved_alias_resolves_merchant_spelling_on_next_collection(client):
 
 def _collect_written(client) -> int:
     return client.get(f"/snapshots/{_collect(client)}").json()["offers_written"]
+
+
+# --- line state: searched, never searched, no market ------------------------
+
+
+@pg
+def test_never_searched_and_no_market_are_shown_differently(client):
+    """NO_MARKET means every approved merchant was searched and none offers the
+    wine. NOT_SEARCHED means nobody looked. A buyer must never be sent a price
+    for a line nobody looked at, so the deal view must not blur the two."""
+    wid = _seed_wine(client)
+    deal_id, line_id = _deal(client, wid)
+
+    line = client.get(f"/deals/{deal_id}").json()["lines"][0]
+    assert line["line_state"] == "NOT_SEARCHED" and line["benchmark"] is None
+
+    _collect(client, FARR_BOOK[2:])                 # Farr searched; wine not listed
+    _benchmark(client, deal_id)
+    line = client.get(f"/deals/{deal_id}").json()["lines"][0]
+    assert line["line_state"] == "NO_MARKET"
+    assert line["benchmark"]["comp_count"] == 0
+
+
+@pg
+def test_a_line_with_no_approved_identity_says_so(client):
+    r = client.post("/deals", json={"name": "d", "created_by": "op", "lines": [
+        {"row_index": 0, "raw_description": "Rousseau ?", "raw_row": {}, "quantity": 1}]})
+    [line] = r.json()["lines"]
+    assert line["line_state"] == "IDENTITY_NOT_APPROVED"
+
+
+@pg
+def test_a_never_searched_line_cannot_reach_a_buyer_offer(client):
+    """Structural, not a convention: a buyer offer line requires a pricing
+    result, which requires a benchmark run, which only exists if we searched."""
+    import psycopg
+    wid = _seed_wine(client)
+    deal_id, line_id = _deal(client, wid)
+    assert client.get(f"/deals/{deal_id}").json()["lines"][0]["line_state"] == "NOT_SEARCHED"
+    assert _sql("SELECT count(*) AS n FROM benchmark_run")[0]["n"] == 0
+
+    offer_id = _sql("""INSERT INTO buyer_offer (deal_id, client, currency, issued_at, issued_by)
+                       VALUES (%s, 'A Buyer', 'GBP', now(), 'op') RETURNING buyer_offer_id""",
+                    (deal_id,))[0]["buyer_offer_id"]
+    with pytest.raises(psycopg.errors.NotNullViolation):
+        _sql("""INSERT INTO buyer_offer_line (buyer_offer_id, line_no, line_id, pricing_id,
+                description, vintage, bottle_ml, pack_size, quantity, unit_price, line_total)
+                VALUES (%s, 1, %s, NULL, 'Rousseau Charmes 2011', 2011, 750, 1, 6,
+                        800.00, 4800.00)""", (offer_id, line_id), fetch=False)
+
+
+# --- pricing ------------------------------------------------------------------
+
+
+def _price(client, deal_id, priced_by="op", **body) -> dict:
+    jid = client.post(f"/deals/{deal_id}/pricing",
+                      json={"priced_by": priced_by, **body}).json()["job_id"]
+    _work(client.queue)
+    return _job(client, jid)
+
+
+@pg
+def test_pricing_persists_the_figures_as_at_the_moment_of_pricing(client):
+    """The benchmark figures are copied onto the pricing result, not joined back
+    to the run: a sent price stays explicable after the market moves."""
+    wid = _seed_wine(client)
+    _collect(client)
+    deal_id, line_id = _deal(client, wid)
+    _benchmark(client, deal_id)
+    r = client.put(f"/lines/{line_id}/identity", json={
+        "wine_id": wid, "vintage": 2011, "bottle_ml": 750, "pack_size": 1,
+        "source": "operator", "approved_by": "op"})
+    assert r.status_code == 200
+    _sql("UPDATE seller_line SET target_margin = 0.2500", fetch=False)
+
+    j = _price(client, deal_id)
+    assert j["status"] == "finished" and list(j["result"]["priced"]) == [line_id]
+
+    p = client.get(f"/lines/{line_id}/pricing").json()
+    assert (p["price_basis"], p["sell_price"]) == ("line_margin", "640.00")  # 480 / 0.75
+    assert (p["cost"], p["cost_gbp"], p["gp"], p["gross_margin"]) == (
+        "480.00", "480.00", "160.00", "0.2500")
+    assert (p["uk_reference"], p["comp_count"]) == ("610.00", 1)
+    assert p["deep_discount_threshold"] == "0.2500"
+    assert "ONE_COMP" in p["flags"] and p["state"] == "REVIEW"
+    assert client.get(f"/deals/{deal_id}").json()["lines"][0]["pricing"]["sell_price"] == "640.00"
+
+
+@pg
+def test_pricing_records_the_fx_rate_that_produced_the_gp(client):
+    wid = _seed_wine(client)
+    _collect(client)
+    deal_id, line_id = _deal(client, wid)
+    _benchmark(client, deal_id)
+    _sql("UPDATE seller_line SET cost = 500.00, cost_currency = 'USD', target_margin = 0.2000",
+         fetch=False)
+
+    j = _price(client, deal_id, fx_rates={"USD": {"rate": "0.7412", "date": "2026-09-19",
+                                                  "source": "ECB"}})
+    assert j["status"] == "finished"
+    p = client.get(f"/lines/{line_id}/pricing").json()
+    assert (p["cost_gbp"], p["sell_price"]) == ("370.60", "463.25")
+    assert (p["fx_rate"], p["fx_rate_date"], p["fx_source"]) == ("0.74120000", "2026-09-19", "ECB")
+
+
+@pg
+def test_a_usd_line_with_no_rate_is_skipped_not_guessed(client):
+    wid = _seed_wine(client)
+    _collect(client)
+    deal_id, line_id = _deal(client, wid)
+    _benchmark(client, deal_id)
+    _sql("UPDATE seller_line SET cost = 500.00, cost_currency = 'USD', target_margin = 0.2000",
+         fetch=False)
+    j = _price(client, deal_id)
+    assert j["result"]["priced"] == {}
+    assert j["result"]["skipped"] == [{"line_id": line_id, "reason": "no FX rate for USD"}]
+    assert client.get(f"/lines/{line_id}/pricing").status_code == 404
+
+
+@pg
+def test_an_unbenchmarked_line_is_never_priced(client):
+    wid = _seed_wine(client)
+    deal_id, line_id = _deal(client, wid)
+    _sql("UPDATE seller_line SET target_margin = 0.2500", fetch=False)
+    j = _price(client, deal_id)
+    assert j["result"]["skipped"] == [{"line_id": line_id, "reason": "not benchmarked"}]
+
+
+@pg
+def test_the_deal_margin_is_the_fallback_for_a_line_with_no_rule(client):
+    wid = _seed_wine(client)
+    _collect(client)
+    r = client.post("/deals", json={
+        "name": "d", "created_by": "op", "currency": "GBP", "target_margin": 0.4,
+        "lines": [{"row_index": 0, "raw_description": "Rousseau Charmes 2011",
+                   "raw_row": {}, "quantity": 1, "cost": "300.00", "cost_currency": "GBP"}]})
+    deal_id, line_id = r.json()["deal_id"], r.json()["lines"][0]["line_id"]
+    client.put(f"/lines/{line_id}/identity", json={
+        "wine_id": wid, "vintage": 2011, "bottle_ml": 750, "pack_size": 1,
+        "source": "operator", "approved_by": "op"})
+    _benchmark(client, deal_id)
+    _price(client, deal_id)
+    p = client.get(f"/lines/{line_id}/pricing").json()
+    assert (p["price_basis"], p["sell_price"]) == ("global_margin", "500.00")   # 300 / 0.6
+    assert Decimal(p["gross_margin"]) == Decimal("0.4000")
+
+
+# --- LWIN conflicts -----------------------------------------------------------
+
+
+def _farr_pair(wine_ids):
+    feed = json.loads((ROOT / "tests/fixtures/farr-feed-2026-09-19.json").read_text())["data"]
+    return [r for r in feed if r["WineId"] in wine_ids]
+
+
+@pg
+def test_a_collided_lwin_opens_one_operator_review(client):
+    """Farr uses 1038217 for Jadot Clos Saint Jacques and Lavaux Saint Jacques.
+    Both names, and the merchant, are recorded for the operator."""
+    _seed_wine(client, "Louis Jadot", "Gevrey Chambertin Clos Saint Jacques", lwin7="1038217")
+    _collect(client, _farr_pair({227986, 227984}))
+    [c] = client.get("/lwin-conflicts").json()
+    assert (c["merchant_id"], c["lwin7"]) == ("farr", "1038217")
+    assert len(c["names"]) == 2 and any("Lavaux" in n for n in c["names"])
+    assert c["resolution"] is None
+
+
+@pg
+def test_resolving_a_collision_as_different_wines_excludes_and_untrusts(client):
+    """Jadot's two climats: record the exclusion, stop trusting Farr's LWIN, and
+    the Lavaux listing then resolves on its name alone at the next collection."""
+    csj = _seed_wine(client, "Louis Jadot", "Gevrey Chambertin Clos Saint Jacques",
+                     lwin7="1038217")
+    lavaux = _seed_wine(client, "Louis Jadot", "Gevrey Chambertin Lavaux Saint Jacques")
+    pair = _farr_pair({227986, 227984})
+    _collect(client, pair)
+    assert _sql("SELECT count(*) AS n FROM offer")[0]["n"] == 1      # Lavaux blocked
+
+    [c] = client.get("/lwin-conflicts").json()
+    r = client.post(f"/lwin-conflicts/{c['conflict_id']}/resolve", json={
+        "resolution": "different_wines", "resolved_by": "op",
+        "exclude": [csj, lavaux], "note": "adjacent climats"})
+    assert r.status_code == 200 and r.json()["resolution"] == "different_wines"
+    assert _sql("SELECT count(*) AS n FROM wine_exclusion")[0]["n"] == 1
+    assert _sql("SELECT lwin7 FROM merchant_lwin_untrusted")[0]["lwin7"] == "1038217"
+
+    sid = _collect(client, pair)
+    assert _sql("SELECT count(*) AS n FROM offer WHERE snapshot_id = %s",
+                (sid,))[0]["n"] == 2                                 # both now resolve
+    assert client.get("/lwin-conflicts").json() == []                # not reopened
+
+
+@pg
+def test_resolving_a_collision_as_one_wine_creates_the_alias(client):
+    """Gaja's Costa Russi under two appellations is one wine. Approving the
+    alias recovers the depth that discarding the LWIN would have lost."""
+    wid = _seed_wine(client, "Gaja", "Costa Russi", lwin7="1099722")
+    book = [farr(1, "Costa Russi, Gaja", "2016", "6×75cl", "1200.00", 6, 2, lwin7=1099722),
+            farr(2, "Barbaresco Costa Russi, Gaja", "2016", "6×75cl", "1150.00", 6, 1,
+                 lwin7=1099722)]
+    _collect(client, book)
+    assert _sql("SELECT count(*) AS n FROM offer")[0]["n"] == 1
+
+    [c] = client.get("/lwin-conflicts").json()
+    r = client.post(f"/lwin-conflicts/{c['conflict_id']}/resolve", json={
+        "resolution": "same_wine", "resolved_by": "op",
+        "aliases": [{"wine_id": wid, "producer_text": "Gaja",
+                     "cuvee_text": "Barbaresco Costa Russi"}],
+        "note": "appellation change, same wine"})
+    assert r.status_code == 200
+    sid = _collect(client, book)
+    assert _sql("SELECT count(*) AS n FROM offer WHERE wine_id = %s AND snapshot_id = %s",
+                (wid, sid))[0]["n"] == 2
+
+
+@pg
+def test_an_alias_resolution_still_obeys_the_exclusion_guard_rails(client):
+    """The conflict queue is not a way round the identity guard rails."""
+    charmes = _seed_wine(client, cuvee="Charmes-Chambertin Grand Cru", lwin7="1")
+    book = [farr(1, "Charmes-Chambertin Grand Cru, Domaine Armand Rousseau", "2011",
+                 "1×75cl", "610.00", 1, 1, lwin7=1),
+            farr(2, "Mazoyeres-Chambertin Grand Cru, Domaine Armand Rousseau", "2011",
+                 "1×75cl", "300.00", 1, 1, lwin7=1)]
+    _collect(client, book)
+    [c] = client.get("/lwin-conflicts").json()
+    r = client.post(f"/lwin-conflicts/{c['conflict_id']}/resolve", json={
+        "resolution": "same_wine", "resolved_by": "op",
+        "aliases": [{"wine_id": charmes, "producer_text": R,
+                     "cuvee_text": "Mazoyeres-Chambertin Grand Cru"}]})
+    assert r.status_code == 409
+    assert client.get("/lwin-conflicts").json()[0]["resolution"] is None
+
+
+# --- adapter fixes reaching the database -------------------------------------
+
+
+@pg
+def test_farr_non_vintage_wines_are_ingested_as_1000(client):
+    _seed_wine(client, "Veuve Clicquot", "Brut")
+    _collect(client, [farr(1, "Brut, Veuve Clicquot", "N.V.", "6×75cl", "290.00", 6, 4)])
+    assert _sql("SELECT vintage FROM offer")[0]["vintage"] == 1000
+
+
+@pg
+def test_bordeaux_index_unreadable_rows_are_stored_as_rejections(client):
+    wid = _seed_wine(client, cuvee="Charmes-Chambertin Grand Cru")
+    card = {**bi_card("650.00")}
+    card["offers"] = ["Case (6 x 75cl) STATUS In-Bond price on application", *card["offers"]]
+    _collect_bi(client, wid, [card])
+    assert [r["reason"] for r in _sql("SELECT reason FROM offer_reject")] == ["ROW_UNREADABLE"]
+    assert _sql("SELECT count(*) AS n FROM offer")[0]["n"] == 1

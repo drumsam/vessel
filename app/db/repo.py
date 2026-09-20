@@ -18,6 +18,7 @@ from app.core.benchmark import BenchmarkResult
 from app.core.enums import ConditionFlag, DutyStatus, PriceKind, StockType
 from app.core.flags import Flag
 from app.core.models import Offer, SellerLine
+from app.pricing.pricer import PricedLine
 from app.identity.resolver import (
     STRUCTURAL_EXCLUSIONS,
     Alias,
@@ -119,6 +120,69 @@ def create_alias(conn: psycopg.Connection, *, wine_id: str, producer_text: str,
     ).fetchone()
 
 
+def create_exclusion(conn: psycopg.Connection, wine_id_a: str, wine_id_b: str,
+                     reason: str) -> dict:
+    """A pair that must never collapse. Stored lower id first, once."""
+    a, b = sorted([str(wine_id_a), str(wine_id_b)])
+    if a == b:
+        raise Conflict("a wine cannot be excluded from itself")
+    return conn.execute(
+        """INSERT INTO wine_exclusion (wine_id_a, wine_id_b, reason)
+           VALUES (%s, %s, %s) RETURNING *""", (a, b, reason)).fetchone()
+
+
+# ------------------------------------------------------------ LWIN conflicts
+
+
+def untrusted_lwins(conn: psycopg.Connection, merchant_id: str) -> frozenset[str]:
+    return frozenset(r["lwin7"] for r in conn.execute(
+        "SELECT lwin7 FROM merchant_lwin_untrusted WHERE merchant_id = %s", (merchant_id,)))
+
+
+def record_lwin_conflicts(conn: psycopg.Connection, merchant_id: str,
+                          collisions: dict[str, list[str]]) -> None:
+    """Open (or refresh) one review row per colliding LWIN. A conflict an
+    operator has already resolved is not reopened."""
+    with conn.cursor() as cur:
+        cur.executemany(
+            """INSERT INTO lwin_conflict (merchant_id, lwin7, names)
+               VALUES (%s, %s, %s)
+               ON CONFLICT (merchant_id, lwin7) DO UPDATE
+                  SET names = EXCLUDED.names, last_seen_at = now()
+                WHERE lwin_conflict.resolution IS NULL""",
+            [(merchant_id, lwin7, Jsonb(names)) for lwin7, names in collisions.items()])
+
+
+def list_lwin_conflicts(conn: psycopg.Connection, *, unresolved_only: bool = True) -> list[dict]:
+    where = "WHERE resolution IS NULL" if unresolved_only else ""
+    return conn.execute(
+        f"SELECT * FROM lwin_conflict {where} ORDER BY last_seen_at DESC, lwin7").fetchall()
+
+
+def get_lwin_conflict(conn: psycopg.Connection, conflict_id: str) -> Optional[dict]:
+    return conn.execute("SELECT * FROM lwin_conflict WHERE conflict_id = %s",
+                        (conflict_id,)).fetchone()
+
+
+def close_lwin_conflict(conn: psycopg.Connection, conflict_id: str, *, resolution: str,
+                        resolved_by: str, note: str | None) -> dict:
+    return conn.execute(
+        """UPDATE lwin_conflict
+              SET resolution = %s, resolved_by = %s, resolved_at = now(), note = %s
+            WHERE conflict_id = %s RETURNING *""",
+        (resolution, resolved_by, note, conflict_id)).fetchone()
+
+
+def mark_lwin_untrusted(conn: psycopg.Connection, merchant_id: str, lwin7: str, *,
+                        reason: str, marked_by: str) -> None:
+    conn.execute(
+        """INSERT INTO merchant_lwin_untrusted (merchant_id, lwin7, reason, marked_by)
+           VALUES (%s, %s, %s, %s)
+           ON CONFLICT (merchant_id, lwin7) DO UPDATE
+              SET reason = EXCLUDED.reason, marked_by = EXCLUDED.marked_by, marked_at = now()""",
+        (merchant_id, lwin7, reason, marked_by))
+
+
 # --------------------------------------------------------------- merchants
 
 
@@ -131,18 +195,22 @@ def list_merchants(conn: psycopg.Connection) -> list[dict]:
 
 def create_deal(conn: psycopg.Connection, deal: dict, lines: list[dict]) -> dict:
     row = conn.execute(
-        """INSERT INTO deal (name, seller, source_file, currency, created_by)
-           VALUES (%(name)s, %(seller)s, %(source_file)s, %(currency)s, %(created_by)s)
+        """INSERT INTO deal (name, seller, source_file, currency, target_margin, created_by)
+           VALUES (%(name)s, %(seller)s, %(source_file)s, %(currency)s, %(target_margin)s,
+                   %(created_by)s)
            RETURNING *""",
         deal,
     ).fetchone()
     for ln in lines:
         conn.execute(
             """INSERT INTO seller_line (deal_id, row_index, raw_description, raw_row,
-                                        quantity, cost, cost_currency)
-               VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                                        quantity, cost, cost_currency, target_margin,
+                                        target_discount, manual_price)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
             (row["deal_id"], ln["row_index"], ln["raw_description"], Jsonb(ln["raw_row"]),
-             ln["quantity"], exact_money(ln.get("cost")), ln.get("cost_currency")),
+             ln["quantity"], exact_money(ln.get("cost")), ln.get("cost_currency"),
+             ln.get("target_margin"), ln.get("target_discount"),
+             exact_money(ln.get("manual_price"))),
         )
     return row
 
@@ -471,3 +539,37 @@ def run_comps(conn: psycopg.Connection, run_id: str) -> list[dict]:
             WHERE run_id = %s
             ORDER BY role, (offer_snapshot->>'price')::numeric, comp_id""",
         (run_id,)).fetchall()
+
+
+# ----------------------------------------------------------------- pricing
+
+
+def save_pricing(conn: psycopg.Connection, *, line_id: str, run: dict, priced: PricedLine,
+                 priced_by: str, cost: Optional[Decimal], cost_currency: Optional[str],
+                 fx_rate: Optional[Decimal], fx_rate_date=None, fx_source: str | None = None,
+                 auction_evidence: Optional[list] = None) -> str:
+    """The figures as they stood at the moment of pricing. The benchmark numbers
+    are copied from the run, never joined back to it on read."""
+    return conn.execute(
+        """INSERT INTO pricing_result
+               (line_id, run_id, priced_by, uk_floor, uk_reference, uk_median, comp_count,
+                auction_evidence, cost, cost_currency, fx_rate, fx_rate_date, fx_source,
+                cost_gbp, price_basis, target_margin, discount, deep_discount_threshold,
+                sell_price, gp, gross_margin, flags, state)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                   %s, %s, %s, %s, %s)
+           RETURNING pricing_id""",
+        (line_id, run["run_id"], priced_by, exact_money(run["uk_floor"]),
+         exact_money(run["uk_reference"]), exact_money(run["uk_median"]), run["comp_count"],
+         Jsonb(auction_evidence or []), exact_money(cost), cost_currency, fx_rate,
+         fx_rate_date, fx_source, exact_money(priced.cost_gbp), priced.price_basis,
+         priced.target_margin, priced.discount, priced.deep_discount_threshold,
+         exact_money(priced.sell_price), exact_money(priced.gp), priced.gross_margin,
+         sorted({*run["flags"], *(f.value for f in priced.flags)}), run["state"]),
+    ).fetchone()["pricing_id"]
+
+
+def latest_pricing(conn: psycopg.Connection, line_id: str) -> Optional[dict]:
+    return conn.execute(
+        """SELECT * FROM pricing_result WHERE line_id = %s
+            ORDER BY priced_at DESC, pricing_id DESC LIMIT 1""", (line_id,)).fetchone()

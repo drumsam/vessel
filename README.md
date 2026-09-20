@@ -51,6 +51,10 @@ app/
     benchmark.py UK Floor / Reference / Median
   identity/
     resolver.py  the ONLY place producer and cuvee names are interpreted
+  pricing/
+    pricer.py    sell price, GP, gross margin, commercial flags (pure)
+  api/           FastAPI service
+  worker/        RQ jobs: collection, deep search, benchmark, pricing
   adapters/
     base.py      Adapter protocol: fetch() network, normalise() pure
     condition.py merchant condition prose -> ConditionFlag
@@ -85,6 +89,11 @@ scripts/         proof runners
    See `docs/decisions/0003`.
 8. **Inherited line flags** can hold a line in review, never release one. See
    `docs/decisions/0005`.
+9. **A merchant's LWIN cross-checks a name match; it never resolves identity on
+   its own**, and a LWIN used for two wine names opens an operator review rather
+   than being discarded. See `docs/decisions/0006`.
+10. **`NO_MARKET` is not "not searched".** A line no merchant has been searched
+    for has no benchmark run, so it cannot be priced or exported.
 
 Benchmark runs resolve each merchant's latest covering capture independently and
 keep every offer exactly as used, so snapshots are a prunable cache. See
@@ -94,9 +103,25 @@ keep every offer exactly as used, so snapshots are a prunable cache. See
 
 `Decimal` in Python, `numeric(14,2)` in Postgres. No float touches a price at any
 point. `£2,353.10` stays `£2,353.10` through calculation, persistence and output.
-The API carries money as JSON strings and refuses JSON numbers with a 422. The
-Median is the only figure ever rounded (banker's rounding, in `benchmark.py`);
-any other value that is not whole pence is refused, not rounded.
+The API carries money as JSON strings and refuses JSON numbers with a 422.
+Exactly three places round, each to pence with banker's rounding and each tested
+in both directions: the Median (`app/core/benchmark.py`), FX conversion of a
+non-GBP cost, and the sell price (`app/pricing/pricer.py`). Any other value that
+is not whole pence is refused, not rounded. See `docs/decisions/0007`.
+
+## Pricing
+
+```
+Sell from margin     Sell = Cost / (1 - target_margin)
+Sell from discount   Sell = UK Reference * (1 - discount)
+Gross margin         GM   = (Sell - Cost) / Sell        -- margin, never markup
+```
+
+Precedence: manual price > line margin > line discount > deal margin. A non-GBP
+cost needs the FX rate, its date and its source, which are stored with the
+result. `DEEP_DISCOUNT` fires when the sell price is more than 25% below the UK
+Reference; that threshold is a default, is configurable per run, and the value
+used is stored. See `docs/decisions/0007`.
 
 ## Review gating
 

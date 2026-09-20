@@ -94,10 +94,23 @@ def create_alias(wine_id: UUID, body: s.AliasIn, conn: psycopg.Connection = Depe
 # ------------------------------------------------------------ deals, lines
 
 
+def _line_state(row: dict, run: Optional[dict]) -> str:
+    """NOT_SEARCHED is not NO_MARKET. NO_MARKET means every approved merchant
+    was searched and none of them offers this wine; NOT_SEARCHED means nobody
+    has looked yet, so there is nothing to price or to send a buyer."""
+    if row["wine_id"] is None:
+        return "IDENTITY_NOT_APPROVED"
+    if run is None:
+        return "NOT_SEARCHED"
+    return run["state"]
+
+
 def _line_out(conn: psycopg.Connection, row: dict) -> s.LineOut:
-    out = s.LineOut.model_validate(row)
     run = repo.latest_run(conn, row["line_id"])
+    pricing = repo.latest_pricing(conn, row["line_id"])
+    out = s.LineOut.model_validate({**row, "line_state": _line_state(row, run)})
     out.benchmark = s.RunSummary.model_validate(run) if run else None
+    out.pricing = s.PricingOut.model_validate(pricing) if pricing else None
     return out
 
 
@@ -163,6 +176,56 @@ def get_line_benchmark(line_id: UUID, conn: psycopg.Connection = Depends(db)):
         {**run, "sources": repo.run_sources(conn, run["run_id"]), "comps": comps})
 
 
+@app.get("/lines/{line_id}/pricing", response_model=s.PricingOut)
+def get_line_pricing(line_id: UUID, conn: psycopg.Connection = Depends(db)):
+    pricing = repo.latest_pricing(conn, str(line_id))
+    if pricing is None:
+        raise HTTPException(404, "line has not been priced")
+    return pricing
+
+
+# ------------------------------------------------------------ LWIN conflicts
+
+
+@app.get("/lwin-conflicts", response_model=list[s.LwinConflictOut])
+def list_lwin_conflicts(unresolved_only: bool = True, conn: psycopg.Connection = Depends(db)):
+    return repo.list_lwin_conflicts(conn, unresolved_only=unresolved_only)
+
+
+@app.post("/lwin-conflicts/{conflict_id}/resolve", response_model=s.LwinConflictOut)
+def resolve_lwin_conflict(conflict_id: UUID, body: s.LwinConflictResolution,
+                          conn: psycopg.Connection = Depends(db)):
+    """The operator decides what the collision was, and the decision is acted on
+    in one transaction: aliases for one wine under two names, or an exclusion
+    plus an untrusted LWIN for two wines under one."""
+    row = repo.get_lwin_conflict(conn, str(conflict_id))
+    if row is None:
+        raise HTTPException(404, "conflict not found")
+    if row["resolution"] is not None:
+        raise HTTPException(409, f"already resolved as {row['resolution']}")
+    try:
+        with conn.transaction():
+            if body.resolution == "same_wine":
+                for a in body.aliases:
+                    repo.create_alias(conn, wine_id=str(a.wine_id), producer_text=a.producer_text,
+                                      cuvee_text=a.cuvee_text, source="operator",
+                                      approved_by=body.resolved_by,
+                                      note=f"LWIN-7 {row['lwin7']} conflict: same wine")
+            else:
+                repo.create_exclusion(conn, str(body.exclude[0]), str(body.exclude[1]),
+                                      reason=f"{row['merchant_id']} LWIN-7 {row['lwin7']}: "
+                                             f"{'; '.join(row['names'])}")
+                repo.mark_lwin_untrusted(
+                    conn, row["merchant_id"], row["lwin7"], marked_by=body.resolved_by,
+                    reason=f"used for different wines: {'; '.join(row['names'])}")
+            return repo.close_lwin_conflict(conn, str(conflict_id), resolution=body.resolution,
+                                            resolved_by=body.resolved_by, note=body.note)
+    except LookupError:
+        raise HTTPException(404, "wine not found")
+    except (repo.Conflict, psycopg.Error) as e:
+        raise _translate(e)
+
+
 # ------------------------------------------------------ snapshots and jobs
 
 
@@ -199,6 +262,21 @@ def benchmark_deal(deal_id: UUID, body: Optional[s.BenchmarkIn] = None,
     job = q.enqueue_call(func="app.worker.jobs.benchmark_deal",
                          kwargs={"deal_id": str(deal_id),
                                  "as_of": as_of.isoformat() if as_of else None},
+                         timeout=JOB_TIMEOUT)
+    return s.JobOut(job_id=job.id, status=job.get_status())
+
+
+@app.post("/deals/{deal_id}/pricing", response_model=s.JobOut, status_code=202)
+def price_deal(deal_id: UUID, body: s.PricingIn,
+               conn: psycopg.Connection = Depends(db), q: Queue = Depends(queue)):
+    if repo.get_deal(conn, str(deal_id)) is None:
+        raise HTTPException(404, "deal not found")
+    threshold = body.deep_discount_threshold
+    job = q.enqueue_call(func="app.worker.jobs.price_deal",
+                         kwargs={"deal_id": str(deal_id), "priced_by": body.priced_by,
+                                 "fx_rates": body.fx_rates,
+                                 "deep_discount_threshold":
+                                     str(threshold) if threshold is not None else None},
                          timeout=JOB_TIMEOUT)
     return s.JobOut(job_id=job.id, status=job.get_status())
 

@@ -11,7 +11,7 @@ encoder would turn a bare Decimal into a float.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Annotated, Any, Literal, Optional
 from uuid import UUID
@@ -74,12 +74,23 @@ class WineOut(_Out):
 
 
 class AliasIn(_In):
-    """The merchant's or seller's own spelling, approved by a named person."""
-    producer_text: str
-    cuvee_text: str = Field(min_length=1)
+    """The merchant's or seller's own spelling, approved by a named person.
+
+    Either field may be empty, but not both: Farr prints producer-only names
+    ("Lafite Rothschild", "Veuve Clicquot") that split into no cuvee at all, and
+    Goedhuis puts the whole wine in one string with no producer.
+    """
+    producer_text: str = ""
+    cuvee_text: str = ""
     source: Literal["operator", "ai_reviewed", "import"]
     approved_by: str = Field(min_length=1)
     note: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _has_a_name(self) -> "AliasIn":
+        if not (self.producer_text.strip() or self.cuvee_text.strip()):
+            raise ValueError("an alias needs the merchant's producer or cuvee wording")
+        return self
 
 
 class AliasOut(_Out):
@@ -102,6 +113,9 @@ class LineIn(_In):
     quantity: int = Field(ge=1)
     cost: Optional[PositiveMoney] = None
     cost_currency: Optional[Currency] = None
+    target_margin: Optional[Decimal] = Field(default=None, ge=0, lt=1)
+    target_discount: Optional[Decimal] = Field(default=None, ge=0, lt=1)
+    manual_price: Optional[PositiveMoney] = None
 
     @model_validator(mode="after")
     def _cost_has_currency(self) -> "LineIn":
@@ -115,6 +129,8 @@ class DealIn(_In):
     seller: Optional[str] = None
     source_file: Optional[str] = None
     currency: Optional[Currency] = None
+    #: The deal's global margin, used for any line with no margin or discount.
+    target_margin: Optional[Decimal] = Field(default=None, ge=0, lt=1)
     created_by: str = Field(min_length=1)
     lines: list[LineIn] = Field(min_length=1)
 
@@ -164,6 +180,93 @@ class RunSummary(_Out):
     oldest_comp_age: Optional[timedelta]
 
 
+#: What is known about a line's market, in one word, for the deal view.
+#: NOT_SEARCHED is not NO_MARKET: nobody has looked yet. A line that has never
+#: been searched has no benchmark run, so it cannot be priced or exported.
+LineState = Literal["IDENTITY_NOT_APPROVED", "NOT_SEARCHED", "READY", "REVIEW", "NO_MARKET"]
+
+
+class PricingOut(_Out):
+    pricing_id: UUID
+    run_id: UUID
+    priced_at: datetime
+    priced_by: str
+    uk_floor: Optional[Money]
+    uk_reference: Optional[Money]
+    uk_median: Optional[Money]
+    comp_count: int
+    cost: Optional[Money]
+    cost_currency: Optional[str]
+    fx_rate: Optional[Decimal]
+    fx_rate_date: Optional[date]
+    fx_source: Optional[str]
+    cost_gbp: Optional[Money]
+    price_basis: Literal["manual", "line_margin", "line_discount", "global_margin"]
+    target_margin: Optional[Decimal]
+    discount: Optional[Decimal]
+    deep_discount_threshold: Decimal
+    sell_price: Optional[Money]
+    sell_currency: str
+    gp: Optional[Money]
+    gross_margin: Optional[Decimal]
+    flags: list[str]
+    state: str
+
+
+class PricingIn(_In):
+    """`fx_rates` maps a cost currency to the rate used, its date and its source:
+    {"USD": {"rate": "0.7412", "date": "2026-09-19", "source": "ECB"}}.
+    The rate is GBP per one unit of that currency."""
+    priced_by: str = Field(min_length=1)
+    fx_rates: dict[Currency, dict[str, str]] = {}
+    deep_discount_threshold: Optional[Decimal] = Field(default=None, ge=0, lt=1)
+
+
+class LwinConflictOut(_Out):
+    """One LWIN-7 a merchant used for more than one wine name."""
+    conflict_id: UUID
+    merchant_id: str
+    lwin7: str
+    names: list[str]
+    first_seen_at: datetime
+    last_seen_at: datetime
+    resolution: Optional[Literal["same_wine", "different_wines"]]
+    resolved_by: Optional[str]
+    resolved_at: Optional[datetime]
+    note: Optional[str]
+
+
+class LwinAlias(_In):
+    wine_id: UUID
+    producer_text: str = ""
+    cuvee_text: str = ""
+
+    @model_validator(mode="after")
+    def _has_a_name(self) -> "LwinAlias":
+        if not (self.producer_text.strip() or self.cuvee_text.strip()):
+            raise ValueError("an alias needs the merchant's producer or cuvee wording")
+        return self
+
+
+class LwinConflictResolution(_In):
+    """same_wine: the names are one wine, so approve aliases for the spellings
+    that do not resolve yet. different_wines: record the exclusion and stop
+    trusting this merchant's LWIN, so the conflict does not come back."""
+    resolution: Literal["same_wine", "different_wines"]
+    resolved_by: str = Field(min_length=1)
+    note: Optional[str] = None
+    aliases: list[LwinAlias] = []
+    exclude: Optional[list[UUID]] = Field(default=None, min_length=2, max_length=2)
+
+    @model_validator(mode="after")
+    def _matches_resolution(self) -> "LwinConflictResolution":
+        if self.resolution == "same_wine" and not self.aliases:
+            raise ValueError("same_wine needs the alias(es) that make the names one wine")
+        if self.resolution == "different_wines" and not self.exclude:
+            raise ValueError("different_wines needs the two wine ids to exclude")
+        return self
+
+
 class LineOut(_Out):
     line_id: UUID
     row_index: int
@@ -179,8 +282,13 @@ class LineOut(_Out):
     wine_id_source: Optional[IdentitySource]
     wine_id_approved_by: Optional[str]
     wine_id_approved_at: Optional[datetime]
+    target_margin: Optional[Decimal]
+    target_discount: Optional[Decimal]
+    manual_price: Optional[Money]
     flags: list[str]
+    line_state: LineState
     benchmark: Optional[RunSummary] = None
+    pricing: Optional[PricingOut] = None
 
 
 class DealOut(_Out):
@@ -189,6 +297,7 @@ class DealOut(_Out):
     seller: Optional[str]
     source_file: Optional[str]
     currency: Optional[str]
+    target_margin: Optional[Decimal]
     created_by: str
     created_at: datetime
     lines: list[LineOut]

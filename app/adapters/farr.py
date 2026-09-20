@@ -59,6 +59,24 @@ def parse_size(size: str) -> tuple[int, int] | None:
     return pack, int(round(ml))
 
 
+#: Farr writes non-vintage as "NV" or "N.V.". It also writes "M.V." (multi-vintage)
+#: and coded forms such as "BV14"; what those mean is not established, so they are
+#: rejected rather than guessed at.
+_NV = re.compile(r"^\s*N\.?\s*V\.?\s*$", re.I)
+
+
+def parse_vintage(value: object) -> int | None:
+    """'2011' -> 2011.  'NV' / 'N.V.' -> 1000 (the LWIN convention for
+    non-vintage). Anything else unreadable -> None."""
+    text = str(value if value is not None else "").strip()
+    if _NV.match(text):
+        return 1000
+    try:
+        return int(text)
+    except ValueError:
+        return None
+
+
 def split_wine_field(wine: str) -> tuple[str, str]:
     """'Chambertin, Domaine Armand Rousseau' -> ('Domaine Armand Rousseau', 'Chambertin')
 
@@ -93,10 +111,9 @@ class FarrAdapter(Adapter):
             return Rejected(raw, Reject.SIZE, f"unparseable Size {raw.get('Size')!r}")
         pack, ml = size
 
-        try:
-            vintage = int(str(raw.get("Vintage")).strip())
-        except (TypeError, ValueError):
-            return Rejected(raw, Reject.VINTAGE, f"non-integer Vintage {raw.get('Vintage')!r}")
+        vintage = parse_vintage(raw.get("Vintage"))
+        if vintage is None:
+            return Rejected(raw, Reject.VINTAGE, f"unreadable Vintage {raw.get('Vintage')!r}")
 
         price_raw = raw.get("SellGBP")
         if price_raw is None:

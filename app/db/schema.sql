@@ -48,6 +48,37 @@ CREATE TABLE merchant (
     notes        text
 );
 
+-- An LWIN-7 a merchant used for more than one wine name in one capture. It may
+-- be the merchant's mapping error, or our name key wrongly splitting one wine
+-- that changed appellation, so an operator decides which (decision 0006).
+CREATE TABLE lwin_conflict (
+    conflict_id  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    merchant_id  text NOT NULL REFERENCES merchant(merchant_id),
+    lwin7        text NOT NULL,
+    names        jsonb NOT NULL,                  -- the merchant's own wording, verbatim
+    first_seen_at timestamptz NOT NULL DEFAULT now(),
+    last_seen_at  timestamptz NOT NULL DEFAULT now(),
+    resolution   text CHECK (resolution IN ('same_wine','different_wines')),
+    resolved_by  text,
+    resolved_at  timestamptz,
+    note         text,
+    UNIQUE (merchant_id, lwin7),
+    CONSTRAINT lwin_conflict_resolved CHECK (
+        (resolution IS NULL AND resolved_by IS NULL AND resolved_at IS NULL)
+     OR (resolution IS NOT NULL AND resolved_by IS NOT NULL AND resolved_at IS NOT NULL))
+);
+
+-- A merchant LWIN an operator has judged unreliable. Persisted so a resolved
+-- conflict does not resurface on every collection.
+CREATE TABLE merchant_lwin_untrusted (
+    merchant_id  text NOT NULL REFERENCES merchant(merchant_id),
+    lwin7        text NOT NULL,
+    reason       text NOT NULL,
+    marked_by    text NOT NULL,
+    marked_at    timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (merchant_id, lwin7)
+);
+
 CREATE TABLE snapshot (
     snapshot_id      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     captured_at      timestamptz NOT NULL,
@@ -171,6 +202,7 @@ CREATE TABLE deal (
     seller       text,
     source_file  text,
     currency     char(3),                        -- confirmed by the operator on import
+    target_margin numeric(6,4),                  -- the deal's global margin; see 0007
     created_by   text NOT NULL,
     created_at   timestamptz NOT NULL DEFAULT now()
 );
@@ -192,8 +224,9 @@ CREATE TABLE seller_line (
     cost              numeric(14,2),
     cost_currency     char(3),
 
-    target_margin     numeric(6,4),
-    manual_price      numeric(14,2),
+    target_margin     numeric(6,4),            -- this line's margin, beats the deal's
+    target_discount   numeric(6,4),            -- this line's discount off UK Reference
+    manual_price      numeric(14,2),           -- beats everything
 
     -- Who approved the identity, how, and when. All four are set together.
     wine_id_source      text CHECK (wine_id_source IN ('lwin','alias','operator','ai_reviewed')),
@@ -324,10 +357,16 @@ CREATE TABLE pricing_result (
     fx_source         text,
     cost_gbp          numeric(14,2),
 
+    -- Which rule produced sell_price, and the inputs it used (decision 0007).
+    price_basis       text NOT NULL CHECK (price_basis IN
+                          ('manual','line_margin','line_discount','global_margin')),
     target_margin     numeric(6,4),
+    discount          numeric(6,4),
+    deep_discount_threshold numeric(6,4) NOT NULL,
     sell_price        numeric(14,2),
     sell_currency     char(3) NOT NULL DEFAULT 'GBP',
     gp                numeric(14,2),
+    gross_margin      numeric(6,4),            -- (sell - cost) / sell, never markup
 
     flags             text[] NOT NULL DEFAULT '{}',
     state             text NOT NULL CHECK (state IN ('READY','REVIEW','NO_MARKET')),

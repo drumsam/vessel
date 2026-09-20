@@ -29,13 +29,20 @@ added. The adapter contract may evolve; this must not.
      inherited, so inheriting can add a reason for review and never remove one.
      See docs/decisions/0005.
 
-Rounding. Exactly one figure is ever rounded: the Median, which for an even
+Rounding. Exactly one figure is ever rounded here: the Median, which for an even
 number of merchant-bests is the mean of the middle two and can land on half a
 penny (£610.01, £610.02 -> £610.015). It is quantised to whole pence with
 ROUND_HALF_EVEN (banker's rounding: £610.015 -> £610.02, £610.025 -> £610.02),
-so a run of ties does not drift upwards. Floor and Reference are real offer
-prices and are never rounded; a price that is not whole pence is refused before
-it is stored, not rounded here.
+so a run of ties does not drift upwards.
+
+Floor and Reference are real offer prices and are NEVER rounded. An offer whose
+price is not a whole number of pence is rejected as NOT_WHOLE_PENCE and cannot
+become either. Farr's feed publishes float32 artefacts such as 308.329986; that
+is not a price anyone printed, and rounding it would be an estimate. The same
+refusal is applied again when a figure is stored.
+
+The system's other two rounding points are outside this module and are named in
+docs/decisions/0007: FX conversion of a non-GBP cost, and the final sell price.
 """
 from __future__ import annotations
 
@@ -152,6 +159,8 @@ def _screen(line: SellerLine, o: Offer, as_of: datetime) -> Optional[Reject]:
         return Reject.NON_POSITIVE_PRICE
     if not _is_fresh(o, as_of):
         return Reject.STALE
+    if o.price != o.price.quantize(CENT):
+        return Reject.NOT_WHOLE_PENCE
     if REQUIRE_QUANTITY_COVER and (o.offered_units or 0) < line.quantity:
         return Reject.NO_QUANTITY
     return None
@@ -172,6 +181,7 @@ def _is_cross_unit(line: SellerLine, o: Offer, as_of: datetime) -> bool:
         and o.is_buyable is True
         and o.price is not None
         and o.price > Decimal("0")
+        and o.price == o.price.quantize(CENT)
         and _is_fresh(o, as_of)
     )
 

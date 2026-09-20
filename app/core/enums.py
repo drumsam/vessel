@@ -63,3 +63,5 @@ class Reject(str, Enum):
     MIXED_LOT = "mixed lot"
     UNRESOLVED_IDENTITY = "no approved canonical wine id"
     STALE = "captured outside the freshness window"
+    NOT_WHOLE_PENCE = "price is not a whole number of pence"
+    ROW_UNREADABLE = "offer row could not be read"
