@@ -212,6 +212,8 @@ export COLLECTOR_USER_AGENT="UKFineWinePricer/1.0 (+https://your.site/contact)"
 alembic upgrade head                  # schema + the three verified merchants
 uvicorn app.api.main:app --reload     # API
 python -m app.worker                  # RQ worker, queue "pricer"
+# on macOS: RQ_WORKER_CLASS=simple python -m app.worker
+#   the forking work-horse aborts on any job that touches TLS; see app/worker/__main__.py
 ```
 
 Postgres-backed tests run only when `TEST_DATABASE_URL` points at a disposable

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api, money } from "../../../lib/api";
 
 /** Issue an offer. The API refuses any line that is unpriced or unaccepted, so
@@ -11,6 +11,14 @@ export default function IssueOffer({ deal, priced, onIssued }) {
   const [chosen, setChosen] = useState(() => new Set(priced.map((l) => l.line_id)));
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+
+  // Pricing arrives after this component first renders, so the initial state
+  // above is empty on the run that matters. Without this the offer form sits
+  // there saying "Issue 0 line(s)" with every line unticked.
+  const pricedIds = priced.map((line) => line.line_id).join(",");
+  useEffect(() => {
+    setChosen(new Set(pricedIds ? pricedIds.split(",") : []));
+  }, [pricedIds]);
 
   function toggle(lineId) {
     const next = new Set(chosen);
