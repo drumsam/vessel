@@ -62,11 +62,22 @@ def test_money_string_is_exact_and_third_decimal_is_refused():
                cost="2353.105", cost_currency="GBP")
 
 
-def test_api_rejects_float_money_with_422():
+#: Offline tests exercise validation, not authentication; the session is stubbed.
+SIGNED_IN = {"operator_id": "00000000-0000-0000-0000-000000000001",
+             "username": "op", "display_name": "The Operator", "active": True}
+
+
+def _stub_session() -> None:
     api.app.dependency_overrides[api.db] = lambda: None
+    api.app.dependency_overrides[api.queue] = lambda: None
+    api.app.dependency_overrides[api.current_operator] = lambda: SIGNED_IN
+
+
+def test_api_rejects_float_money_with_422():
+    _stub_session()
     try:
-        r = TestClient(api.app).post("/deals", json={
-            "name": "d", "created_by": "op",
+        r = TestClient(api.app, base_url="https://testserver").post("/deals", json={
+            "name": "d",
             "lines": [{"row_index": 0, "raw_description": "x", "raw_row": {},
                        "quantity": 1, "cost": 2353.1, "cost_currency": "GBP"}]})
     finally:
@@ -110,9 +121,11 @@ def test_offline_migration_sql_renders_the_whole_schema():
 
 def test_snapshot_request_enqueues_the_collection_job():
     q = Queue(QUEUE_NAME, connection=fakeredis.FakeRedis())
+    _stub_session()
     api.app.dependency_overrides[api.queue] = lambda: q
     try:
-        r = TestClient(api.app).post("/snapshots", json={"merchant_ids": ["farr"]})
+        r = TestClient(api.app, base_url="https://testserver").post(
+            "/snapshots", json={"merchant_ids": ["farr"]})
     finally:
         api.app.dependency_overrides.clear()
     assert r.status_code == 202
@@ -122,10 +135,10 @@ def test_snapshot_request_enqueues_the_collection_job():
 
 
 def test_benchmark_as_of_in_the_future_is_refused():
-    api.app.dependency_overrides[api.db] = lambda: None
-    api.app.dependency_overrides[api.queue] = lambda: None
+    _stub_session()
     try:
-        r = TestClient(api.app).post(f"/deals/{uuid4()}/benchmark", json={
+        r = TestClient(api.app, base_url="https://testserver").post(
+            f"/deals/{uuid4()}/benchmark", json={
             "as_of": (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()})
     finally:
         api.app.dependency_overrides.clear()
@@ -236,8 +249,24 @@ def db(monkeypatch):
     yield TEST_DB
 
 
+OPERATOR = {"username": "op", "display_name": "The Operator", "password": "correct horse"}
+
+
+def _sign_in(client, **overrides) -> dict:
+    body = {**{k: OPERATOR[k] for k in ("username", "password")}, **overrides}
+    return client.post("/session", json=body)
+
+
 @pytest.fixture
-def client(db):
+def operator(db):
+    """One signed-up operator. Identity is the server's, not the caller's."""
+    from app.api import auth
+    return auth.create_operator(OPERATOR["username"], OPERATOR["display_name"],
+                                OPERATOR["password"])
+
+
+@pytest.fixture
+def client(db, operator):
     if TEST_REDIS:
         from redis import Redis
         conn = Redis.from_url(TEST_REDIS)
@@ -245,8 +274,10 @@ def client(db):
         conn = fakeredis.FakeRedis()
     q = Queue(f"test-{uuid4().hex}", connection=conn)
     api.app.dependency_overrides[api.queue] = lambda: q
-    c = TestClient(api.app)
+    c = TestClient(api.app, base_url="https://testserver")
     c.queue = q
+    c.operator = operator
+    assert _sign_in(c).status_code == 200
     yield c
     api.app.dependency_overrides.clear()
 
@@ -335,7 +366,8 @@ def test_0003_carries_existing_data_forward():
          '2026-09-18T10:00Z')""", (sid,), fetch=False)
     _sql("""INSERT INTO offer_reject (snapshot_id, merchant_id, reason, raw)
             VALUES (%s, 'goedhuis', 'MIXED_LOT', '{}')""", (sid,), fetch=False)
-    deal = _sql("INSERT INTO deal (name, created_by) VALUES ('d', 'op') RETURNING deal_id")[0]
+    deal = _sql("INSERT INTO deal (name, created_by) VALUES ('d', 'a name') "
+                "RETURNING deal_id")[0]
     line = _sql("""INSERT INTO seller_line (deal_id, row_index, raw_description, raw_row, wine_id,
                    vintage, bottle_ml, pack_size, quantity)
                    VALUES (%s, 0, 'x', '{}', %s, 2011, 750, 1, 1) RETURNING line_id""",
@@ -360,8 +392,9 @@ def test_0003_carries_existing_data_forward():
     assert _sql("SELECT count(*) AS n FROM offer")[0]["n"] == 1
     moved = _sql("SELECT * FROM offer_reject WHERE reason = 'UNRESOLVED_IDENTITY'")
     assert len(moved) == 1 and moved[0]["raw"]["offer_id"] == "farr:2"
-    ln = _sql("SELECT * FROM seller_line")[0]
-    assert ln["wine_id_approved_by"].startswith("unrecorded") and ln["flags"] == []
+    ln = _sql("""SELECT l.flags, o.username FROM seller_line l
+                   JOIN operator o ON o.operator_id = l.wine_id_approved_by""")[0]
+    assert ln["username"].startswith("unrecorded") and ln["flags"] == []
     r = _sql("SELECT * FROM benchmark_run")[0]
     assert r["as_of"] == r["computed_at"]
     assert {x["merchant_id"] for x in _sql("SELECT * FROM benchmark_run_snapshot")} \
@@ -420,13 +453,14 @@ def test_usd_cost_cannot_be_priced_without_its_fx_rate(client):
     run_id = client.get(f"/lines/{line_id}/benchmark").json()["run_id"]
     cols = ("(line_id, run_id, priced_by, comp_count, cost, cost_currency, state, "
             "price_basis, deep_discount_threshold")
-    values = "'op', 1, 500.00, 'USD', 'REVIEW', 'manual', 0.2500"
+    values = "%(op)s, 1, 500.00, 'USD', 'REVIEW', 'manual', 0.2500"
+    params = {"line": line_id, "run": run_id, "op": client.operator["operator_id"]}
     with pytest.raises(psycopg.errors.CheckViolation):
-        _sql(f"INSERT INTO pricing_result {cols}) VALUES (%s, %s, {values})",
-             (line_id, run_id), fetch=False)
+        _sql(f"INSERT INTO pricing_result {cols}) VALUES (%(line)s, %(run)s, {values})",
+             params, fetch=False)
     _sql(f"""INSERT INTO pricing_result {cols}, fx_rate, fx_rate_date, fx_source)
-             VALUES (%s, %s, {values}, 0.74120000, '2026-09-19', 'ECB')""",
-         (line_id, run_id), fetch=False)
+             VALUES (%(line)s, %(run)s, {values}, 0.74120000, '2026-09-19', 'ECB')""",
+         params, fetch=False)
 
 
 # --- live-shaped Farr records ------------------------------------------------
@@ -499,7 +533,7 @@ def _collect_bi(client, wine_id, cards, vintage=2011) -> str:
 
 def _deal(client, wine_id, quantity=6, pack=1, flags=()) -> tuple[str, str]:
     r = client.post("/deals", json={
-        "name": "Rousseau parcel", "created_by": "op", "currency": "GBP",
+        "name": "Rousseau parcel", "currency": "GBP",
         "lines": [{"row_index": 0, "raw_description": "Rousseau Charmes 2011 x6 loose",
                    "raw_row": {"A": "Rousseau Charmes 2011", "B": "6", "C": "£480"},
                    "quantity": quantity, "cost": "480.00", "cost_currency": "GBP"}]})
@@ -508,7 +542,7 @@ def _deal(client, wine_id, quantity=6, pack=1, flags=()) -> tuple[str, str]:
     line_id = deal["lines"][0]["line_id"]
     r = client.put(f"/lines/{line_id}/identity", json={
         "wine_id": wine_id, "vintage": 2011, "bottle_ml": 750, "pack_size": pack,
-        "source": "operator", "approved_by": "op", "flags": list(flags)})
+        "source": "operator", "flags": list(flags)})
     assert r.status_code == 200, r.text
     return deal["deal_id"], line_id
 
@@ -578,7 +612,7 @@ def test_a_merchant_lwin_alone_does_not_resolve_a_name_we_do_not_know(client):
     assert client.get(f"/snapshots/{_collect(client, lafite)}").json()["offers_written"] == 0
     r = client.post(f"/wines/{wid}/aliases", json={
         "producer_text": "Lafite Rothschild", "cuvee_text": "",
-        "source": "operator", "approved_by": "op", "note": "Farr prints no cuvee"})
+        "source": "operator", "note": "Farr prints no cuvee"})
     assert r.status_code == 201
     assert client.get(f"/snapshots/{_collect(client, lafite)}").json()["offers_written"] == 1
 
@@ -646,7 +680,7 @@ def test_bordeaux_index_producer_vintage_search_joins_the_market(client):
     wid = _seed_wine(client, cuvee="Charmes-Chambertin Grand Cru")
     client.post(f"/wines/{wid}/aliases", json={
         "producer_text": R, "cuvee_text": "Charmes-Chambertin", "source": "operator",
-        "approved_by": "op", "note": "Farr omits 'Grand Cru'"})
+        "note": "Farr omits 'Grand Cru'"})
     _collect(client)
     sid = _collect_bi(client, wid, [bi_card("650.00")])
     [m] = client.get(f"/snapshots/{sid}").json()["merchants"]
@@ -808,7 +842,7 @@ def test_no_capture_at_all_is_no_coverage_not_no_market(client):
 def test_line_without_approved_identity_is_not_benchmarked(client):
     _seed_wine(client)
     _collect(client)
-    r = client.post("/deals", json={"name": "d", "created_by": "op", "lines": [
+    r = client.post("/deals", json={"name": "d", "lines": [
         {"row_index": 0, "raw_description": "Rousseau ?", "raw_row": {}, "quantity": 1}]})
     j = _benchmark(client, r.json()["deal_id"])
     assert j["result"]["runs"] == {} and len(j["result"]["unapproved_identity"]) == 1
@@ -824,12 +858,16 @@ def test_identity_approval_is_recorded_with_its_history(client):
     _, line_id = _deal(client, a)
     r = client.put(f"/lines/{line_id}/identity", json={
         "wine_id": b, "vintage": 2011, "bottle_ml": 750, "pack_size": 1,
-        "source": "ai_reviewed", "approved_by": "reviewer", "flags": ["NAME_REVIEW"]})
+        "source": "ai_reviewed", "flags": ["NAME_REVIEW"]})
     line = r.json()
-    assert (line["wine_id"], line["wine_id_source"], line["wine_id_approved_by"],
-            line["flags"]) == (b, "ai_reviewed", "reviewer", ["NAME_REVIEW"])
+    assert (line["wine_id"], line["wine_id_source"], line["flags"]) == (
+        b, "ai_reviewed", ["NAME_REVIEW"])
+    # Who approved it is the session's operator, by id, whatever the body said.
+    assert line["wine_id_approved_by"]["operator_id"] == str(client.operator["operator_id"])
+    assert line["wine_id_approved_by"]["display_name"] == "The Operator"
     first, second = client.get(f"/lines/{line_id}/identity-history").json()
-    assert (first["prev_wine_id"], first["new_wine_id"], first["changed_by"]) == (None, a, "op")
+    assert (first["prev_wine_id"], first["new_wine_id"]) == (None, a)
+    assert first["changed_by"]["username"] == "op"
     assert (second["prev_wine_id"], second["new_wine_id"], second["source"]) == (a, b, "ai_reviewed")
     assert (second["prev_flags"], second["new_flags"]) == ([], ["NAME_REVIEW"])
 
@@ -850,8 +888,7 @@ def test_persisted_name_review_holds_a_ready_market_in_review(client):
     identity verification, so it must come out REVIEW."""
     wid = _seed_wine(client, cuvee="Charmes-Chambertin Grand Cru")
     client.post(f"/wines/{wid}/aliases", json={
-        "producer_text": R, "cuvee_text": "Charmes-Chambertin", "source": "operator",
-        "approved_by": "op"})
+        "producer_text": R, "cuvee_text": "Charmes-Chambertin", "source": "operator"})
     _collect(client)
     _collect_bi(client, wid, [bi_card("650.00")])
     deal_id, line_id = _deal(client, wid, quantity=1, flags=["NAME_REVIEW"])
@@ -867,7 +904,7 @@ def test_only_line_flags_can_be_persisted_on_a_line(client):
     _, line_id = _deal(client, wid)
     r = client.put(f"/lines/{line_id}/identity", json={
         "wine_id": wid, "vintage": 2011, "bottle_ml": 750, "pack_size": 1,
-        "source": "operator", "approved_by": "op", "flags": ["WIDE_SPREAD"]})
+        "source": "operator", "flags": ["WIDE_SPREAD"]})
     assert r.status_code == 422
 
 
@@ -881,7 +918,7 @@ def test_alias_may_not_bridge_charmes_and_mazoyeres(client):
     charmes = _seed_wine(client, cuvee="Charmes-Chambertin Grand Cru")
     r = client.post(f"/wines/{charmes}/aliases", json={
         "producer_text": R, "cuvee_text": "Mazoyeres-Chambertin Grand Cru",
-        "source": "operator", "approved_by": "op"})
+        "source": "operator"})
     assert r.status_code == 409
 
 
@@ -891,7 +928,7 @@ def test_alias_may_not_steal_another_wines_canonical_key(client):
     b = _seed_wine(client, cuvee="Chambertin Clos de Beze")
     r = client.post(f"/wines/{a}/aliases", json={
         "producer_text": R, "cuvee_text": "Chambertin Clos de Beze",
-        "source": "operator", "approved_by": "op"})
+        "source": "operator"})
     assert r.status_code == 409 and b in r.text
 
 
@@ -901,7 +938,7 @@ def test_approved_alias_resolves_merchant_spelling_on_next_collection(client):
     assert _collect_written(client) == 0
     r = client.post(f"/wines/{wid}/aliases", json={
         "producer_text": R, "cuvee_text": "Charmes-Chambertin",
-        "source": "operator", "approved_by": "op", "note": "Farr omits 'Grand Cru'"})
+        "source": "operator", "note": "Farr omits 'Grand Cru'"})
     assert r.status_code == 201
     assert _collect_written(client) == 2
 
@@ -933,7 +970,7 @@ def test_never_searched_and_no_market_are_shown_differently(client):
 
 @pg
 def test_a_line_with_no_approved_identity_says_so(client):
-    r = client.post("/deals", json={"name": "d", "created_by": "op", "lines": [
+    r = client.post("/deals", json={"name": "d", "lines": [
         {"row_index": 0, "raw_description": "Rousseau ?", "raw_row": {}, "quantity": 1}]})
     [line] = r.json()["lines"]
     assert line["line_state"] == "IDENTITY_NOT_APPROVED"
@@ -950,8 +987,8 @@ def test_a_never_searched_line_cannot_reach_a_buyer_offer(client):
     assert _sql("SELECT count(*) AS n FROM benchmark_run")[0]["n"] == 0
 
     offer_id = _sql("""INSERT INTO buyer_offer (deal_id, client, currency, issued_at, issued_by)
-                       VALUES (%s, 'A Buyer', 'GBP', now(), 'op') RETURNING buyer_offer_id""",
-                    (deal_id,))[0]["buyer_offer_id"]
+                       VALUES (%s, 'A Buyer', 'GBP', now(), %s) RETURNING buyer_offer_id""",
+                    (deal_id, client.operator["operator_id"]))[0]["buyer_offer_id"]
     with pytest.raises(psycopg.errors.NotNullViolation):
         _sql("""INSERT INTO buyer_offer_line (buyer_offer_id, line_no, line_id, pricing_id,
                 description, vintage, bottle_ml, pack_size, quantity, unit_price, line_total)
@@ -962,9 +999,8 @@ def test_a_never_searched_line_cannot_reach_a_buyer_offer(client):
 # --- pricing ------------------------------------------------------------------
 
 
-def _price(client, deal_id, priced_by="op", **body) -> dict:
-    jid = client.post(f"/deals/{deal_id}/pricing",
-                      json={"priced_by": priced_by, **body}).json()["job_id"]
+def _price(client, deal_id, **body) -> dict:
+    jid = client.post(f"/deals/{deal_id}/pricing", json=body).json()["job_id"]
     _work(client.queue)
     return _job(client, jid)
 
@@ -979,7 +1015,7 @@ def test_pricing_persists_the_figures_as_at_the_moment_of_pricing(client):
     _benchmark(client, deal_id)
     r = client.put(f"/lines/{line_id}/identity", json={
         "wine_id": wid, "vintage": 2011, "bottle_ml": 750, "pack_size": 1,
-        "source": "operator", "approved_by": "op"})
+        "source": "operator"})
     assert r.status_code == 200
     _sql("UPDATE seller_line SET target_margin = 0.2500", fetch=False)
 
@@ -1041,13 +1077,13 @@ def test_the_deal_margin_is_the_fallback_for_a_line_with_no_rule(client):
     wid = _seed_wine(client)
     _collect(client)
     r = client.post("/deals", json={
-        "name": "d", "created_by": "op", "currency": "GBP", "target_margin": 0.4,
+        "name": "d", "currency": "GBP", "target_margin": 0.4,
         "lines": [{"row_index": 0, "raw_description": "Rousseau Charmes 2011",
                    "raw_row": {}, "quantity": 1, "cost": "300.00", "cost_currency": "GBP"}]})
     deal_id, line_id = r.json()["deal_id"], r.json()["lines"][0]["line_id"]
     client.put(f"/lines/{line_id}/identity", json={
         "wine_id": wid, "vintage": 2011, "bottle_ml": 750, "pack_size": 1,
-        "source": "operator", "approved_by": "op"})
+        "source": "operator"})
     _benchmark(client, deal_id)
     _price(client, deal_id)
     p = client.get(f"/lines/{line_id}/pricing").json()
@@ -1088,7 +1124,7 @@ def test_resolving_a_collision_as_different_wines_excludes_and_untrusts(client):
 
     [c] = client.get("/lwin-conflicts").json()
     r = client.post(f"/lwin-conflicts/{c['conflict_id']}/resolve", json={
-        "resolution": "different_wines", "resolved_by": "op",
+        "resolution": "different_wines",
         "exclude": [csj, lavaux], "note": "adjacent climats"})
     assert r.status_code == 200 and r.json()["resolution"] == "different_wines"
     assert _sql("SELECT count(*) AS n FROM wine_exclusion")[0]["n"] == 1
@@ -1113,7 +1149,7 @@ def test_resolving_a_collision_as_one_wine_creates_the_alias(client):
 
     [c] = client.get("/lwin-conflicts").json()
     r = client.post(f"/lwin-conflicts/{c['conflict_id']}/resolve", json={
-        "resolution": "same_wine", "resolved_by": "op",
+        "resolution": "same_wine",
         "aliases": [{"wine_id": wid, "producer_text": "Gaja",
                      "cuvee_text": "Barbaresco Costa Russi"}],
         "note": "appellation change, same wine"})
@@ -1134,7 +1170,7 @@ def test_an_alias_resolution_still_obeys_the_exclusion_guard_rails(client):
     _collect(client, book)
     [c] = client.get("/lwin-conflicts").json()
     r = client.post(f"/lwin-conflicts/{c['conflict_id']}/resolve", json={
-        "resolution": "same_wine", "resolved_by": "op",
+        "resolution": "same_wine",
         "aliases": [{"wine_id": charmes, "producer_text": R,
                      "cuvee_text": "Mazoyeres-Chambertin Grand Cru"}]})
     assert r.status_code == 409
@@ -1200,8 +1236,8 @@ def _price_below_cost(client) -> tuple[str, str, str]:
 
 def _issue(client, deal_id, line_id, pricing_id, *, requires_ack, ack_id=None):
     offer_id = _sql("""INSERT INTO buyer_offer (deal_id, client, currency, issued_at, issued_by)
-                       VALUES (%s, 'A Buyer', 'GBP', now(), 'op') RETURNING buyer_offer_id""",
-                    (deal_id,))[0]["buyer_offer_id"]
+                       VALUES (%s, 'A Buyer', 'GBP', now(), %s) RETURNING buyer_offer_id""",
+                    (deal_id, client.operator["operator_id"]))[0]["buyer_offer_id"]
     _sql("""INSERT INTO buyer_offer_line (buyer_offer_id, line_no, line_id, pricing_id,
             description, vintage, bottle_ml, pack_size, quantity, unit_price, line_total,
             pricing_requires_ack, ack_id)
@@ -1223,10 +1259,11 @@ def test_a_price_below_cost_cannot_be_exported_unacknowledged(client):
         _issue(client, deal_id, line_id, pricing_id, requires_ack=False)
 
     r = client.post(f"/lines/{line_id}/pricing/acknowledge",
-                    json={"acknowledged_by": "the operator", "note": "clearing old stock"})
+                    json={"note": "clearing old stock"})
     assert r.status_code == 200
     ack = r.json()["acknowledgement"]
-    assert (ack["acknowledged_by"], ack["flags"]) == ("the operator", ["NEGATIVE_GP"])
+    assert ack["acknowledged_by"]["display_name"] == "The Operator"
+    assert ack["flags"] == ["NEGATIVE_GP"]
     assert ack["acknowledged_at"] and ack["note"] == "clearing old stock"
 
     _issue(client, deal_id, line_id, pricing_id, requires_ack=True, ack_id=ack["ack_id"])
@@ -1279,7 +1316,7 @@ def test_cost_above_the_reference_is_a_commercial_fact_not_a_gate(client):
     _price(client, deal_id)
     p = client.get(f"/lines/{line_id}/pricing").json()
     assert {"COST_ABOVE_UK_REFERENCE", "SELL_ABOVE_UK_REFERENCE"} <= set(p["flags"])
-    r = client.post(f"/lines/{line_id}/pricing/acknowledge", json={"acknowledged_by": "op"})
+    r = client.post(f"/lines/{line_id}/pricing/acknowledge", json={})
     assert r.json()["acknowledgement"]["flags"] == ["SELL_ABOVE_UK_REFERENCE"]
 
 
@@ -1291,7 +1328,7 @@ def test_acknowledging_a_price_with_nothing_to_acknowledge_is_refused(client):
     _benchmark(client, deal_id)
     _sql("UPDATE seller_line SET manual_price = 500.00", fetch=False)
     _price(client, deal_id)
-    r = client.post(f"/lines/{line_id}/pricing/acknowledge", json={"acknowledged_by": "op"})
+    r = client.post(f"/lines/{line_id}/pricing/acknowledge", json={})
     assert r.status_code == 409
 
 
@@ -1299,7 +1336,7 @@ def test_acknowledging_a_price_with_nothing_to_acknowledge_is_refused(client):
 def test_repricing_needs_a_fresh_acknowledgement(client):
     """The acknowledgement is of one price, not of a line."""
     deal_id, line_id, _ = _price_below_cost(client)
-    client.post(f"/lines/{line_id}/pricing/acknowledge", json={"acknowledged_by": "op"})
+    client.post(f"/lines/{line_id}/pricing/acknowledge", json={})
     assert client.get(f"/lines/{line_id}/pricing").json()["acknowledgement"] is not None
 
     _price(client, deal_id)                                   # priced again
@@ -1317,7 +1354,7 @@ def test_producer_only_alias_is_refused_while_the_producer_has_two_wines(client)
     brut = _seed_wine(client, "Veuve Clicquot", "Brut", lwin7="1083129")
     rose = _seed_wine(client, "Veuve Clicquot", "Rose")
     body = {"producer_text": "Veuve Clicquot", "cuvee_text": "",
-            "source": "operator", "approved_by": "op"}
+            "source": "operator"}
     r = client.post(f"/wines/{brut}/aliases", json=body)
     assert r.status_code == 409
     detail = r.json()["detail"]
@@ -1334,7 +1371,7 @@ def test_producer_only_alias_needs_no_confirmation_for_a_single_wine_producer(cl
     wid = _seed_wine(client, "Chateau Lafite Rothschild", "Grand Vin")
     r = client.post(f"/wines/{wid}/aliases", json={
         "producer_text": "Lafite Rothschild", "cuvee_text": "",
-        "source": "operator", "approved_by": "op"})
+        "source": "operator"})
     assert r.status_code == 201
 
 
@@ -1344,7 +1381,7 @@ def test_a_producer_only_alias_may_never_come_from_an_ai_proposal(client, source
     wid = _seed_wine(client, "Veuve Clicquot", "Brut")
     r = client.post(f"/wines/{wid}/aliases", json={
         "producer_text": "Veuve Clicquot", "cuvee_text": "",
-        "source": source, "approved_by": "the model"})
+        "source": source})
     assert r.status_code == 409 and "operator-only" in r.text
     assert _sql("SELECT count(*) AS n FROM wine_alias")[0]["n"] == 0
 
@@ -1354,10 +1391,10 @@ def test_producer_only_aliases_can_be_audited_as_a_set(client):
     brut = _seed_wine(client, "Veuve Clicquot", "Brut")
     client.post(f"/wines/{brut}/aliases", json={
         "producer_text": "Veuve Clicquot", "cuvee_text": "",
-        "source": "operator", "approved_by": "op"})
+        "source": "operator"})
     client.post(f"/wines/{brut}/aliases", json={
         "producer_text": "Veuve Clicquot", "cuvee_text": "Yellow Label",
-        "source": "operator", "approved_by": "op"})
+        "source": "operator"})
     assert len(client.get("/aliases").json()) == 2
     [only] = client.get("/aliases", params={"producer_only": True}).json()
     assert only["wine_key"] == "veuve clicquot|" and only["is_producer_only"] is True
@@ -1425,17 +1462,17 @@ def test_repeated_corrections_of_the_same_wording_become_an_alias_suggestion(cli
     aliases': the same seller wording corrected to the same wine, twice."""
     a = _seed_wine(client, cuvee="Charmes-Chambertin")
     b = _seed_wine(client, cuvee="Mazoyeres-Chambertin")
-    r = client.post("/deals", json={"name": "d", "created_by": "op", "lines": [
+    r = client.post("/deals", json={"name": "d", "lines": [
         {"row_index": i, "raw_description": "Rousseau  CHARMES 2011", "raw_row": {},
          "quantity": 1} for i in range(2)]})
     lines = [ln["line_id"] for ln in r.json()["lines"]]
     for line_id in lines:
         client.put(f"/lines/{line_id}/identity", json={
             "wine_id": b, "vintage": 2011, "bottle_ml": 750, "pack_size": 1,
-            "source": "ai_reviewed", "approved_by": "model"})
+            "source": "ai_reviewed"})
         client.put(f"/lines/{line_id}/identity", json={
             "wine_id": a, "vintage": 2011, "bottle_ml": 750, "pack_size": 1,
-            "source": "operator", "approved_by": "the operator"})
+            "source": "operator"})
 
     suggestions = client.get("/alias-suggestions").json()
     charmes = [x for x in suggestions if x["wine_id"] == a]
@@ -1443,5 +1480,125 @@ def test_repeated_corrections_of_the_same_wording_become_an_alias_suggestion(cli
     assert charmes[0]["normalised"] == "rousseau charmes 2011"
     assert sorted(charmes[0]["line_ids"]) == sorted(lines)
     assert charmes[0]["corrections"] == 2 and charmes[0]["cuvee"] == "Charmes-Chambertin"
-    assert "the operator" in charmes[0]["changed_by"]
+    assert [c["username"] for c in charmes[0]["changed_by"]] == ["op"]
     assert client.get("/alias-suggestions", params={"min_occurrences": 3}).json() == []
+
+
+# --- operator identity --------------------------------------------------------
+
+
+@pg
+def test_every_route_but_health_and_session_needs_a_session(db):
+    """Not a convention: the router itself carries the dependency, so a new
+    route cannot be added unauthenticated by forgetting something."""
+    api.app.dependency_overrides[api.queue] = lambda: Queue(
+        "health", connection=fakeredis.FakeRedis())
+    anon = TestClient(api.app, base_url="https://testserver")
+    assert anon.get("/health").status_code == 200
+    assert anon.get("/session").status_code == 401
+    for method, path in [("get", "/merchants"), ("get", "/wines"), ("get", "/deals/" + str(uuid4())),
+                         ("get", "/lwin-conflicts"), ("get", "/alias-suggestions"),
+                         ("post", "/snapshots"), ("get", "/aliases")]:
+        assert getattr(anon, method)(path).status_code == 401, path
+
+    routes = [r for r in api.app.routes
+              if getattr(r, "path", "").startswith(("/health", "/session"))]
+    assert len(routes) == 4                      # health, and the three session verbs
+    api.app.dependency_overrides.clear()
+
+
+@pg
+def test_sign_in_sets_an_httponly_secure_lax_cookie(db, operator):
+    client = TestClient(api.app, base_url="https://testserver")
+    r = _sign_in(client)
+    assert r.status_code == 200 and r.json()["display_name"] == "The Operator"
+    cookie = r.headers["set-cookie"]
+    assert all(flag in cookie.lower() for flag in ("httponly", "secure", "samesite=lax"))
+    assert client.get("/session").json()["username"] == "op"
+    # Only the hash is stored: the cookie value itself is not in the database.
+    token = client.cookies["pricer_session"]
+    assert _sql("SELECT count(*) AS n FROM operator_session WHERE token_hash = %s",
+                (token,))[0]["n"] == 0
+    assert _sql("SELECT count(*) AS n FROM operator_session")[0]["n"] == 1
+
+
+@pg
+@pytest.mark.parametrize("username,password", [("op", "wrong"), ("nobody", "correct horse")])
+def test_a_wrong_password_or_unknown_operator_is_401(db, operator, username, password):
+    client = TestClient(api.app, base_url="https://testserver")
+    r = _sign_in(client, username=username, password=password)
+    assert r.status_code == 401
+    assert "pricer_session" not in client.cookies
+
+
+@pg
+def test_the_password_is_not_stored_and_is_hashed_with_argon2id(db, operator):
+    stored = _sql("SELECT password_hash FROM operator")[0]["password_hash"]
+    assert stored.startswith("$argon2id$")
+    assert OPERATOR["password"] not in stored
+
+
+@pg
+def test_a_caller_may_not_name_someone_else(client):
+    """The three who-fields come from the session. A body that tries to name a
+    different person is refused outright rather than quietly ignored."""
+    wid = _seed_wine(client)
+    _, line_id = _deal(client, wid)
+    for path, body in [
+        (f"/wines/{wid}/aliases", {"producer_text": R, "cuvee_text": "X",
+                                   "source": "operator", "approved_by": "someone else"}),
+        (f"/lines/{line_id}/identity", {"wine_id": wid, "vintage": 2011, "bottle_ml": 750,
+                                        "pack_size": 1, "source": "operator",
+                                        "approved_by": "someone else"}),
+        (f"/lines/{line_id}/pricing/acknowledge", {"acknowledged_by": "someone else"}),
+    ]:
+        method = client.put if path.endswith("/identity") else client.post
+        r = method(path, json=body)
+        assert r.status_code == 422, (path, r.text)
+        assert "approved_by" in r.text or "acknowledged_by" in r.text
+
+
+@pg
+def test_revoking_an_operator_ends_access_without_touching_history(client):
+    """`active` is how access is removed: the audit rows still point at the
+    operator, and the display name still resolves."""
+    wid = _seed_wine(client)
+    deal_id, _ = _deal(client, wid)
+    from app.api import auth
+    auth.set_active(OPERATOR["username"], False)
+
+    assert client.get("/session").status_code == 401
+    assert _sign_in(client).status_code == 401
+    assert _sql("SELECT revoked_at FROM operator_session")[0]["revoked_at"] is not None
+
+    signed_in = TestClient(api.app, base_url="https://testserver")
+    auth.set_active(OPERATOR["username"], True)
+    assert _sign_in(signed_in).status_code == 200
+    assert signed_in.get(f"/deals/{deal_id}").json()["created_by"]["username"] == "op"
+
+
+@pg
+def test_renaming_an_operator_does_not_rewrite_the_past(client):
+    """Audit rows keep the id, so the name shown follows the operator record."""
+    wid = _seed_wine(client)
+    deal_id, _ = _deal(client, wid)
+    _sql("UPDATE operator SET display_name = 'A. Baker (maternity cover)'", fetch=False)
+    deal = client.get(f"/deals/{deal_id}").json()
+    assert deal["created_by"]["display_name"] == "A. Baker (maternity cover)"
+    assert deal["created_by"]["operator_id"] == str(client.operator["operator_id"])
+
+
+@pg
+def test_signing_out_revokes_the_session(client):
+    assert client.delete("/session").status_code == 204
+    assert client.get("/session").status_code == 401
+    assert _sql("SELECT revoked_at FROM operator_session")[0]["revoked_at"] is not None
+
+
+@pg
+def test_setting_a_password_ends_existing_sessions(client):
+    from app.api import auth
+    assert client.get("/session").status_code == 200
+    auth.set_password(OPERATOR["username"], "a new password")
+    assert client.get("/session").status_code == 401
+    assert _sign_in(client, password="a new password").status_code == 200

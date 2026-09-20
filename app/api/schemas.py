@@ -42,6 +42,29 @@ class _Out(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+# --------------------------------------------------------------- operators
+
+
+class SignIn(_In):
+    username: str = Field(min_length=1)
+    password: str = Field(min_length=1)
+
+
+class OperatorOut(_Out):
+    operator_id: UUID
+    username: str
+    display_name: str
+    active: bool
+
+
+class OperatorRef(_Out):
+    """Who did something. The id is what is stored; the name is for display and
+    may change without rewriting history."""
+    operator_id: UUID
+    username: str
+    display_name: str
+
+
 # -------------------------------------------------------------- merchants
 
 
@@ -83,7 +106,6 @@ class AliasIn(_In):
     producer_text: str = ""
     cuvee_text: str = ""
     source: Literal["operator", "ai_reviewed", "import"]
-    approved_by: str = Field(min_length=1)
     note: Optional[str] = None
 
     #: Required to create a producer-only alias when the producer has more than
@@ -102,7 +124,7 @@ class AliasOut(_Out):
     wine_key: str
     wine_id: UUID
     source: str
-    approved_by: str
+    approved_by: OperatorRef
     approved_at: datetime
     note: Optional[str]
     #: No cuvee: this alias catches every listing printed under the producer
@@ -138,7 +160,6 @@ class DealIn(_In):
     currency: Optional[Currency] = None
     #: The deal's global margin, used for any line with no margin or discount.
     target_margin: Optional[Decimal] = Field(default=None, ge=0, lt=1)
-    created_by: str = Field(min_length=1)
     lines: list[LineIn] = Field(min_length=1)
 
 
@@ -151,7 +172,6 @@ class IdentityIn(_In):
     bottle_ml: int = Field(gt=0)
     pack_size: int = Field(ge=1)
     source: Literal["operator", "ai_reviewed"]
-    approved_by: str = Field(min_length=1)
     flags: list[LineFlag] = []
 
 
@@ -168,7 +188,7 @@ class IdentityHistoryOut(_Out):
     new_pack_size: int
     new_flags: list[str]
     source: IdentitySource
-    changed_by: str
+    changed_by: OperatorRef
     changed_at: datetime
 
 
@@ -196,13 +216,12 @@ LineState = Literal["IDENTITY_NOT_APPROVED", "NOT_SEARCHED", "READY", "REVIEW", 
 class AcknowledgementOut(_Out):
     ack_id: UUID
     flags: list[str]
-    acknowledged_by: str
+    acknowledged_by: OperatorRef
     acknowledged_at: datetime
     note: Optional[str]
 
 
 class AcknowledgementIn(_In):
-    acknowledged_by: str = Field(min_length=1)
     note: Optional[str] = None
 
 
@@ -215,7 +234,7 @@ class AliasSuggestionOut(_Out):
     cuvee: str
     line_ids: list[UUID]
     corrections: int
-    changed_by: list[str]
+    changed_by: list[OperatorRef]
     last_changed_at: datetime
 
 
@@ -223,7 +242,7 @@ class PricingOut(_Out):
     pricing_id: UUID
     run_id: UUID
     priced_at: datetime
-    priced_by: str
+    priced_by: OperatorRef
     uk_floor: Optional[Money]
     uk_reference: Optional[Money]
     uk_median: Optional[Money]
@@ -254,7 +273,6 @@ class PricingIn(_In):
     """`fx_rates` maps a cost currency to the rate used, its date and its source:
     {"USD": {"rate": "0.7412", "date": "2026-09-19", "source": "ECB"}}.
     The rate is GBP per one unit of that currency."""
-    priced_by: str = Field(min_length=1)
     fx_rates: dict[Currency, dict[str, str]] = {}
     deep_discount_threshold: Optional[Decimal] = Field(default=None, ge=0, lt=1)
 
@@ -268,7 +286,7 @@ class LwinConflictOut(_Out):
     first_seen_at: datetime
     last_seen_at: datetime
     resolution: Optional[Literal["same_wine", "different_wines"]]
-    resolved_by: Optional[str]
+    resolved_by: Optional[OperatorRef]
     resolved_at: Optional[datetime]
     note: Optional[str]
 
@@ -290,7 +308,6 @@ class LwinConflictResolution(_In):
     that do not resolve yet. different_wines: record the exclusion and stop
     trusting this merchant's LWIN, so the conflict does not come back."""
     resolution: Literal["same_wine", "different_wines"]
-    resolved_by: str = Field(min_length=1)
     note: Optional[str] = None
     aliases: list[LwinAlias] = []
     exclude: Optional[list[UUID]] = Field(default=None, min_length=2, max_length=2)
@@ -317,7 +334,7 @@ class LineOut(_Out):
     cost: Optional[Money]
     cost_currency: Optional[str]
     wine_id_source: Optional[IdentitySource]
-    wine_id_approved_by: Optional[str]
+    wine_id_approved_by: Optional[OperatorRef]
     wine_id_approved_at: Optional[datetime]
     target_margin: Optional[Decimal]
     target_discount: Optional[Decimal]
@@ -335,7 +352,7 @@ class DealOut(_Out):
     source_file: Optional[str]
     currency: Optional[str]
     target_margin: Optional[Decimal]
-    created_by: str
+    created_by: OperatorRef
     created_at: datetime
     lines: list[LineOut]
 

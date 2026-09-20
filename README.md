@@ -126,6 +126,20 @@ result. `DEEP_DISCOUNT` fires when the sell price is more than 25% below the UK
 Reference; that threshold is a default, is configurable per run, and the value
 used is stored. See `docs/decisions/0007`.
 
+## Operators
+
+Sign-in is a cookie session; passwords are argon2id. The server fills
+`approved_by`, `priced_by` and `acknowledged_by` from the session, and refuses a
+body that names someone else. Audit rows store `operator_id`, so renaming an
+operator rewrites nothing, and access is revoked with `active` rather than by
+deleting a row the history points at.
+
+```bash
+python scripts/manage_operators.py add alice "Alice Baker"   # prompts for a password
+python scripts/manage_operators.py password alice            # an admin resets; no self-service
+python scripts/manage_operators.py disable alice             # revoke, keeping the history
+```
+
 ## Review gating
 
 `REVIEW_FLAGS` in `app/core/flags.py` is the only definition of what forces
@@ -180,6 +194,8 @@ response shape appears in `schema.sql`.
 | `AI_MODEL` | provider model id |
 | `COLLECTOR_USER_AGENT` | **required** for collection: honest, identifiable UA with a contact URL |
 | `SNAPSHOT_RETENTION` | captures kept **per merchant** by `prune_snapshots` (default 10) |
+| `FRONTEND_ORIGINS` | comma-separated origins allowed to call the API with a session cookie |
+| `INSECURE_COOKIES` | `1` only for local HTTP development; the session cookie is `Secure` by default |
 
 ## Local development
 

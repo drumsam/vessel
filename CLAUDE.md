@@ -67,6 +67,11 @@ The invariants, in short:
 13. A producer-only alias (no cuvée) is operator-only, refused where the
     producer has several wines unless the target is named again, and audited as
     a set. Farr prints both "Veuve Clicquot" and "Veuve Clicquot Rosé".
+14. **Who** is the server's answer, never the caller's: `approved_by`,
+    `priced_by` and `acknowledged_by` come from the session, and a body that
+    names someone else is a 422. Audit rows hold `operator_id`, so a rename
+    rewrites nothing, and access is revoked with `operator.active`. See
+    `docs/decisions/0009`.
 
 `REVIEW_FLAGS` in `app/core/flags.py` is the single definition of what forces
 operator *review*: it is about evidence quality and commercial flags never go in
@@ -90,7 +95,8 @@ Never add a cascade from `offer` into benchmark history. See 0004.
 ## Stack
 
 Python + FastAPI · PostgreSQL · Next.js/React (responsive, must work on mobile) ·
-Redis + RQ for background jobs. No distributed infrastructure, no multi-agent
+Redis + RQ for background jobs. Sessions are cookie-based; passwords are argon2id
+via argon2-cffi (never hand-rolled). No distributed infrastructure, no multi-agent
 framework. Each "agent" is a plain job with structured input, structured output,
 provenance and validation.
 
@@ -105,10 +111,10 @@ INGEST → IDENTITY PROPOSAL → IDENTITY VERIFICATION → SNAPSHOT LOOKUP
 ## Testing
 
 ```bash
-python -m pytest -q                      # 167 pass, 69 skip; no network, no services
+python -m pytest -q                      # 167 pass, 79 skip; no network, no services
 docker compose up -d                     # Postgres + Redis, then:
 TEST_DATABASE_URL=postgresql://pricer:pricer@localhost:5432/pricer_test \
-TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q   # 236 pass
+TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q   # 246 pass
 python scripts/rerun_burgundy_proof.py   # expect READY 0  REVIEW 5  NO_MARKET 15
 ```
 
@@ -164,9 +170,11 @@ precedence and the commercial flags, all pure and tested.
 Snapshot retention (`prune_snapshots`, per merchant) and alias suggestions over
 the identity trail are built.
 
-Not built yet: Next.js frontend, deal upload (a spreadsheet parser for the
-INGEST stage), the remaining ten merchant adapters, AI provider
-implementations, buyer export documents (the tables and the gate exist), the
-auction layer.
+Operator accounts and sessions are built (`app/api/auth.py`,
+`scripts/manage_operators.py`).
+
+Not built yet: Next.js frontend (deal upload parses the spreadsheet in the
+browser), the remaining ten merchant adapters, AI provider implementations,
+buyer export documents (the tables and the gate exist), the auction layer.
 
 Known open questions are in `docs/decisions/` and in the Burgundy proof report.

@@ -225,6 +225,18 @@ def list_aliases(conn: psycopg.Connection, *, producer_only: bool | None = None)
                         (producer_only,) if producer_only is not None else None).fetchall()
 
 
+def operator_refs(conn: psycopg.Connection, ids) -> dict[str, dict]:
+    """operator_id -> who that is, for display. The id is what is stored: a
+    display name can change without rewriting an audit row."""
+    wanted = sorted({str(i) for i in ids if i})
+    if not wanted:
+        return {}
+    rows = conn.execute(
+        """SELECT operator_id, username, display_name FROM operator
+            WHERE operator_id = ANY(%s::uuid[])""", (wanted,)).fetchall()
+    return {str(r["operator_id"]): r for r in rows}
+
+
 # --------------------------------------------------------------- merchants
 
 

@@ -4,6 +4,37 @@
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+-- ==================================================================== people
+
+-- Who may use the system, and who every audit row points at. Access is revoked
+-- by clearing `active`, never by deleting the row: the history has to keep
+-- pointing somewhere. Audit columns hold operator_id, not a copied name, so
+-- renaming someone does not rewrite the past. Password hashing is argon2id, by
+-- a maintained library; the hash string carries its own parameters.
+CREATE TABLE operator (
+    operator_id   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    username      text NOT NULL UNIQUE,
+    display_name  text NOT NULL,
+    password_hash text NOT NULL,
+    active        boolean NOT NULL DEFAULT true,
+    created_at    timestamptz NOT NULL DEFAULT now(),
+    note          text
+);
+
+-- Server-side sessions: the cookie carries a random token and nothing else, and
+-- only its hash is stored. Revoking an operator or a session takes effect on
+-- the next request.
+CREATE TABLE operator_session (
+    session_id  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    operator_id uuid NOT NULL REFERENCES operator(operator_id),
+    token_hash  text NOT NULL UNIQUE,
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    expires_at  timestamptz NOT NULL,
+    revoked_at  timestamptz
+);
+
+CREATE INDEX operator_session_operator ON operator_session (operator_id);
+
 -- ========================================================= canonical wine table
 
 CREATE TABLE wine (
@@ -30,7 +61,7 @@ CREATE TABLE wine_alias (
     wine_key     text NOT NULL UNIQUE,
     wine_id      uuid NOT NULL REFERENCES wine(wine_id) ON DELETE CASCADE,
     source       text NOT NULL CHECK (source IN ('operator','ai_reviewed','import')),
-    approved_by  text NOT NULL,
+    approved_by  uuid NOT NULL REFERENCES operator(operator_id),
     approved_at  timestamptz NOT NULL DEFAULT now(),
     note         text,
     is_producer_only boolean NOT NULL
@@ -69,7 +100,7 @@ CREATE TABLE lwin_conflict (
     first_seen_at timestamptz NOT NULL DEFAULT now(),
     last_seen_at  timestamptz NOT NULL DEFAULT now(),
     resolution   text CHECK (resolution IN ('same_wine','different_wines')),
-    resolved_by  text,
+    resolved_by  uuid REFERENCES operator(operator_id),
     resolved_at  timestamptz,
     note         text,
     UNIQUE (merchant_id, lwin7),
@@ -84,7 +115,7 @@ CREATE TABLE merchant_lwin_untrusted (
     merchant_id  text NOT NULL REFERENCES merchant(merchant_id),
     lwin7        text NOT NULL,
     reason       text NOT NULL,
-    marked_by    text NOT NULL,
+    marked_by    uuid NOT NULL REFERENCES operator(operator_id),
     marked_at    timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (merchant_id, lwin7)
 );
@@ -213,7 +244,7 @@ CREATE TABLE deal (
     source_file  text,
     currency     char(3),                        -- confirmed by the operator on import
     target_margin numeric(6,4),                  -- the deal's global margin; see 0007
-    created_by   text NOT NULL,
+    created_by   uuid NOT NULL REFERENCES operator(operator_id),
     created_at   timestamptz NOT NULL DEFAULT now()
 );
 
@@ -240,7 +271,7 @@ CREATE TABLE seller_line (
 
     -- Who approved the identity, how, and when. All four are set together.
     wine_id_source      text CHECK (wine_id_source IN ('lwin','alias','operator','ai_reviewed')),
-    wine_id_approved_by text,
+    wine_id_approved_by uuid REFERENCES operator(operator_id),
     wine_id_approved_at timestamptz,
 
     -- Line flags set upstream of the benchmark and carried into it (decision 0005).
@@ -272,7 +303,7 @@ CREATE TABLE seller_line_identity_history (
     new_pack_size   int NOT NULL,
     new_flags       text[] NOT NULL,
     source          text NOT NULL CHECK (source IN ('lwin','alias','operator','ai_reviewed')),
-    changed_by      text NOT NULL,
+    changed_by      uuid NOT NULL REFERENCES operator(operator_id),
     changed_at      timestamptz NOT NULL DEFAULT now()
 );
 
@@ -352,7 +383,7 @@ CREATE TABLE pricing_result (
     line_id           uuid NOT NULL REFERENCES seller_line(line_id) ON DELETE CASCADE,
     run_id            uuid NOT NULL REFERENCES benchmark_run(run_id),
     priced_at         timestamptz NOT NULL DEFAULT now(),
-    priced_by         text NOT NULL,
+    priced_by         uuid NOT NULL REFERENCES operator(operator_id),
 
     uk_floor          numeric(14,2),
     uk_reference      numeric(14,2),
@@ -403,7 +434,7 @@ CREATE TABLE pricing_acknowledgement (
     ack_id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     pricing_id      uuid NOT NULL REFERENCES pricing_result(pricing_id) ON DELETE CASCADE,
     flags           text[] NOT NULL,          -- the gating flags as they stood
-    acknowledged_by text NOT NULL,
+    acknowledged_by uuid NOT NULL REFERENCES operator(operator_id),
     acknowledged_at timestamptz NOT NULL DEFAULT now(),
     note            text,
     UNIQUE (pricing_id),
@@ -422,7 +453,7 @@ CREATE TABLE buyer_offer (
     client         text NOT NULL,
     currency       char(3) NOT NULL,
     issued_at      timestamptz NOT NULL,
-    issued_by      text NOT NULL,
+    issued_by      uuid NOT NULL REFERENCES operator(operator_id),
     terms          text
 );
 
