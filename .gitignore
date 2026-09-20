@@ -13,6 +13,8 @@ venv/
 # Node / Next.js
 node_modules/
 .next/
+test-results/
+playwright-report/
 
 # macOS
 .DS_Store

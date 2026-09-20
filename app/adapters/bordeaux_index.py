@@ -50,6 +50,20 @@ from .http import user_agent
 BASE = "https://bordeauxindex.com"
 LIST_URL = BASE + "/fine-wine/all"
 CURRENCY_URL = BASE + "/currency-set/GBP"
+PRODUCER_INDEX_URL = BASE + "/fine-wine"
+
+# Bordeaux Index's own producer index: /fine-wine/producer/<slug>. The slug form
+# matters and cannot be guessed from the name — `domaine_armand_rousseau` works
+# and `domaine-armand-rousseau` is a 404 (verified live 2026-09-20). These are
+# read from the merchant's own index and stored in merchant_search_key.
+_PRODUCER_LINK = re.compile(r'href="/fine-wine/producer/([^"]+)"[^>]*>([^<]+)</a>', re.I)
+
+
+def parse_producer_index(html: str) -> dict[str, str]:
+    """{printed producer name: the merchant's slug for it}."""
+    import html as html_module
+    return {html_module.unescape(name).strip(): slug
+            for slug, name in _PRODUCER_LINK.findall(html or "")}
 
 # "Case (6 x 75cl)" | "Case (1 x 150cl)" | "Bottle (75cl)"
 _PACK = re.compile(r"(?:Case\s*\(\s*(?P<pack>\d+)\s*x\s*(?P<csize>\d+)\s*cl\s*\)"
@@ -126,6 +140,14 @@ class BordeauxIndexAdapter(Adapter):
             r = c.get(LIST_URL, params={"producer": producer_slug, "vintage": vintage})
             r.raise_for_status()
             return list(extract_cards(r.text))
+
+    def search_keys(self) -> dict[str, str]:  # pragma: no cover - network
+        """The merchant's own producer index, for merchant_search_key."""
+        import httpx
+        r = httpx.get(PRODUCER_INDEX_URL, timeout=60, follow_redirects=True,
+                      headers={"User-Agent": user_agent()})
+        r.raise_for_status()
+        return parse_producer_index(r.text)
 
     def normalise(self, raw: dict, captured_at: datetime | None = None):
         """`raw` is one card: {"title": str, "offers": [str, ...], "url": str}.

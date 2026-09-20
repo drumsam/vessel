@@ -29,6 +29,9 @@ from app.identity.resolver import (
 )
 
 CENT = Decimal("0.01")
+#: Rates (margins, discounts, "% below the UK market") are numeric(6,4). They
+#: are not money: the three money rounding points are in decision 0007.
+RATE = Decimal("0.0001")
 
 
 class Conflict(Exception):
@@ -640,6 +643,17 @@ def latest_pricing(conn: psycopg.Connection, line_id: str) -> Optional[dict]:
 #: COST_ABOVE_UK_REFERENCE and DEEP_DISCOUNT stay context. See decision 0008.
 EXPORT_GATE_FLAGS = ("NEGATIVE_GP", "SELL_ABOVE_UK_REFERENCE")
 
+#: Benchmark states that also gate, for the other half of the question: not
+#: "is this trade sensible" but "did we measure the market at all". See 0010.
+EXPORT_GATE_STATES = ("NO_MARKET", "REVIEW")
+
+
+def gate_reasons(pricing: dict) -> list[str]:
+    reasons = sorted(set(pricing["flags"]) & set(EXPORT_GATE_FLAGS))
+    if pricing["state"] in EXPORT_GATE_STATES:
+        reasons.append(pricing["state"])
+    return reasons
+
 
 def acknowledge_pricing(conn: psycopg.Connection, pricing_id: str, *,
                         acknowledged_by: str, note: str | None) -> dict:
@@ -648,11 +662,11 @@ def acknowledge_pricing(conn: psycopg.Connection, pricing_id: str, *,
     if row is None:
         raise LookupError(pricing_id)
     if not row["requires_acknowledgement"]:
-        raise Conflict("this price carries no flag that gates export")
+        raise Conflict("this price carries nothing that gates export")
     return conn.execute(
-        """INSERT INTO pricing_acknowledgement (pricing_id, flags, acknowledged_by, note)
-           VALUES (%s, %s, %s, %s) RETURNING *""",
-        (pricing_id, sorted(set(row["flags"]) & set(EXPORT_GATE_FLAGS)),
+        """INSERT INTO pricing_acknowledgement (pricing_id, flags, state, acknowledged_by, note)
+           VALUES (%s, %s, %s, %s, %s) RETURNING *""",
+        (pricing_id, sorted(set(row["flags"]) & set(EXPORT_GATE_FLAGS)), row["state"],
          acknowledged_by, note)).fetchone()
 
 
@@ -731,7 +745,7 @@ def _offer_line(conn: psycopg.Connection, line: dict, ask: dict) -> dict:
     if pricing is None or pricing["sell_price"] is None:
         raise Conflict(f"line {line_id} has no price")
     if pricing["requires_acknowledgement"] and pricing["acknowledgement"] is None:
-        raise Conflict(f"line {line_id} is priced {', '.join(sorted(set(pricing['flags']) & set(EXPORT_GATE_FLAGS)))} "
+        raise Conflict(f"line {line_id} is priced {', '.join(gate_reasons(pricing))} "
                        "and has not been acknowledged")
     wine = get_wine(conn, line["wine_id"]) if line["wine_id"] else None
     quantity = ask.get("quantity") or line["quantity"]
@@ -750,6 +764,13 @@ def _offer_line(conn: psycopg.Connection, line: dict, ask: dict) -> dict:
         "pricing_requires_ack": pricing["requires_acknowledgement"],
         "ack_id": pricing["acknowledgement"]["ack_id"] if pricing["acknowledgement"] else None,
         "sell_currency": pricing["sell_currency"],
+        # A market claim only exists where there is a UK Reference to claim
+        # against. No reference, no row, nothing for a document to print.
+        "claim": ({"run_id": pricing["run_id"], "uk_reference": pricing["uk_reference"],
+                   "comp_count": pricing["comp_count"],
+                   "below_reference": ((pricing["uk_reference"] - pricing["sell_price"])
+                                       / pricing["uk_reference"]).quantize(RATE)}
+                  if pricing["uk_reference"] else None),
     }
 
 
@@ -774,6 +795,8 @@ def create_buyer_offer(conn: psycopg.Connection, *, deal_id: str, client: str, c
         """INSERT INTO buyer_offer (deal_id, client, currency, issued_at, issued_by, terms)
            VALUES (%s, %s, %s, now(), %s, %s) RETURNING *""",
         (deal_id, client, currency, issued_by, terms)).fetchone()
+    numbered = [{**r, "buyer_offer_id": offer["buyer_offer_id"], "line_no": i}
+                for i, r in enumerate(rows, 1)]
     with conn.cursor() as cur:
         cur.executemany(
             """INSERT INTO buyer_offer_line
@@ -783,9 +806,16 @@ def create_buyer_offer(conn: psycopg.Connection, *, deal_id: str, client: str, c
                VALUES (%(buyer_offer_id)s, %(line_no)s, %(line_id)s, %(pricing_id)s,
                        %(description)s, %(vintage)s, %(bottle_ml)s, %(pack_size)s,
                        %(quantity)s, %(unit_price)s, %(line_total)s, %(condition_notes)s,
-                       %(pricing_requires_ack)s, %(ack_id)s)""",
-            [{**r, "buyer_offer_id": offer["buyer_offer_id"], "line_no": i}
-             for i, r in enumerate(rows, 1)])
+                       %(pricing_requires_ack)s, %(ack_id)s)""", numbered)
+        cur.executemany(
+            """INSERT INTO buyer_offer_market_claim
+                   (buyer_offer_id, line_no, run_id, as_of, uk_reference, comp_count,
+                    below_reference)
+               SELECT %(buyer_offer_id)s, %(line_no)s, %(run_id)s, r.as_of, %(uk_reference)s,
+                      %(comp_count)s, %(below_reference)s
+                 FROM benchmark_run r WHERE r.run_id = %(run_id)s""",
+            [{**r["claim"], "buyer_offer_id": r["buyer_offer_id"], "line_no": r["line_no"]}
+             for r in numbered if r["claim"]])
     return get_buyer_offer(conn, offer["buyer_offer_id"])
 
 
@@ -797,6 +827,13 @@ def get_buyer_offer(conn: psycopg.Connection, buyer_offer_id: str) -> Optional[d
     offer["lines"] = conn.execute(
         "SELECT * FROM buyer_offer_line WHERE buyer_offer_id = %s ORDER BY line_no",
         (buyer_offer_id,)).fetchall()
+    # Assembled here rather than with to_jsonb: JSON would turn numeric into a
+    # float, and money never passes through one.
+    claims = {r["line_no"]: r for r in conn.execute(
+        "SELECT * FROM buyer_offer_market_claim WHERE buyer_offer_id = %s",
+        (buyer_offer_id,)).fetchall()}
+    for line in offer["lines"]:
+        line["market_claim"] = claims.get(line["line_no"])
     offer["total"] = sum((ln["line_total"] for ln in offer["lines"]), Decimal("0"))
     return offer
 
@@ -856,3 +893,50 @@ def review_queue(conn: psycopg.Connection) -> list[dict]:
                 AND NOT EXISTS (SELECT 1 FROM pricing_acknowledgement a
                                  WHERE a.pricing_id = p.pricing_id))
          ORDER BY d.created_at DESC, l.row_index""").fetchall()
+
+
+# ------------------------------------------------------------- search keys
+
+
+def set_search_key(conn: psycopg.Connection, *, merchant_id: str, producer_key: str,
+                   params: dict, source: str, set_by: str, note: str | None = None) -> dict:
+    return conn.execute(
+        """INSERT INTO merchant_search_key (merchant_id, producer_key, params, source,
+                                            set_by, note)
+           VALUES (%s, %s, %s, %s, %s, %s)
+           ON CONFLICT (merchant_id, producer_key) DO UPDATE
+              SET params = EXCLUDED.params, source = EXCLUDED.source,
+                  set_by = EXCLUDED.set_by, set_at = now(), note = EXCLUDED.note
+        RETURNING *""",
+        (merchant_id, producer_key, Jsonb(params), source, set_by, note)).fetchone()
+
+
+def search_key(conn: psycopg.Connection, merchant_id: str, producer_key: str) -> Optional[dict]:
+    return conn.execute(
+        "SELECT * FROM merchant_search_key WHERE merchant_id = %s AND producer_key = %s",
+        (merchant_id, producer_key)).fetchone()
+
+
+def list_search_keys(conn: psycopg.Connection, merchant_id: str | None = None) -> list[dict]:
+    where = "WHERE merchant_id = %s" if merchant_id else ""
+    return conn.execute(f"SELECT * FROM merchant_search_key {where} ORDER BY merchant_id, "
+                        "producer_key", (merchant_id,) if merchant_id else None).fetchall()
+
+
+def thin_targets(conn: psycopg.Connection, deal_id: str, min_comps: int = 2) -> list[dict]:
+    """The (wine, vintage) pairs of a deal's lines that came back thin: fewer
+    than `min_comps` merchants, or never searched at all. What DEEP MERCHANT
+    SEARCH is pointed at."""
+    return conn.execute("""
+        WITH latest AS (
+            SELECT DISTINCT ON (line_id) line_id, comp_count
+              FROM benchmark_run ORDER BY line_id, computed_at DESC, run_id DESC)
+        SELECT DISTINCT l.wine_id, l.vintage, w.producer, w.wine_key,
+               coalesce(min(r.comp_count), 0) AS comp_count
+          FROM seller_line l
+          JOIN wine w USING (wine_id)
+          LEFT JOIN latest r ON r.line_id = l.line_id
+         WHERE l.deal_id = %s AND l.wine_id IS NOT NULL
+         GROUP BY l.wine_id, l.vintage, w.producer, w.wine_key
+        HAVING coalesce(min(r.comp_count), 0) < %s
+         ORDER BY w.producer, l.vintage""", (deal_id, min_comps)).fetchall()

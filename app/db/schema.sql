@@ -120,6 +120,21 @@ CREATE TABLE merchant_lwin_untrusted (
     PRIMARY KEY (merchant_id, lwin7)
 );
 
+-- How a merchant that can only be searched (not swept) is asked about one
+-- producer: its own key for that producer, recorded rather than guessed.
+-- Bordeaux Index publishes these at /fine-wine/producer/<slug>, and the slug
+-- form matters: producer=domaine_armand_rousseau works, the hyphen form 404s.
+CREATE TABLE merchant_search_key (
+    merchant_id  text NOT NULL REFERENCES merchant(merchant_id),
+    producer_key text NOT NULL,                  -- normalised producer, as in wine_key
+    params       jsonb NOT NULL,                 -- the merchant's own search terms
+    source       text NOT NULL CHECK (source IN ('merchant_index','operator')),
+    set_by       uuid NOT NULL REFERENCES operator(operator_id),
+    set_at       timestamptz NOT NULL DEFAULT now(),
+    note         text,
+    PRIMARY KEY (merchant_id, producer_key)
+);
+
 CREATE TABLE snapshot (
     snapshot_id      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     captured_at      timestamptz NOT NULL,
@@ -412,14 +427,17 @@ CREATE TABLE pricing_result (
     flags             text[] NOT NULL DEFAULT '{}',
     state             text NOT NULL CHECK (state IN ('READY','REVIEW','NO_MARKET')),
 
-    -- Derived from the flags, so it cannot drift from them: a price that is
-    -- below cost, or above the UK market the client document quotes it against,
-    -- needs a named operator to accept it before it can be exported.
+    -- Derived from the flags and the benchmark state, so it cannot drift from
+    -- either: a price that is below cost, or above the UK market the client
+    -- document quotes it against, or that rests on evidence an operator has to
+    -- look at (REVIEW) or on no evidence at all (NO_MARKET), needs a named
+    -- operator to accept it before it can be exported. See decision 0010.
     -- COST_ABOVE_UK_REFERENCE and DEEP_DISCOUNT do not gate: buying badly is a
     -- commercial fact, and selling below market is the product.
     requires_acknowledgement boolean NOT NULL
                       GENERATED ALWAYS AS (flags && ARRAY['NEGATIVE_GP',
-                                           'SELL_ABOVE_UK_REFERENCE']::text[]) STORED,
+                                           'SELL_ABOVE_UK_REFERENCE']::text[]
+                                           OR state IN ('NO_MARKET','REVIEW')) STORED,
 
     UNIQUE (pricing_id, requires_acknowledgement),
     CONSTRAINT pricing_result_cost_currency CHECK ((cost IS NULL) = (cost_currency IS NULL)),
@@ -434,6 +452,8 @@ CREATE TABLE pricing_acknowledgement (
     ack_id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     pricing_id      uuid NOT NULL REFERENCES pricing_result(pricing_id) ON DELETE CASCADE,
     flags           text[] NOT NULL,          -- the gating flags as they stood
+    state           text NOT NULL             -- and the benchmark state accepted with them
+                    CHECK (state IN ('READY','REVIEW','NO_MARKET')),
     acknowledged_by uuid NOT NULL REFERENCES operator(operator_id),
     acknowledged_at timestamptz NOT NULL DEFAULT now(),
     note            text,
@@ -442,6 +462,12 @@ CREATE TABLE pricing_acknowledgement (
 );
 
 -- ============================================================= buyer offers
+
+-- A line's market claim, and the ONLY place one can come from. "£x, y% below
+-- the UK market" is a statement about a market we measured, so the reference it
+-- rests on is NOT NULL here: a line with no UK Reference simply has no row, and
+-- a document has nothing to print for it. Not blank, not zero — absent.
+-- See decision 0010.
 
 -- The offer as actually issued to a client. Its lines hold the figures as sent,
 -- so a sent offer stays reproducible after the market moves. Issued lines pin
@@ -486,4 +512,17 @@ CREATE TABLE buyer_offer_line (
     CONSTRAINT buyer_offer_line_total CHECK (line_total = unit_price * quantity),
     CONSTRAINT buyer_offer_line_acknowledged CHECK
         (NOT pricing_requires_ack OR ack_id IS NOT NULL)
+);
+
+CREATE TABLE buyer_offer_market_claim (
+    buyer_offer_id uuid NOT NULL,
+    line_no        int NOT NULL,
+    run_id         uuid NOT NULL REFERENCES benchmark_run(run_id),
+    as_of          timestamptz NOT NULL,          -- when that market was measured
+    uk_reference   numeric(14,2) NOT NULL,        -- never null: that is the point
+    comp_count     int NOT NULL CHECK (comp_count > 0),
+    below_reference numeric(6,4) NOT NULL,        -- (reference - sell) / reference
+    PRIMARY KEY (buyer_offer_id, line_no),
+    FOREIGN KEY (buyer_offer_id, line_no)
+        REFERENCES buyer_offer_line (buyer_offer_id, line_no) ON DELETE CASCADE
 );

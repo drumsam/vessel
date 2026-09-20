@@ -4,7 +4,8 @@ RQ imports these by dotted path, so every job takes only ids and simple
 values and opens its own database connection.
 
     SNAPSHOT LOOKUP ......... collect_snapshot  (whole-book merchant feeds)
-    DEEP MERCHANT SEARCH .... collect_targeted  (producer + vintage searches)
+    DEEP MERCHANT SEARCH .... deep_search       (the gaps, per producer + vintage)
+                              collect_targeted  (one producer + vintage)
     DETERMINISTIC BENCHMARK . benchmark_deal
     PRICING ................. price_deal
     RETENTION ............... prune_snapshots
@@ -27,7 +28,7 @@ from app.core.benchmark import benchmark
 from app.core.enums import Reject
 from app.db import repo
 from app.db.connection import transaction
-from app.identity.resolver import collided_lwins
+from app.identity.resolver import collided_lwins, norm_producer
 from app.pricing.pricer import DEEP_DISCOUNT_THRESHOLD, CannotPrice, price_line
 from app.worker.politeness import check_robots
 
@@ -346,3 +347,72 @@ def prune_snapshots(keep: Optional[int] = None) -> dict:
     with transaction() as conn:
         deleted = repo.prune_snapshots(conn, keep)
     return {"keep": keep, "deleted": deleted}
+
+
+# ------------------------------------------------- DEEP MERCHANT SEARCH
+
+
+def learn_search_keys(merchant_id: str, set_by: str, *,
+                      robots: Callable[[str], None] = check_robots) -> dict:
+    """Read a search-only merchant's own producer index into merchant_search_key.
+
+    The slug is the merchant's, not ours: Bordeaux Index answers to
+    `producer=domaine_armand_rousseau` and 404s on the hyphen form, which is
+    exactly the kind of thing that must be read rather than guessed.
+    """
+    spec = TARGETED.get(merchant_id)
+    if spec is None:
+        raise ValueError(f"{merchant_id!r} is not searched by producer")
+    robots(spec.robots_url)
+    printed = spec.adapter().search_keys()
+    with transaction() as conn:
+        for name, slug in printed.items():
+            repo.set_search_key(conn, merchant_id=merchant_id,
+                                producer_key=norm_producer(name),
+                                params={"producer_slug": slug}, source="merchant_index",
+                                set_by=set_by, note=f"from the merchant's index as {name!r}")
+    return {"merchant_id": merchant_id, "keys": len(printed)}
+
+
+def deep_search(deal_id: str, *, min_comps: int = 2, merchant_ids: Optional[Sequence[str]] = None,
+                fetch: Optional[Callable] = None,
+                robots: Callable[[str], None] = check_robots) -> dict:
+    """Search the gaps, and only the gaps.
+
+    A whole-book sweep cannot include a merchant that can only be queried per
+    producer and vintage, so those merchants are asked afterwards, about the
+    lines that came back thin: fewer than `min_comps` merchants, or never
+    searched. Each search is its own capture with its own captured_at, scoped to
+    that producer and vintage, exactly like any other (decision 0004).
+    """
+    wanted = list(merchant_ids) if merchant_ids else list(TARGETED)
+    with transaction() as conn:
+        targets = repo.thin_targets(conn, deal_id, min_comps)
+        approved = _approved(conn)
+        keys = {(m, t["wine_key"].partition("|")[0]): repo.search_key(
+                    conn, m, t["wine_key"].partition("|")[0])
+                for m in wanted for t in targets}
+
+    searched, skipped = [], []
+    for merchant_id in wanted:
+        if merchant_id not in approved:
+            skipped.append({"merchant_id": merchant_id, "reason": "not an approved merchant"})
+            continue
+        if merchant_id not in TARGETED:
+            skipped.append({"merchant_id": merchant_id, "reason": "not a search-only merchant"})
+            continue
+        for target in targets:
+            producer_key = target["wine_key"].partition("|")[0]
+            key = keys.get((merchant_id, producer_key))
+            if key is None:
+                # Fail closed and say what is missing: no guessed slugs.
+                skipped.append({"merchant_id": merchant_id, "producer": target["producer"],
+                                "vintage": target["vintage"],
+                                "reason": "no search key for this producer"})
+                continue
+            snapshot_id = collect_targeted(
+                merchant_id, str(target["wine_id"]), target["vintage"], key["params"],
+                fetch=fetch, robots=robots)
+            searched.append({"merchant_id": merchant_id, "producer": target["producer"],
+                             "vintage": target["vintage"], "snapshot_id": snapshot_id})
+    return {"targets": len(targets), "searched": searched, "skipped": skipped}

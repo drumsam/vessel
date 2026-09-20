@@ -219,6 +219,9 @@ LineState = Literal["IDENTITY_NOT_APPROVED", "NOT_SEARCHED", "READY", "REVIEW", 
 class AcknowledgementOut(_Out):
     ack_id: UUID
     flags: list[str]
+    #: The benchmark state accepted along with them: NO_MARKET and REVIEW gate
+    #: too, because they are about whether we measured a market at all (0010).
+    state: str
     acknowledged_by: OperatorRef
     acknowledged_at: datetime
     note: Optional[str]
@@ -403,6 +406,30 @@ class SnapshotIn(_In):
     is_demo: bool = False
 
 
+class SearchKeyIn(_In):
+    """How this merchant is asked about one producer, in the merchant's own
+    terms. Recorded, never guessed: see decision 0010."""
+    producer_key: str = Field(min_length=1)
+    params: dict[str, str]
+    note: Optional[str] = None
+
+
+class SearchKeyOut(_Out):
+    merchant_id: str
+    producer_key: str
+    params: dict[str, Any]
+    source: Literal["merchant_index", "operator"]
+    set_by: OperatorRef
+    set_at: datetime
+    note: Optional[str]
+
+
+class DeepSearchIn(_In):
+    """Search the gaps of one deal: lines with fewer than `min_comps` merchants."""
+    min_comps: int = Field(default=2, ge=1, le=10)
+    merchant_ids: Optional[list[str]] = None
+
+
 class TargetedSnapshotIn(_In):
     """Search one merchant for the producer of `wine_id` in `vintage`.
     `params` are the merchant's own search terms (Bordeaux Index: producer_slug)."""
@@ -504,6 +531,17 @@ class BuyerOfferIn(_In):
     lines: list[BuyerOfferLineIn] = Field(min_length=1)
 
 
+class MarketClaimOut(_Out):
+    """What a line may say about the UK market. It exists only where there is a
+    UK Reference to say it against; a line without one has no claim at all, and
+    the document has nothing to print. See decision 0010."""
+    run_id: UUID
+    as_of: datetime
+    uk_reference: Money
+    comp_count: int
+    below_reference: Decimal
+
+
 class BuyerOfferLineOut(_Out):
     line_no: int
     line_id: UUID
@@ -517,6 +555,7 @@ class BuyerOfferLineOut(_Out):
     line_total: Money
     condition_notes: Optional[str]
     ack_id: Optional[UUID]
+    market_claim: Optional[MarketClaimOut] = None
 
 
 class BuyerOfferOut(_Out):

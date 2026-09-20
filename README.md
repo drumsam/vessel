@@ -96,7 +96,11 @@ scripts/         proof runners
     for has no benchmark run, so it cannot be priced or exported. Line status is
     derived on read, never stored.
 11. **A price below cost, or above the UK Reference, cannot be exported** until
-    a named operator accepts it. See `docs/decisions/0008`.
+    a named operator accepts it — and nor can one whose benchmark came back
+    `NO_MARKET` or `REVIEW`. See `docs/decisions/0008` and `0010`.
+12. **A line with no UK Reference carries no market claim at all.** The client
+    document says nothing about the UK market for it: absent, not blank. See
+    `docs/decisions/0010`.
 
 Benchmark runs resolve each merchant's latest covering capture independently and
 keep every offer exactly as used, so snapshots are a prunable cache. See
@@ -164,6 +168,15 @@ through warnings.
 5. Register the merchant in the `merchant` table.
 
 Never loosen a pricing rule to make an adapter fit.
+
+## Collecting
+
+Two modes. The **sweep** fetches a merchant's whole offer book (Farr, Goedhuis).
+The **search** asks a merchant that answers only per producer and vintage
+(Bordeaux Index) about the lines a deal came back thin on — DEEP MERCHANT
+SEARCH. A search-only merchant never joins a sweep, and its search key is read
+from its own producer index rather than guessed: `producer=domaine_armand_rousseau`
+works, and the hyphen form is a 404. See `docs/decisions/0011`.
 
 ## Adding an auction source
 

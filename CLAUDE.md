@@ -62,8 +62,16 @@ The invariants, in short:
 11. Line status is **derived on read** from the line and its latest run, never
     stored. A stored status drifts from the benchmark it describes.
 12. `NEGATIVE_GP` and `SELL_ABOVE_UK_REFERENCE` gate the buyer export until a
-    named operator accepts them (decision 0008). `COST_ABOVE_UK_REFERENCE` and
+    named operator accepts them (decision 0008), and so do the benchmark states
+    `NO_MARKET` and `REVIEW` (0010). `COST_ABOVE_UK_REFERENCE` and
     `DEEP_DISCOUNT` are context: selling below market is the product.
+15. **A line with no UK Reference may not carry a market claim.** No "UK
+    Market", no "% below" — absent, not blank. `buyer_offer_market_claim` has a
+    NOT NULL reference, so a line without one has no row and a document has
+    nothing to print. See 0010.
+16. Collection has two modes: the sweep (`collect_snapshot`) and the search
+    (`deep_search`, for merchants that answer per producer and vintage). Search
+    keys are read from the merchant's own index, never guessed. See 0011.
 13. A producer-only alias (no cuvée) is operator-only, refused where the
     producer has several wines unless the target is named again, and audited as
     a set. Farr prints both "Veuve Clicquot" and "Veuve Clicquot Rosé".
@@ -111,12 +119,14 @@ INGEST → IDENTITY PROPOSAL → IDENTITY VERIFICATION → SNAPSHOT LOOKUP
 ## Testing
 
 ```bash
-python -m pytest -q                      # 167 pass, 86 skip; no network, no services
+python -m pytest -q                      # 167 pass, 96 skip; no network, no services
 docker compose up -d                     # Postgres + Redis, then:
 TEST_DATABASE_URL=postgresql://pricer:pricer@localhost:5432/pricer_test \
-TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q   # 253 pass
+TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q   # 263 pass
 python scripts/rerun_burgundy_proof.py   # expect READY 0  REVIEW 5  NO_MARKET 15
 cd web && npm test                       # 5 tests: the browser-side parsing rules
+cd web && npm run e2e                    # the whole operator flow in a browser;
+                                         # needs the stack up, see web/e2e/README.md
 ```
 
 `app/db/schema.sql` is the head schema. Change it only together with a new
@@ -180,7 +190,11 @@ The seller's spreadsheet is parsed **in the browser** (`web/lib/lines.js`,
 covered by `npm test`); the original row goes to the API verbatim as `raw_row`,
 which the API requires and refuses empty.
 
-Not built yet: the remaining ten merchant adapters, AI provider
-implementations, a rendered buyer document (PDF), the auction layer.
+DEEP MERCHANT SEARCH is built (`deep_search`, `merchant_search_key`), and a
+Playwright smoke test drives the whole operator flow.
+
+Not built yet: the LWIN import (decision 0012 — waiting on the file), the
+remaining ten merchant adapters, AI provider implementations, a rendered buyer
+document (PDF), the auction layer.
 
 Known open questions are in `docs/decisions/` and in the Burgundy proof report.

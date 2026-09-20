@@ -1289,15 +1289,14 @@ def test_selling_above_the_uk_market_gates_because_the_document_says_below(clien
 @pg
 def test_a_deep_discount_is_the_product_not_a_gate(client):
     """The business sells below market, so gating on DEEP_DISCOUNT would gate
-    every line. £400 against a £610 Reference is 34% below, and exports."""
-    wid = _seed_wine(client)
-    _collect(client)
-    deal_id, line_id = _deal(client, wid)
-    _benchmark(client, deal_id)
-    _sql("UPDATE seller_line SET manual_price = 400.00, cost = 300.00", fetch=False)
+    every line. £400 against a £610 Reference is 34% below, and exports —
+    on a READY line, where the state itself is not the thing gating."""
+    deal_id, line_id = _priced_deal(client, manual="400.00")
+    _sql("UPDATE seller_line SET cost = 300.00", fetch=False)
     _price(client, deal_id)
     p = client.get(f"/lines/{line_id}/pricing").json()
-    assert "DEEP_DISCOUNT" in p["flags"] and p["gp"] == "100.00"
+    assert (p["state"], p["gp"]) == ("READY", "100.00")
+    assert "DEEP_DISCOUNT" in p["flags"]
     assert p["requires_acknowledgement"] is False
     _issue(client, deal_id, line_id, p["pricing_id"], requires_ack=False)
 
@@ -1323,12 +1322,8 @@ def test_cost_above_the_reference_is_a_commercial_fact_not_a_gate(client):
 
 @pg
 def test_acknowledging_a_price_with_nothing_to_acknowledge_is_refused(client):
-    wid = _seed_wine(client)
-    _collect(client)
-    deal_id, line_id = _deal(client, wid)
-    _benchmark(client, deal_id)
-    _sql("UPDATE seller_line SET manual_price = 500.00", fetch=False)
-    _price(client, deal_id)
+    deal_id, line_id = _priced_deal(client)
+    assert client.get(f"/lines/{line_id}/pricing").json()["requires_acknowledgement"] is False
     r = client.post(f"/lines/{line_id}/pricing/acknowledge", json={})
     assert r.status_code == 409
 
@@ -1608,10 +1603,16 @@ def test_setting_a_password_ends_existing_sessions(client):
 # --- issuing a buyer offer ----------------------------------------------------
 
 
-def _priced_deal(client, manual="500.00", cuvee="Charmes-Chambertin") -> tuple[str, str]:
+def _priced_deal(client, manual="500.00", cuvee="Charmes-Chambertin Grand Cru") -> tuple[str, str]:
+    """A deal with a real market behind it: Farr's bottle plus a Bordeaux Index
+    search, so the line is READY and only the commercial flags can gate it."""
     wid = _seed_wine(client, cuvee=cuvee)
+    client.post(f"/wines/{wid}/aliases", json={
+        "producer_text": R, "cuvee_text": cuvee.replace(" Grand Cru", ""),
+        "source": "operator"})
     _collect(client)
-    deal_id, line_id = _deal(client, wid)
+    _collect_bi(client, wid, [bi_card("650.00", cuvee=cuvee)])
+    deal_id, line_id = _deal(client, wid, quantity=1)
     _benchmark(client, deal_id)
     _sql("UPDATE seller_line SET manual_price = %s", (manual,), fetch=False)
     _price(client, deal_id)
@@ -1626,23 +1627,25 @@ def test_an_issued_offer_copies_the_figures_it_was_priced_from(client):
         "lines": [{"line_id": line_id}]})
     assert r.status_code == 201, r.text
     offer = r.json()
-    assert (offer["client"], offer["total"]) == ("A Merchant Ltd", "3000.00")
+    assert (offer["client"], offer["total"]) == ("A Merchant Ltd", "500.00")
     assert offer["issued_by"]["username"] == "op"
     [ln] = offer["lines"]
-    assert (ln["unit_price"], ln["quantity"], ln["line_total"]) == ("500.00", 6, "3000.00")
-    assert ln["description"] == "Domaine Armand Rousseau Charmes-Chambertin 2011"
+    assert (ln["unit_price"], ln["quantity"], ln["line_total"]) == ("500.00", 1, "500.00")
+    assert ln["description"] == "Domaine Armand Rousseau Charmes-Chambertin Grand Cru 2011"
     assert client.get(f"/buyer-offers/{offer['buyer_offer_id']}").json() == offer
 
     # Re-pricing the line later does not rewrite what was sent.
     _sql("UPDATE seller_line SET manual_price = 900.00", fetch=False)
     _price(client, deal_id)
-    assert client.get(f"/buyer-offers/{offer['buyer_offer_id']}").json()["total"] == "3000.00"
+    assert client.get(f"/buyer-offers/{offer['buyer_offer_id']}").json()["total"] == "500.00"
 
 
 @pg
 def test_an_unacknowledged_flagged_price_stops_the_whole_document(client):
     """One bad line does not get quietly dropped from the offer."""
-    deal_id, line_id = _priced_deal(client, manual="400.00")     # below the £480 cost
+    deal_id, line_id = _priced_deal(client, manual="400.00")
+    _sql("UPDATE seller_line SET cost = 480.00", fetch=False)    # priced below cost
+    _price(client, deal_id)
     r = client.post(f"/deals/{deal_id}/buyer-offers", json={
         "client": "A Merchant Ltd", "lines": [{"line_id": line_id}]})
     assert r.status_code == 409 and "NEGATIVE_GP" in r.text
@@ -1730,3 +1733,183 @@ def test_the_review_queue_says_what_each_line_is_waiting_for(client):
     client.post(f"/lines/{line_id}/pricing/acknowledge", json={})
     q = {x["line_id"]: x for x in client.get("/review-queue").json()}[line_id]
     assert q["acknowledged"] is True
+
+
+# --- the market claim, and the state gate (decision 0010) --------------------
+
+
+@pg
+def test_a_line_with_no_uk_reference_carries_no_market_claim(client):
+    """The rule that matters more than the gate: no Reference, no claim. Not a
+    blank cell, not zero — no row at all, so a document has nothing to print."""
+    wid = _seed_wine(client)
+    _collect(client, FARR_BOOK[2:])                  # searched; this wine not listed
+    deal_id, line_id = _deal(client, wid)
+    _benchmark(client, deal_id)
+    _sql("UPDATE seller_line SET manual_price = 500.00", fetch=False)
+    _price(client, deal_id)
+    p = client.get(f"/lines/{line_id}/pricing").json()
+    assert (p["state"], p["uk_reference"]) == ("NO_MARKET", None)
+
+    client.post(f"/lines/{line_id}/pricing/acknowledge", json={"note": "cost-plus, agreed"})
+    r = client.post(f"/deals/{deal_id}/buyer-offers", json={
+        "client": "A Merchant Ltd", "lines": [{"line_id": line_id}]})
+    assert r.status_code == 201, r.text
+    [line] = r.json()["lines"]
+    assert line["market_claim"] is None
+    assert _sql("SELECT count(*) AS n FROM buyer_offer_market_claim")[0]["n"] == 0
+
+
+@pg
+def test_a_market_claim_records_the_reference_it_was_made_against(client):
+    """With two merchants there is a Reference, so the line may say how far
+    below it the price is — and the claim keeps the reference and the run."""
+    wid = _seed_wine(client, cuvee="Charmes-Chambertin Grand Cru")
+    client.post(f"/wines/{wid}/aliases", json={
+        "producer_text": R, "cuvee_text": "Charmes-Chambertin", "source": "operator"})
+    _collect(client)
+    _collect_bi(client, wid, [bi_card("650.00")])
+    deal_id, line_id = _deal(client, wid, quantity=1)
+    _benchmark(client, deal_id)
+    _sql("UPDATE seller_line SET manual_price = 520.00", fetch=False)   # 20% below £650
+    _price(client, deal_id)
+    p = client.get(f"/lines/{line_id}/pricing").json()
+    assert (p["state"], p["uk_reference"]) == ("READY", "650.00")
+    assert p["requires_acknowledgement"] is False
+
+    offer = client.post(f"/deals/{deal_id}/buyer-offers", json={
+        "client": "A Merchant Ltd", "lines": [{"line_id": line_id}]}).json()
+    claim = offer["lines"][0]["market_claim"]
+    assert claim["uk_reference"] == "650.00" and claim["comp_count"] == 2
+    assert Decimal(claim["below_reference"]) == Decimal("0.2000")
+    assert claim["run_id"] == p["run_id"]
+
+
+@pg
+def test_a_market_claim_cannot_be_written_without_a_reference(client):
+    """Structural, not a convention: the claim table has no nullable reference,
+    so no template or code path can reintroduce a claim we cannot support."""
+    import psycopg
+    wid = _seed_wine(client)
+    _collect(client, FARR_BOOK[2:])
+    deal_id, line_id = _deal(client, wid)
+    _benchmark(client, deal_id)
+    _sql("UPDATE seller_line SET manual_price = 500.00", fetch=False)
+    _price(client, deal_id)
+    client.post(f"/lines/{line_id}/pricing/acknowledge", json={})
+    offer = client.post(f"/deals/{deal_id}/buyer-offers", json={
+        "client": "A Merchant Ltd", "lines": [{"line_id": line_id}]}).json()
+    run_id = client.get(f"/lines/{line_id}/benchmark").json()["run_id"]
+    with pytest.raises(psycopg.errors.NotNullViolation):
+        _sql("""INSERT INTO buyer_offer_market_claim
+                    (buyer_offer_id, line_no, run_id, as_of, uk_reference, comp_count,
+                     below_reference)
+                VALUES (%s, 1, %s, now(), NULL, 1, 0.2)""",
+             (offer["buyer_offer_id"], run_id), fetch=False)
+
+
+@pg
+@pytest.mark.parametrize("state,gated", [("NO_MARKET", True), ("REVIEW", True), ("READY", False)])
+def test_the_benchmark_state_gates_the_export_too(client, state, gated):
+    """NO_MARKET and REVIEW are about whether we measured a market at all, so
+    they need a named operator before anything reaches a buyer."""
+    wid = _seed_wine(client)
+    _collect(client)
+    deal_id, line_id = _deal(client, wid, quantity=1)
+    _benchmark(client, deal_id)
+    _sql("UPDATE seller_line SET manual_price = 500.00", fetch=False)
+    _price(client, deal_id)
+    _sql("UPDATE pricing_result SET state = %s", (state,), fetch=False)
+    p = client.get(f"/lines/{line_id}/pricing").json()
+    assert p["requires_acknowledgement"] is gated
+
+    r = client.post(f"/deals/{deal_id}/buyer-offers", json={
+        "client": "A Merchant Ltd", "lines": [{"line_id": line_id}]})
+    assert (r.status_code == 409) is gated, r.text
+    if gated:
+        assert state in r.text
+        client.post(f"/lines/{line_id}/pricing/acknowledge", json={})
+        ack = client.get(f"/lines/{line_id}/pricing").json()["acknowledgement"]
+        assert ack["state"] == state
+        assert client.post(f"/deals/{deal_id}/buyer-offers", json={
+            "client": "A Merchant Ltd", "lines": [{"line_id": line_id}]}).status_code == 201
+
+
+@pg
+def test_the_burgundy_case_needs_sign_off_on_every_line(client):
+    """The rehearsal issued 20 NO_MARKET lines with nothing stopping it. Now
+    every one of them needs a name against it."""
+    wid = _seed_wine(client)
+    _collect(client, FARR_BOOK[2:])
+    deal_id, line_id = _deal(client, wid)
+    _benchmark(client, deal_id)
+    _sql("UPDATE seller_line SET manual_price = 500.00", fetch=False)
+    _price(client, deal_id)
+    queue = {q["line_id"]: q for q in client.get("/review-queue").json()}
+    assert queue[line_id]["requires_acknowledgement"] is True
+    assert client.post(f"/deals/{deal_id}/buyer-offers", json={
+        "client": "A Merchant Ltd", "lines": [{"line_id": line_id}]}).status_code == 409
+
+
+# --- DEEP MERCHANT SEARCH ----------------------------------------------------
+
+
+@pg
+def test_deep_search_asks_only_about_the_thin_lines(client):
+    """Bordeaux Index cannot join a sweep, so it is asked afterwards about the
+    lines the sweep left thin — and about nothing else."""
+    charmes = _seed_wine(client, cuvee="Charmes-Chambertin Grand Cru")
+    client.post(f"/wines/{charmes}/aliases", json={
+        "producer_text": R, "cuvee_text": "Charmes-Chambertin", "source": "operator"})
+    _collect(client)                                   # Farr: one bottle, one comp
+    deal_id, line_id = _deal(client, charmes, quantity=1)
+    _benchmark(client, deal_id)
+    assert client.get(f"/lines/{line_id}/benchmark").json()["comp_count"] == 1
+
+    r = client.put("/merchants/bordeaux-index/search-keys", json={
+        "producer_key": "domaine armand rousseau",
+        "params": {"producer_slug": "domaine_armand_rousseau"},
+        "note": "from the merchant's own index"})
+    assert r.status_code == 200 and r.json()["set_by"]["username"] == "op"
+
+    asked = []
+
+    def fetch(adapter, params, vintage):
+        asked.append((params["producer_slug"], vintage))
+        return [bi_card("650.00", vintage=vintage)]
+
+    result = jobs.deep_search(deal_id, fetch=fetch, robots=lambda url: None)
+    assert asked == [("domaine_armand_rousseau", 2011)]
+    assert result["targets"] == 1 and len(result["searched"]) == 1
+
+    _benchmark(client, deal_id)
+    run = client.get(f"/lines/{line_id}/benchmark").json()
+    assert run["comp_count"] == 2 and run["state"] == "READY"
+    assert {s["merchant_id"] for s in run["sources"]} == {"farr", "bordeaux-index"}
+
+
+@pg
+def test_deep_search_never_guesses_a_producer_slug(client):
+    """domaine-armand-rousseau is a 404 at Bordeaux Index and
+    domaine_armand_rousseau is not. A missing key is a recorded skip."""
+    wid = _seed_wine(client)
+    deal_id, _ = _deal(client, wid)
+    result = jobs.deep_search(deal_id, fetch=lambda *a: [], robots=lambda url: None)
+    assert result["searched"] == []
+    assert result["skipped"][0]["reason"] == "no search key for this producer"
+    assert result["skipped"][0]["producer"] == R
+
+
+@pg
+def test_search_keys_are_read_from_the_merchants_own_index(client, monkeypatch):
+    from app.adapters.bordeaux_index import BordeauxIndexAdapter
+    monkeypatch.setattr(BordeauxIndexAdapter, "search_keys",
+                        lambda self: {"Domaine Armand Rousseau": "domaine_armand_rousseau",
+                                      "Château Haut-Brion": "chateau_haut-brion"})
+    out = jobs.learn_search_keys("bordeaux-index", str(client.operator["operator_id"]),
+                                 robots=lambda url: None)
+    assert out["keys"] == 2
+    keys = {k["producer_key"]: k for k in
+            client.get("/merchants/bordeaux-index/search-keys").json()}
+    assert keys["domaine armand rousseau"]["params"] == {"producer_slug": "domaine_armand_rousseau"}
+    assert keys["chateau haut brion"]["source"] == "merchant_index"

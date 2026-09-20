@@ -381,6 +381,52 @@ def collect_snapshot(body: s.SnapshotIn, q: Queue = Depends(queue)):
     return s.JobOut(job_id=job.id, status=job.get_status())
 
 
+@protected.get("/merchants/{merchant_id}/search-keys", response_model=list[s.SearchKeyOut])
+def list_search_keys(merchant_id: str, conn: psycopg.Connection = Depends(db)):
+    return _ops(conn, repo.list_search_keys(conn, merchant_id), "set_by")
+
+
+@protected.put("/merchants/{merchant_id}/search-keys", response_model=s.SearchKeyOut)
+def set_search_key(merchant_id: str, body: s.SearchKeyIn,
+                   conn: psycopg.Connection = Depends(db),
+                   operator: dict = Depends(current_operator)):
+    try:
+        with conn.transaction():
+            row = repo.set_search_key(conn, merchant_id=merchant_id,
+                                      producer_key=body.producer_key, params=body.params,
+                                      source="operator", set_by=operator["operator_id"],
+                                      note=body.note)
+    except psycopg.Error as e:
+        raise _translate(e)
+    return _op(conn, row, "set_by")
+
+
+@protected.post("/merchants/{merchant_id}/search-keys/learn", response_model=s.JobOut,
+                status_code=202)
+def learn_search_keys(merchant_id: str, q: Queue = Depends(queue),
+                      operator: dict = Depends(current_operator)):
+    """Read the merchant's own producer index into merchant_search_key."""
+    job = q.enqueue_call(func="app.worker.jobs.learn_search_keys",
+                         kwargs={"merchant_id": merchant_id,
+                                 "set_by": str(operator["operator_id"])},
+                         timeout=JOB_TIMEOUT)
+    return s.JobOut(job_id=job.id, status=job.get_status())
+
+
+@protected.post("/deals/{deal_id}/deep-search", response_model=s.JobOut, status_code=202)
+def deep_search(deal_id: UUID, body: Optional[s.DeepSearchIn] = None,
+                conn: psycopg.Connection = Depends(db), q: Queue = Depends(queue)):
+    """DEEP MERCHANT SEARCH: ask the search-only merchants about the lines the
+    sweep left thin, and nothing else."""
+    if repo.get_deal(conn, str(deal_id)) is None:
+        raise HTTPException(404, "deal not found")
+    body = body or s.DeepSearchIn()
+    job = q.enqueue_call(func="app.worker.jobs.deep_search",
+                         kwargs={"deal_id": str(deal_id), "min_comps": body.min_comps,
+                                 "merchant_ids": body.merchant_ids}, timeout=JOB_TIMEOUT)
+    return s.JobOut(job_id=job.id, status=job.get_status())
+
+
 @protected.post("/snapshots/targeted", response_model=s.JobOut, status_code=202)
 def collect_targeted(body: s.TargetedSnapshotIn, q: Queue = Depends(queue)):
     kwargs = body.model_dump()
