@@ -196,6 +196,23 @@ def create_deal(body: s.DealIn, conn: psycopg.Connection = Depends(db),
     return _deal_out(conn, row)
 
 
+@protected.get("/deals", response_model=list[s.DealSummaryOut])
+def list_deals(conn: psycopg.Connection = Depends(db)):
+    return _ops(conn, repo.list_deals(conn), "created_by")
+
+
+@protected.get("/review-queue", response_model=list[s.ReviewQueueOut])
+def review_queue(conn: psycopg.Connection = Depends(db)):
+    """Everything waiting on a person, across deals: unapproved identities,
+    lines nobody has searched, lines in REVIEW, and prices that need accepting."""
+    rows = repo.review_queue(conn)
+    return [{**r, "line_state": _line_state(r, {"state": r["state"]} if r["state"] else None),
+             "benchmark_flags": r["benchmark_flags"] or [],
+             "pricing_flags": r["pricing_flags"] or [],
+             "requires_acknowledgement": bool(r["requires_acknowledgement"]),
+             "acknowledged": bool(r["acknowledged"])} for r in rows]
+
+
 @protected.get("/deals/{deal_id}", response_model=s.DealOut)
 def get_deal(deal_id: UUID, conn: psycopg.Connection = Depends(db)):
     deal = repo.get_deal(conn, str(deal_id))
@@ -315,6 +332,43 @@ def resolve_lwin_conflict(conflict_id: UUID, body: s.LwinConflictResolution,
         raise HTTPException(404, "wine not found")
     except (repo.Conflict, psycopg.Error) as e:
         raise _translate(e)
+
+
+# ------------------------------------------------------------ buyer offers
+
+
+@protected.post("/deals/{deal_id}/buyer-offers", response_model=s.BuyerOfferOut, status_code=201)
+def create_buyer_offer(deal_id: UUID, body: s.BuyerOfferIn,
+                       conn: psycopg.Connection = Depends(db),
+                       operator: dict = Depends(current_operator)):
+    """Issue the offer. A line with no price, or with a price that needed an
+    operator's acknowledgement and has not had one, stops the whole document."""
+    if repo.get_deal(conn, str(deal_id)) is None:
+        raise HTTPException(404, "deal not found")
+    try:
+        with conn.transaction():
+            offer = repo.create_buyer_offer(
+                conn, deal_id=str(deal_id), client=body.client, currency=body.currency,
+                terms=body.terms, issued_by=operator["operator_id"],
+                asks=[ln.model_dump() for ln in body.lines])
+    except LookupError as e:
+        raise HTTPException(404, str(e))
+    except (repo.Conflict, psycopg.Error) as e:
+        raise _translate(e)
+    return _op(conn, offer, "issued_by")
+
+
+@protected.get("/deals/{deal_id}/buyer-offers", response_model=list[s.BuyerOfferOut])
+def list_buyer_offers(deal_id: UUID, conn: psycopg.Connection = Depends(db)):
+    return _ops(conn, repo.deal_buyer_offers(conn, str(deal_id)), "issued_by")
+
+
+@protected.get("/buyer-offers/{buyer_offer_id}", response_model=s.BuyerOfferOut)
+def get_buyer_offer(buyer_offer_id: UUID, conn: psycopg.Connection = Depends(db)):
+    offer = repo.get_buyer_offer(conn, str(buyer_offer_id))
+    if offer is None:
+        raise HTTPException(404, "buyer offer not found")
+    return _op(conn, offer, "issued_by")
 
 
 # ------------------------------------------------------ snapshots and jobs

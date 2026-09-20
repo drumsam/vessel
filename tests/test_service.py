@@ -48,17 +48,17 @@ def test_json_number_money_is_refused_not_converted(cost):
     """A JSON number is a binary float before we see it. £2,353.10 must arrive
     as the string "2353.10" or not at all."""
     with pytest.raises(ValidationError, match="never a JSON number"):
-        LineIn(row_index=0, raw_description="x", raw_row={}, quantity=1,
+        LineIn(row_index=0, raw_description="x", raw_row={"A": "as the seller wrote it"}, quantity=1,
                cost=cost, cost_currency="GBP")
 
 
 def test_money_string_is_exact_and_third_decimal_is_refused():
-    ok = LineIn(row_index=0, raw_description="x", raw_row={}, quantity=1,
+    ok = LineIn(row_index=0, raw_description="x", raw_row={"A": "as the seller wrote it"}, quantity=1,
                 cost="2353.10", cost_currency="GBP")
     assert ok.cost == Decimal("2353.10") and str(ok.cost) == "2353.10"
     # numeric(14,2) would silently round this to 2353.11 on insert.
     with pytest.raises(ValidationError):
-        LineIn(row_index=0, raw_description="x", raw_row={}, quantity=1,
+        LineIn(row_index=0, raw_description="x", raw_row={"A": "as the seller wrote it"}, quantity=1,
                cost="2353.105", cost_currency="GBP")
 
 
@@ -78,8 +78,9 @@ def test_api_rejects_float_money_with_422():
     try:
         r = TestClient(api.app, base_url="https://testserver").post("/deals", json={
             "name": "d",
-            "lines": [{"row_index": 0, "raw_description": "x", "raw_row": {},
-                       "quantity": 1, "cost": 2353.1, "cost_currency": "GBP"}]})
+            "lines": [{"row_index": 0, "raw_description": "x",
+                       "raw_row": {"A": "x"}, "quantity": 1,
+                       "cost": 2353.1, "cost_currency": "GBP"}]})
     finally:
         api.app.dependency_overrides.clear()
     assert r.status_code == 422
@@ -843,7 +844,7 @@ def test_line_without_approved_identity_is_not_benchmarked(client):
     _seed_wine(client)
     _collect(client)
     r = client.post("/deals", json={"name": "d", "lines": [
-        {"row_index": 0, "raw_description": "Rousseau ?", "raw_row": {}, "quantity": 1}]})
+        {"row_index": 0, "raw_description": "Rousseau ?", "raw_row": {"A": "as the seller wrote it"}, "quantity": 1}]})
     j = _benchmark(client, r.json()["deal_id"])
     assert j["result"]["runs"] == {} and len(j["result"]["unapproved_identity"]) == 1
 
@@ -971,7 +972,7 @@ def test_never_searched_and_no_market_are_shown_differently(client):
 @pg
 def test_a_line_with_no_approved_identity_says_so(client):
     r = client.post("/deals", json={"name": "d", "lines": [
-        {"row_index": 0, "raw_description": "Rousseau ?", "raw_row": {}, "quantity": 1}]})
+        {"row_index": 0, "raw_description": "Rousseau ?", "raw_row": {"A": "as the seller wrote it"}, "quantity": 1}]})
     [line] = r.json()["lines"]
     assert line["line_state"] == "IDENTITY_NOT_APPROVED"
 
@@ -1079,7 +1080,7 @@ def test_the_deal_margin_is_the_fallback_for_a_line_with_no_rule(client):
     r = client.post("/deals", json={
         "name": "d", "currency": "GBP", "target_margin": 0.4,
         "lines": [{"row_index": 0, "raw_description": "Rousseau Charmes 2011",
-                   "raw_row": {}, "quantity": 1, "cost": "300.00", "cost_currency": "GBP"}]})
+                   "raw_row": {"A": "as the seller wrote it"}, "quantity": 1, "cost": "300.00", "cost_currency": "GBP"}]})
     deal_id, line_id = r.json()["deal_id"], r.json()["lines"][0]["line_id"]
     client.put(f"/lines/{line_id}/identity", json={
         "wine_id": wid, "vintage": 2011, "bottle_ml": 750, "pack_size": 1,
@@ -1463,8 +1464,8 @@ def test_repeated_corrections_of_the_same_wording_become_an_alias_suggestion(cli
     a = _seed_wine(client, cuvee="Charmes-Chambertin")
     b = _seed_wine(client, cuvee="Mazoyeres-Chambertin")
     r = client.post("/deals", json={"name": "d", "lines": [
-        {"row_index": i, "raw_description": "Rousseau  CHARMES 2011", "raw_row": {},
-         "quantity": 1} for i in range(2)]})
+        {"row_index": i, "raw_description": "Rousseau  CHARMES 2011",
+         "raw_row": {"A": "Rousseau  CHARMES 2011"}, "quantity": 1} for i in range(2)]})
     lines = [ln["line_id"] for ln in r.json()["lines"]]
     for line_id in lines:
         client.put(f"/lines/{line_id}/identity", json={
@@ -1602,3 +1603,130 @@ def test_setting_a_password_ends_existing_sessions(client):
     auth.set_password(OPERATOR["username"], "a new password")
     assert client.get("/session").status_code == 401
     assert _sign_in(client, password="a new password").status_code == 200
+
+
+# --- issuing a buyer offer ----------------------------------------------------
+
+
+def _priced_deal(client, manual="500.00", cuvee="Charmes-Chambertin") -> tuple[str, str]:
+    wid = _seed_wine(client, cuvee=cuvee)
+    _collect(client)
+    deal_id, line_id = _deal(client, wid)
+    _benchmark(client, deal_id)
+    _sql("UPDATE seller_line SET manual_price = %s", (manual,), fetch=False)
+    _price(client, deal_id)
+    return deal_id, line_id
+
+
+@pg
+def test_an_issued_offer_copies_the_figures_it_was_priced_from(client):
+    deal_id, line_id = _priced_deal(client)
+    r = client.post(f"/deals/{deal_id}/buyer-offers", json={
+        "client": "A Merchant Ltd", "currency": "GBP", "terms": "Ex-London City Bond",
+        "lines": [{"line_id": line_id}]})
+    assert r.status_code == 201, r.text
+    offer = r.json()
+    assert (offer["client"], offer["total"]) == ("A Merchant Ltd", "3000.00")
+    assert offer["issued_by"]["username"] == "op"
+    [ln] = offer["lines"]
+    assert (ln["unit_price"], ln["quantity"], ln["line_total"]) == ("500.00", 6, "3000.00")
+    assert ln["description"] == "Domaine Armand Rousseau Charmes-Chambertin 2011"
+    assert client.get(f"/buyer-offers/{offer['buyer_offer_id']}").json() == offer
+
+    # Re-pricing the line later does not rewrite what was sent.
+    _sql("UPDATE seller_line SET manual_price = 900.00", fetch=False)
+    _price(client, deal_id)
+    assert client.get(f"/buyer-offers/{offer['buyer_offer_id']}").json()["total"] == "3000.00"
+
+
+@pg
+def test_an_unacknowledged_flagged_price_stops_the_whole_document(client):
+    """One bad line does not get quietly dropped from the offer."""
+    deal_id, line_id = _priced_deal(client, manual="400.00")     # below the £480 cost
+    r = client.post(f"/deals/{deal_id}/buyer-offers", json={
+        "client": "A Merchant Ltd", "lines": [{"line_id": line_id}]})
+    assert r.status_code == 409 and "NEGATIVE_GP" in r.text
+    assert _sql("SELECT count(*) AS n FROM buyer_offer")[0]["n"] == 0
+
+    client.post(f"/lines/{line_id}/pricing/acknowledge", json={"note": "clearing stock"})
+    r = client.post(f"/deals/{deal_id}/buyer-offers", json={
+        "client": "A Merchant Ltd", "lines": [{"line_id": line_id}]})
+    assert r.status_code == 201
+    assert r.json()["lines"][0]["ack_id"] is not None
+
+
+@pg
+def test_an_unpriced_line_cannot_be_offered(client):
+    wid = _seed_wine(client)
+    _collect(client)
+    deal_id, line_id = _deal(client, wid)
+    r = client.post(f"/deals/{deal_id}/buyer-offers", json={
+        "client": "A Merchant Ltd", "lines": [{"line_id": line_id}]})
+    assert r.status_code == 409 and "no price" in r.text
+
+
+@pg
+def test_a_line_from_another_deal_cannot_be_offered(client):
+    deal_id, _ = _priced_deal(client)
+    _, other_line = _priced_deal(client, cuvee="Clos de la Roche")
+    r = client.post(f"/deals/{deal_id}/buyer-offers", json={
+        "client": "A Merchant Ltd", "lines": [{"line_id": other_line}]})
+    assert r.status_code == 404
+
+
+# --- overviews the operator screens are built on ------------------------------
+
+
+@pg
+def test_an_empty_raw_row_is_refused(client):
+    """The spreadsheet is parsed in the browser, so this is where "never
+    destroy the original seller description" is enforced for every caller."""
+    r = client.post("/deals", json={"name": "d", "lines": [
+        {"row_index": 0, "raw_description": "Rousseau Charmes 2011", "raw_row": {},
+         "quantity": 1}]})
+    assert r.status_code == 422 and "raw_row" in r.text
+
+
+@pg
+def test_the_deal_list_counts_lines_by_state(client):
+    wid = _seed_wine(client)
+    _collect(client)
+    deal_id, _ = _deal(client, wid)
+    client.post("/deals", json={"name": "unapproved", "lines": [
+        {"row_index": 0, "raw_description": "?", "raw_row": {"A": "?"}, "quantity": 1}]})
+    _benchmark(client, deal_id)
+
+    by_name = {d["name"]: d for d in client.get("/deals").json()}
+    assert by_name["Rousseau parcel"]["review"] == 1
+    assert by_name["Rousseau parcel"]["not_searched"] == 0
+    assert by_name["unapproved"]["identity_not_approved"] == 1
+    assert by_name["unapproved"]["created_by"]["username"] == "op"
+
+
+@pg
+def test_the_review_queue_says_what_each_line_is_waiting_for(client):
+    wid = _seed_wine(client)
+    _collect(client)
+    deal_id, line_id = _deal(client, wid)
+    r = client.post("/deals", json={"name": "unapproved", "lines": [
+        {"row_index": 0, "raw_description": "Rousseau ?", "raw_row": {"A": "?"}, "quantity": 1}]})
+    unapproved_line = r.json()["lines"][0]["line_id"]
+
+    queue = {q["line_id"]: q for q in client.get("/review-queue").json()}
+    assert queue[unapproved_line]["line_state"] == "IDENTITY_NOT_APPROVED"
+    assert queue[line_id]["line_state"] == "NOT_SEARCHED"
+
+    _benchmark(client, deal_id)
+    q = {x["line_id"]: x for x in client.get("/review-queue").json()}[line_id]
+    assert (q["line_state"], q["deal_name"]) == ("REVIEW", "Rousseau parcel")
+    assert "ONE_COMP" in q["benchmark_flags"] and q["uk_reference"] == "610.00"
+
+    # A price that needs accepting keeps the line in the queue after it is READY.
+    _sql("UPDATE seller_line SET manual_price = 400.00 WHERE line_id = %s", (line_id,),
+         fetch=False)
+    _price(client, deal_id)
+    q = {x["line_id"]: x for x in client.get("/review-queue").json()}[line_id]
+    assert q["requires_acknowledgement"] is True and q["acknowledged"] is False
+    client.post(f"/lines/{line_id}/pricing/acknowledge", json={})
+    q = {x["line_id"]: x for x in client.get("/review-queue").json()}[line_id]
+    assert q["acknowledged"] is True

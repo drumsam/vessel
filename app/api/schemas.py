@@ -138,7 +138,10 @@ class AliasOut(_Out):
 class LineIn(_In):
     row_index: int = Field(ge=0)
     raw_description: str = Field(min_length=1)
-    raw_row: dict[str, Any]
+    #: The seller's original row, verbatim. Required and non-empty: the parser
+    #: runs in the browser, so this is where "never destroy the original seller
+    #: description" is enforced for everyone.
+    raw_row: dict[str, Any] = Field(min_length=1)
     quantity: int = Field(ge=1)
     cost: Optional[PositiveMoney] = None
     cost_currency: Optional[Currency] = None
@@ -345,6 +348,41 @@ class LineOut(_Out):
     pricing: Optional[PricingOut] = None
 
 
+class DealSummaryOut(_Out):
+    deal_id: UUID
+    name: str
+    seller: Optional[str]
+    currency: Optional[str]
+    target_margin: Optional[Decimal]
+    created_by: OperatorRef
+    created_at: datetime
+    lines: int
+    identity_not_approved: int
+    not_searched: int
+    ready: int
+    review: int
+    no_market: int
+
+
+class ReviewQueueOut(_Out):
+    """A line waiting on a person, and what it is waiting for."""
+    line_id: UUID
+    deal_id: UUID
+    deal_name: str
+    row_index: int
+    raw_description: str
+    quantity: int
+    wine_id: Optional[UUID]
+    line_flags: list[str]
+    line_state: LineState
+    benchmark_flags: list[str] = []
+    uk_reference: Optional[Money]
+    sell_price: Optional[Money]
+    pricing_flags: list[str] = []
+    requires_acknowledgement: bool = False
+    acknowledged: bool = False
+
+
 class DealOut(_Out):
     deal_id: UUID
     name: str
@@ -450,6 +488,47 @@ class CompOut(_Out):
     condition_notes: Optional[str]
     source_url: Optional[str]
     captured_at: Optional[datetime]
+
+
+class BuyerOfferLineIn(_In):
+    line_id: UUID
+    quantity: Optional[int] = Field(default=None, ge=1)
+    description: Optional[str] = None
+    condition_notes: Optional[str] = None
+
+
+class BuyerOfferIn(_In):
+    client: str = Field(min_length=1)
+    currency: Currency = "GBP"
+    terms: Optional[str] = None
+    lines: list[BuyerOfferLineIn] = Field(min_length=1)
+
+
+class BuyerOfferLineOut(_Out):
+    line_no: int
+    line_id: UUID
+    pricing_id: UUID
+    description: str
+    vintage: int
+    bottle_ml: int
+    pack_size: int
+    quantity: int
+    unit_price: Money
+    line_total: Money
+    condition_notes: Optional[str]
+    ack_id: Optional[UUID]
+
+
+class BuyerOfferOut(_Out):
+    buyer_offer_id: UUID
+    deal_id: UUID
+    client: str
+    currency: str
+    issued_at: datetime
+    issued_by: OperatorRef
+    terms: Optional[str]
+    total: Money
+    lines: list[BuyerOfferLineOut]
 
 
 class RunSourceOut(_Out):

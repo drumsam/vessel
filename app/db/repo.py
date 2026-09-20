@@ -716,3 +716,143 @@ def prune_snapshots(conn: psycopg.Connection, keep: int) -> list[str]:
             WHERE NOT EXISTS (SELECT 1 FROM keep k WHERE k.snapshot_id = s.snapshot_id)
         RETURNING snapshot_id""", (keep,)).fetchall()
     return [str(r["snapshot_id"]) for r in rows]
+
+
+# ------------------------------------------------------------- buyer offers
+
+
+def _offer_line(conn: psycopg.Connection, line: dict, ask: dict) -> dict:
+    """One line of an issued offer, from that line's latest price. Refuses
+    rather than guesses: an unpriced line, a price that needs an operator's
+    acknowledgement and has not had one, or a currency that is not the offer's.
+    """
+    line_id = str(line["line_id"])
+    pricing = latest_pricing(conn, line_id)
+    if pricing is None or pricing["sell_price"] is None:
+        raise Conflict(f"line {line_id} has no price")
+    if pricing["requires_acknowledgement"] and pricing["acknowledgement"] is None:
+        raise Conflict(f"line {line_id} is priced {', '.join(sorted(set(pricing['flags']) & set(EXPORT_GATE_FLAGS)))} "
+                       "and has not been acknowledged")
+    wine = get_wine(conn, line["wine_id"]) if line["wine_id"] else None
+    quantity = ask.get("quantity") or line["quantity"]
+    description = ask.get("description") or " ".join(filter(None, [
+        wine["producer"] if wine else line["raw_description"],
+        wine["cuvee"] if wine else "",
+        "NV" if line["vintage"] == 1000 else str(line["vintage"] or ""),
+    ])).strip()
+    return {
+        "line_id": line_id, "pricing_id": pricing["pricing_id"], "description": description,
+        "vintage": line["vintage"], "bottle_ml": line["bottle_ml"],
+        "pack_size": line["pack_size"], "quantity": quantity,
+        "unit_price": exact_money(pricing["sell_price"]),
+        "line_total": exact_money(pricing["sell_price"] * quantity),
+        "condition_notes": ask.get("condition_notes"),
+        "pricing_requires_ack": pricing["requires_acknowledgement"],
+        "ack_id": pricing["acknowledgement"]["ack_id"] if pricing["acknowledgement"] else None,
+        "sell_currency": pricing["sell_currency"],
+    }
+
+
+def create_buyer_offer(conn: psycopg.Connection, *, deal_id: str, client: str, currency: str,
+                       terms: str | None, issued_by: str, asks: list[dict]) -> dict:
+    """The offer as issued. Its line figures are copied from the pricing results
+    they came from, so the document stays reproducible after the market moves."""
+    by_id = {str(r["line_id"]): r for r in deal_lines(conn, deal_id)}
+    rows = []
+    for ask in asks:
+        line = by_id.get(str(ask["line_id"]))
+        if line is None:
+            raise LookupError(f"line {ask['line_id']} is not in this deal")
+        row = _offer_line(conn, line, ask)
+        if row.pop("sell_currency") != currency:
+            raise Conflict(f"line {row['line_id']} is priced in another currency")
+        rows.append(row)
+    if not rows:
+        raise Conflict("an offer needs at least one line")
+
+    offer = conn.execute(
+        """INSERT INTO buyer_offer (deal_id, client, currency, issued_at, issued_by, terms)
+           VALUES (%s, %s, %s, now(), %s, %s) RETURNING *""",
+        (deal_id, client, currency, issued_by, terms)).fetchone()
+    with conn.cursor() as cur:
+        cur.executemany(
+            """INSERT INTO buyer_offer_line
+                   (buyer_offer_id, line_no, line_id, pricing_id, description, vintage,
+                    bottle_ml, pack_size, quantity, unit_price, line_total, condition_notes,
+                    pricing_requires_ack, ack_id)
+               VALUES (%(buyer_offer_id)s, %(line_no)s, %(line_id)s, %(pricing_id)s,
+                       %(description)s, %(vintage)s, %(bottle_ml)s, %(pack_size)s,
+                       %(quantity)s, %(unit_price)s, %(line_total)s, %(condition_notes)s,
+                       %(pricing_requires_ack)s, %(ack_id)s)""",
+            [{**r, "buyer_offer_id": offer["buyer_offer_id"], "line_no": i}
+             for i, r in enumerate(rows, 1)])
+    return get_buyer_offer(conn, offer["buyer_offer_id"])
+
+
+def get_buyer_offer(conn: psycopg.Connection, buyer_offer_id: str) -> Optional[dict]:
+    offer = conn.execute("SELECT * FROM buyer_offer WHERE buyer_offer_id = %s",
+                         (buyer_offer_id,)).fetchone()
+    if offer is None:
+        return None
+    offer["lines"] = conn.execute(
+        "SELECT * FROM buyer_offer_line WHERE buyer_offer_id = %s ORDER BY line_no",
+        (buyer_offer_id,)).fetchall()
+    offer["total"] = sum((ln["line_total"] for ln in offer["lines"]), Decimal("0"))
+    return offer
+
+
+def deal_buyer_offers(conn: psycopg.Connection, deal_id: str) -> list[dict]:
+    ids = conn.execute("""SELECT buyer_offer_id FROM buyer_offer WHERE deal_id = %s
+                           ORDER BY issued_at DESC""", (deal_id,)).fetchall()
+    return [get_buyer_offer(conn, r["buyer_offer_id"]) for r in ids]
+
+
+# --------------------------------------------------------------- overviews
+
+
+def list_deals(conn: psycopg.Connection) -> list[dict]:
+    """Deal summaries with a count per line state. The states are derived here
+    exactly as the deal view derives them: identity, then the latest run."""
+    return conn.execute("""
+        WITH latest AS (
+            SELECT DISTINCT ON (line_id) line_id, state
+              FROM benchmark_run ORDER BY line_id, computed_at DESC, run_id DESC)
+        SELECT d.*, count(l.line_id) AS lines,
+               count(*) FILTER (WHERE l.wine_id IS NULL) AS identity_not_approved,
+               count(*) FILTER (WHERE l.wine_id IS NOT NULL AND r.state IS NULL) AS not_searched,
+               count(*) FILTER (WHERE r.state = 'READY') AS ready,
+               count(*) FILTER (WHERE r.state = 'REVIEW') AS review,
+               count(*) FILTER (WHERE r.state = 'NO_MARKET') AS no_market
+          FROM deal d
+          LEFT JOIN seller_line l USING (deal_id)
+          LEFT JOIN latest r ON r.line_id = l.line_id
+         GROUP BY d.deal_id ORDER BY d.created_at DESC""").fetchall()
+
+
+def review_queue(conn: psycopg.Connection) -> list[dict]:
+    """Every line waiting on a person, across every deal, with why."""
+    return conn.execute("""
+        WITH latest_run AS (
+            SELECT DISTINCT ON (line_id) line_id, run_id, state, flags, uk_reference
+              FROM benchmark_run ORDER BY line_id, computed_at DESC, run_id DESC),
+             latest_price AS (
+            SELECT DISTINCT ON (line_id) line_id, pricing_id, sell_price, flags AS pricing_flags,
+                   requires_acknowledgement
+              FROM pricing_result ORDER BY line_id, priced_at DESC, pricing_id DESC)
+        SELECT l.line_id, l.deal_id, d.name AS deal_name, l.row_index, l.raw_description,
+               l.quantity, l.wine_id, l.flags AS line_flags,
+               r.state, r.flags AS benchmark_flags, r.uk_reference,
+               p.sell_price, p.pricing_flags, p.requires_acknowledgement,
+               EXISTS (SELECT 1 FROM pricing_acknowledgement a
+                        WHERE a.pricing_id = p.pricing_id) AS acknowledged
+          FROM seller_line l
+          JOIN deal d USING (deal_id)
+          LEFT JOIN latest_run r ON r.line_id = l.line_id
+          LEFT JOIN latest_price p ON p.line_id = l.line_id
+         WHERE l.wine_id IS NULL
+            OR r.state IS NULL
+            OR r.state <> 'READY'
+            OR (p.requires_acknowledgement
+                AND NOT EXISTS (SELECT 1 FROM pricing_acknowledgement a
+                                 WHERE a.pricing_id = p.pricing_id))
+         ORDER BY d.created_at DESC, l.row_index""").fetchall()
