@@ -24,6 +24,7 @@ from app.identity.resolver import (
     Alias,
     CanonicalWine,
     Registry,
+    norm,
     wine_key,
 )
 
@@ -32,6 +33,14 @@ CENT = Decimal("0.01")
 
 class Conflict(Exception):
     """A write that would break an identity guard rail."""
+
+
+class AmbiguousProducer(Conflict):
+    """A producer-only alias where the producer has more than one wine."""
+
+    def __init__(self, message: str, candidates: list[dict]):
+        super().__init__(message)
+        self.candidates = candidates
 
 
 # ------------------------------------------------------------------- money
@@ -84,16 +93,43 @@ def list_wines(conn: psycopg.Connection) -> list[dict]:
     return conn.execute("SELECT * FROM wine ORDER BY producer, cuvee").fetchall()
 
 
+def producer_wines(conn: psycopg.Connection, producer_key: str) -> list[dict]:
+    """Every canonical wine of one normalised producer."""
+    return conn.execute(
+        """SELECT wine_id, producer, cuvee, wine_key FROM wine
+            WHERE split_part(wine_key, '|', 1) = %s ORDER BY cuvee""",
+        (producer_key,)).fetchall()
+
+
 def create_alias(conn: psycopg.Connection, *, wine_id: str, producer_text: str,
                  cuvee_text: str, source: str, approved_by: str,
-                 note: str | None) -> dict:
+                 note: str | None, confirm_target: str | None = None) -> dict:
     """Enforce the guard rails at write time. An alias may never point a key at
     a wine other than the one that key already names, and may never bridge a
-    structural exclusion (grand vin vs second wine, adjacent climats)."""
+    structural exclusion (grand vin vs second wine, adjacent climats).
+
+    A producer-only alias (no cuvee) catches every listing the merchant prints
+    under that producer alone, so it carries two more rules: an operator must
+    make it, never an AI proposal; and where the producer has more than one
+    canonical wine it is refused unless the operator names the target again in
+    `confirm_target`. Farr prints both "Veuve Clicquot" and "Veuve Clicquot
+    Rosé": a careless one there attaches the Rosé to the Brut.
+    """
     key = wine_key(producer_text, cuvee_text)
     target = get_wine(conn, wine_id)
     if target is None:
         raise LookupError(wine_id)
+
+    if key.endswith("|"):
+        if source != "operator":
+            raise Conflict("a producer-only alias is operator-only, never an AI proposal")
+        siblings = producer_wines(conn, key[:-1])
+        if len(siblings) > 1 and str(confirm_target or "") != str(wine_id):
+            raise AmbiguousProducer(
+                f"{key[:-1]!r} has {len(siblings)} canonical wines; name the target "
+                "again in confirm_target to create a producer-only alias",
+                [{"wine_id": str(w["wine_id"]), "producer": w["producer"], "cuvee": w["cuvee"]}
+                 for w in siblings])
 
     owner = conn.execute("SELECT wine_id FROM wine WHERE wine_key = %s", (key,)).fetchone()
     if owner and str(owner["wine_id"]) != str(wine_id):
@@ -181,6 +217,12 @@ def mark_lwin_untrusted(conn: psycopg.Connection, merchant_id: str, lwin7: str, 
            ON CONFLICT (merchant_id, lwin7) DO UPDATE
               SET reason = EXCLUDED.reason, marked_by = EXCLUDED.marked_by, marked_at = now()""",
         (merchant_id, lwin7, reason, marked_by))
+
+
+def list_aliases(conn: psycopg.Connection, *, producer_only: bool | None = None) -> list[dict]:
+    where = "" if producer_only is None else "WHERE is_producer_only = %s"
+    return conn.execute(f"SELECT * FROM wine_alias {where} ORDER BY wine_key",
+                        (producer_only,) if producer_only is not None else None).fetchall()
 
 
 # --------------------------------------------------------------- merchants
@@ -570,6 +612,95 @@ def save_pricing(conn: psycopg.Connection, *, line_id: str, run: dict, priced: P
 
 
 def latest_pricing(conn: psycopg.Connection, line_id: str) -> Optional[dict]:
-    return conn.execute(
+    row = conn.execute(
         """SELECT * FROM pricing_result WHERE line_id = %s
             ORDER BY priced_at DESC, pricing_id DESC LIMIT 1""", (line_id,)).fetchone()
+    if row is not None:
+        row["acknowledgement"] = conn.execute(
+            "SELECT * FROM pricing_acknowledgement WHERE pricing_id = %s",
+            (row["pricing_id"],)).fetchone()
+    return row
+
+
+#: Flags a named operator must accept before a price can be exported. Not
+#: REVIEW_FLAGS, which is about evidence quality: these are commercial, and only
+#: the two that would make the client document untrue or the trade a loss.
+#: COST_ABOVE_UK_REFERENCE and DEEP_DISCOUNT stay context. See decision 0008.
+EXPORT_GATE_FLAGS = ("NEGATIVE_GP", "SELL_ABOVE_UK_REFERENCE")
+
+
+def acknowledge_pricing(conn: psycopg.Connection, pricing_id: str, *,
+                        acknowledged_by: str, note: str | None) -> dict:
+    row = conn.execute("SELECT * FROM pricing_result WHERE pricing_id = %s",
+                       (pricing_id,)).fetchone()
+    if row is None:
+        raise LookupError(pricing_id)
+    if not row["requires_acknowledgement"]:
+        raise Conflict("this price carries no flag that gates export")
+    return conn.execute(
+        """INSERT INTO pricing_acknowledgement (pricing_id, flags, acknowledged_by, note)
+           VALUES (%s, %s, %s, %s) RETURNING *""",
+        (pricing_id, sorted(set(row["flags"]) & set(EXPORT_GATE_FLAGS)),
+         acknowledged_by, note)).fetchone()
+
+
+# --------------------------------------------------------- alias suggestions
+
+
+def alias_suggestions(conn: psycopg.Connection, min_occurrences: int = 2) -> list[dict]:
+    """Seller wording an operator has resolved to the same wine more than once.
+
+    Repeated corrections of the same text are exactly what an alias is for. This
+    reports the evidence; creating the alias stays an operator action, because
+    only the operator can say which producer and cuvee wording it should carry.
+    """
+    rows = conn.execute(
+        """SELECT h.line_id, h.new_wine_id, h.changed_at, h.source, h.changed_by,
+                  l.raw_description, w.producer, w.cuvee
+             FROM seller_line_identity_history h
+             JOIN seller_line l ON l.line_id = h.line_id
+             JOIN wine w ON w.wine_id = h.new_wine_id
+            ORDER BY h.changed_at""").fetchall()
+
+    groups: dict[tuple[str, str], dict] = {}
+    for r in rows:
+        key = (norm(r["raw_description"]), str(r["new_wine_id"]))
+        g = groups.setdefault(key, {
+            "seller_text": r["raw_description"], "normalised": key[0],
+            "wine_id": key[1], "producer": r["producer"], "cuvee": r["cuvee"],
+            "line_ids": [], "corrections": 0, "last_changed_at": r["changed_at"],
+            "changed_by": []})
+        if str(r["line_id"]) not in g["line_ids"]:
+            g["line_ids"].append(str(r["line_id"]))
+        g["corrections"] += 1
+        g["last_changed_at"] = max(g["last_changed_at"], r["changed_at"])
+        if r["changed_by"] not in g["changed_by"]:
+            g["changed_by"].append(r["changed_by"])
+    return sorted([g for g in groups.values() if len(g["line_ids"]) >= min_occurrences],
+                  key=lambda g: (-len(g["line_ids"]), g["normalised"]))
+
+
+# ------------------------------------------------------------------ pruning
+
+
+def prune_snapshots(conn: psycopg.Connection, keep: int) -> list[str]:
+    """Delete snapshots no merchant still needs, keeping the newest `keep`
+    captures per merchant per outcome: the evidence, and recent failures as
+    diagnostics. A merchant's latest successful capture is always kept, so
+    pruning never changes which offers a new benchmark can see.
+
+    Benchmark history is untouched: runs keep their own copy of every offer
+    they used, and their snapshot pointers go NULL (decision 0004).
+    """
+    if keep < 1:
+        raise ValueError("keep must be at least 1")
+    rows = conn.execute(
+        """WITH ranked AS (
+               SELECT snapshot_id, ROW_NUMBER() OVER (PARTITION BY merchant_id, status
+                                     ORDER BY captured_at DESC, snapshot_id DESC) AS rn
+                 FROM snapshot_merchant),
+                keep AS (SELECT DISTINCT snapshot_id FROM ranked WHERE rn <= %s)
+           DELETE FROM snapshot s
+            WHERE NOT EXISTS (SELECT 1 FROM keep k WHERE k.snapshot_id = s.snapshot_id)
+        RETURNING snapshot_id""", (keep,)).fetchall()
+    return [str(r["snapshot_id"]) for r in rows]

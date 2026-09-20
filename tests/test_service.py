@@ -1159,3 +1159,289 @@ def test_bordeaux_index_unreadable_rows_are_stored_as_rejections(client):
     _collect_bi(client, wid, [card])
     assert [r["reason"] for r in _sql("SELECT reason FROM offer_reject")] == ["ROW_UNREADABLE"]
     assert _sql("SELECT count(*) AS n FROM offer")[0]["n"] == 1
+
+
+# --- line_state is derived, never stored -------------------------------------
+
+
+@pg
+def test_line_state_is_derived_on_read_not_stored(client):
+    """A stored status would drift out of step with the benchmark it describes.
+    line_state exists only in the response: nothing writes it, and re-reading
+    the same unchanged line after a new run reports the new state."""
+    assert not _sql("""SELECT column_name FROM information_schema.columns
+                        WHERE table_schema = 'public' AND column_name = 'line_state'""")
+    wid = _seed_wine(client)
+    deal_id, line_id = _deal(client, wid)
+    assert client.get(f"/deals/{deal_id}").json()["lines"][0]["line_state"] == "NOT_SEARCHED"
+
+    before = _sql("SELECT * FROM seller_line WHERE line_id = %s", (line_id,))
+    _collect(client)
+    _benchmark(client, deal_id)
+    assert client.get(f"/deals/{deal_id}").json()["lines"][0]["line_state"] == "REVIEW"
+    assert _sql("SELECT * FROM seller_line WHERE line_id = %s", (line_id,)) == before
+
+
+# --- the export gate ----------------------------------------------------------
+
+
+def _price_below_cost(client) -> tuple[str, str, str]:
+    """A line priced at £400 against a £480 cost: NEGATIVE_GP."""
+    wid = _seed_wine(client)
+    _collect(client)
+    deal_id, line_id = _deal(client, wid)
+    _benchmark(client, deal_id)
+    _sql("UPDATE seller_line SET manual_price = 400.00", fetch=False)
+    _price(client, deal_id)
+    p = client.get(f"/lines/{line_id}/pricing").json()
+    assert "NEGATIVE_GP" in p["flags"] and p["requires_acknowledgement"] is True
+    return deal_id, line_id, p["pricing_id"]
+
+
+def _issue(client, deal_id, line_id, pricing_id, *, requires_ack, ack_id=None):
+    offer_id = _sql("""INSERT INTO buyer_offer (deal_id, client, currency, issued_at, issued_by)
+                       VALUES (%s, 'A Buyer', 'GBP', now(), 'op') RETURNING buyer_offer_id""",
+                    (deal_id,))[0]["buyer_offer_id"]
+    _sql("""INSERT INTO buyer_offer_line (buyer_offer_id, line_no, line_id, pricing_id,
+            description, vintage, bottle_ml, pack_size, quantity, unit_price, line_total,
+            pricing_requires_ack, ack_id)
+            VALUES (%s, 1, %s, %s, 'Rousseau Charmes 2011', 2011, 750, 1, 6,
+                    400.00, 2400.00, %s, %s)""",
+         (offer_id, line_id, pricing_id, requires_ack, ack_id), fetch=False)
+
+
+@pg
+def test_a_price_below_cost_cannot_be_exported_unacknowledged(client):
+    """NEGATIVE_GP gates the buyer export, structurally: the composite key to
+    pricing_result means the export cannot claim the price needs no sign-off."""
+    import psycopg
+    deal_id, line_id, pricing_id = _price_below_cost(client)
+
+    with pytest.raises(psycopg.errors.CheckViolation):          # honest, unacknowledged
+        _issue(client, deal_id, line_id, pricing_id, requires_ack=True)
+    with pytest.raises(psycopg.errors.ForeignKeyViolation):     # lying about the gate
+        _issue(client, deal_id, line_id, pricing_id, requires_ack=False)
+
+    r = client.post(f"/lines/{line_id}/pricing/acknowledge",
+                    json={"acknowledged_by": "the operator", "note": "clearing old stock"})
+    assert r.status_code == 200
+    ack = r.json()["acknowledgement"]
+    assert (ack["acknowledged_by"], ack["flags"]) == ("the operator", ["NEGATIVE_GP"])
+    assert ack["acknowledged_at"] and ack["note"] == "clearing old stock"
+
+    _issue(client, deal_id, line_id, pricing_id, requires_ack=True, ack_id=ack["ack_id"])
+    assert _sql("SELECT count(*) AS n FROM buyer_offer_line")[0]["n"] == 1
+
+
+@pg
+def test_selling_above_the_uk_market_gates_because_the_document_says_below(client):
+    """The client document reads '% below UK market'. Publishing it while above
+    the Reference is a false claim, not a thin margin."""
+    wid = _seed_wine(client)
+    _collect(client)
+    deal_id, line_id = _deal(client, wid)
+    _benchmark(client, deal_id)
+    _sql("UPDATE seller_line SET manual_price = 700.00", fetch=False)   # Reference is 610
+    _price(client, deal_id)
+    p = client.get(f"/lines/{line_id}/pricing").json()
+    assert p["flags"] and "SELL_ABOVE_UK_REFERENCE" in p["flags"]
+    assert p["requires_acknowledgement"] is True
+
+
+@pg
+def test_a_deep_discount_is_the_product_not_a_gate(client):
+    """The business sells below market, so gating on DEEP_DISCOUNT would gate
+    every line. £400 against a £610 Reference is 34% below, and exports."""
+    wid = _seed_wine(client)
+    _collect(client)
+    deal_id, line_id = _deal(client, wid)
+    _benchmark(client, deal_id)
+    _sql("UPDATE seller_line SET manual_price = 400.00, cost = 300.00", fetch=False)
+    _price(client, deal_id)
+    p = client.get(f"/lines/{line_id}/pricing").json()
+    assert "DEEP_DISCOUNT" in p["flags"] and p["gp"] == "100.00"
+    assert p["requires_acknowledgement"] is False
+    _issue(client, deal_id, line_id, p["pricing_id"], requires_ack=False)
+
+
+@pg
+def test_cost_above_the_reference_is_a_commercial_fact_not_a_gate(client):
+    """Buying above market leaves only two ways out, and both gate on their own
+    account: sell above market, or sell at a loss. COST_ABOVE_UK_REFERENCE is
+    never the reason an export is stopped, and never what gets acknowledged."""
+    from app.db.repo import EXPORT_GATE_FLAGS
+    assert "COST_ABOVE_UK_REFERENCE" not in EXPORT_GATE_FLAGS
+    wid = _seed_wine(client)
+    _collect(client)
+    deal_id, line_id = _deal(client, wid)
+    _benchmark(client, deal_id)
+    _sql("UPDATE seller_line SET manual_price = 620.00, cost = 620.00", fetch=False)
+    _price(client, deal_id)
+    p = client.get(f"/lines/{line_id}/pricing").json()
+    assert {"COST_ABOVE_UK_REFERENCE", "SELL_ABOVE_UK_REFERENCE"} <= set(p["flags"])
+    r = client.post(f"/lines/{line_id}/pricing/acknowledge", json={"acknowledged_by": "op"})
+    assert r.json()["acknowledgement"]["flags"] == ["SELL_ABOVE_UK_REFERENCE"]
+
+
+@pg
+def test_acknowledging_a_price_with_nothing_to_acknowledge_is_refused(client):
+    wid = _seed_wine(client)
+    _collect(client)
+    deal_id, line_id = _deal(client, wid)
+    _benchmark(client, deal_id)
+    _sql("UPDATE seller_line SET manual_price = 500.00", fetch=False)
+    _price(client, deal_id)
+    r = client.post(f"/lines/{line_id}/pricing/acknowledge", json={"acknowledged_by": "op"})
+    assert r.status_code == 409
+
+
+@pg
+def test_repricing_needs_a_fresh_acknowledgement(client):
+    """The acknowledgement is of one price, not of a line."""
+    deal_id, line_id, _ = _price_below_cost(client)
+    client.post(f"/lines/{line_id}/pricing/acknowledge", json={"acknowledged_by": "op"})
+    assert client.get(f"/lines/{line_id}/pricing").json()["acknowledgement"] is not None
+
+    _price(client, deal_id)                                   # priced again
+    p = client.get(f"/lines/{line_id}/pricing").json()
+    assert p["requires_acknowledgement"] is True and p["acknowledgement"] is None
+
+
+# --- producer-only aliases ----------------------------------------------------
+
+
+@pg
+def test_producer_only_alias_is_refused_while_the_producer_has_two_wines(client):
+    """Farr prints both 'Veuve Clicquot' and 'Veuve Clicquot Rosé'. A careless
+    producer-only alias attaches the Rosé listing to the Brut."""
+    brut = _seed_wine(client, "Veuve Clicquot", "Brut", lwin7="1083129")
+    rose = _seed_wine(client, "Veuve Clicquot", "Rose")
+    body = {"producer_text": "Veuve Clicquot", "cuvee_text": "",
+            "source": "operator", "approved_by": "op"}
+    r = client.post(f"/wines/{brut}/aliases", json=body)
+    assert r.status_code == 409
+    detail = r.json()["detail"]
+    assert {c["wine_id"] for c in detail["candidates"]} == {brut, rose}
+    assert {c["cuvee"] for c in detail["candidates"]} == {"Brut", "Rose"}
+
+    # Naming the target again, deliberately, is what it takes.
+    r = client.post(f"/wines/{brut}/aliases", json={**body, "confirm_target": brut})
+    assert r.status_code == 201 and r.json()["is_producer_only"] is True
+
+
+@pg
+def test_producer_only_alias_needs_no_confirmation_for_a_single_wine_producer(client):
+    wid = _seed_wine(client, "Chateau Lafite Rothschild", "Grand Vin")
+    r = client.post(f"/wines/{wid}/aliases", json={
+        "producer_text": "Lafite Rothschild", "cuvee_text": "",
+        "source": "operator", "approved_by": "op"})
+    assert r.status_code == 201
+
+
+@pg
+@pytest.mark.parametrize("source", ["ai_reviewed", "import"])
+def test_a_producer_only_alias_may_never_come_from_an_ai_proposal(client, source):
+    wid = _seed_wine(client, "Veuve Clicquot", "Brut")
+    r = client.post(f"/wines/{wid}/aliases", json={
+        "producer_text": "Veuve Clicquot", "cuvee_text": "",
+        "source": source, "approved_by": "the model"})
+    assert r.status_code == 409 and "operator-only" in r.text
+    assert _sql("SELECT count(*) AS n FROM wine_alias")[0]["n"] == 0
+
+
+@pg
+def test_producer_only_aliases_can_be_audited_as_a_set(client):
+    brut = _seed_wine(client, "Veuve Clicquot", "Brut")
+    client.post(f"/wines/{brut}/aliases", json={
+        "producer_text": "Veuve Clicquot", "cuvee_text": "",
+        "source": "operator", "approved_by": "op"})
+    client.post(f"/wines/{brut}/aliases", json={
+        "producer_text": "Veuve Clicquot", "cuvee_text": "Yellow Label",
+        "source": "operator", "approved_by": "op"})
+    assert len(client.get("/aliases").json()) == 2
+    [only] = client.get("/aliases", params={"producer_only": True}).json()
+    assert only["wine_key"] == "veuve clicquot|" and only["is_producer_only"] is True
+    assert client.get("/aliases", params={"producer_only": False}).json()[0][
+        "wine_key"] == "veuve clicquot|yellow label"
+
+
+# --- retention ----------------------------------------------------------------
+
+
+@pg
+def test_pruning_keeps_the_newest_captures_per_merchant(client):
+    """Retention is per merchant. Farr is captured three times and Goedhuis
+    once, long before; keeping one per merchant must not drop Goedhuis."""
+    _seed_wine(client)
+    old = _collect(client, FARR_BOOK, merchant="goedhuis")
+    _age_capture(old, 30)
+    first, second, third = (_collect(client) for _ in range(3))
+    _age_capture(first, 2)
+    _age_capture(second, 1)
+
+    j = jobs.prune_snapshots(keep=1)
+    assert set(j["deleted"]) == {first, second}
+    kept = {str(r["snapshot_id"]) for r in _sql("SELECT snapshot_id FROM snapshot")}
+    assert kept == {old, third}
+    assert {r["merchant_id"] for r in _sql("SELECT merchant_id FROM snapshot_merchant")} \
+        == {"farr", "goedhuis"}
+
+
+@pg
+def test_pruning_never_removes_what_a_new_benchmark_would_resolve(client):
+    wid = _seed_wine(client)
+    _age_capture(_collect(client), 3)
+    latest = _collect(client)
+    deal_id, line_id = _deal(client, wid)
+
+    jobs.prune_snapshots(keep=1)
+    _benchmark(client, deal_id)
+    run = client.get(f"/lines/{line_id}/benchmark").json()
+    assert run["uk_reference"] == "610.00"
+    assert [s["snapshot_id"] for s in run["sources"]] == [latest]
+
+
+@pg
+def test_pruning_leaves_past_runs_readable(client):
+    wid = _seed_wine(client)
+    sid = _collect(client)
+    deal_id, line_id = _deal(client, wid)
+    _benchmark(client, deal_id)
+    before = client.get(f"/lines/{line_id}/benchmark").json()
+    _collect(client)                                   # a newer capture
+
+    assert jobs.prune_snapshots(keep=1)["deleted"] == [sid]
+    after = client.get(f"/lines/{line_id}/benchmark").json()
+    assert [c["price"] for c in after["comps"]] == [c["price"] for c in before["comps"]]
+    assert all(c["offer_pk"] is None for c in after["comps"])
+
+
+# --- alias suggestions --------------------------------------------------------
+
+
+@pg
+def test_repeated_corrections_of_the_same_wording_become_an_alias_suggestion(client):
+    """The identity trail is what feeds 'operator corrections become reusable
+    aliases': the same seller wording corrected to the same wine, twice."""
+    a = _seed_wine(client, cuvee="Charmes-Chambertin")
+    b = _seed_wine(client, cuvee="Mazoyeres-Chambertin")
+    r = client.post("/deals", json={"name": "d", "created_by": "op", "lines": [
+        {"row_index": i, "raw_description": "Rousseau  CHARMES 2011", "raw_row": {},
+         "quantity": 1} for i in range(2)]})
+    lines = [ln["line_id"] for ln in r.json()["lines"]]
+    for line_id in lines:
+        client.put(f"/lines/{line_id}/identity", json={
+            "wine_id": b, "vintage": 2011, "bottle_ml": 750, "pack_size": 1,
+            "source": "ai_reviewed", "approved_by": "model"})
+        client.put(f"/lines/{line_id}/identity", json={
+            "wine_id": a, "vintage": 2011, "bottle_ml": 750, "pack_size": 1,
+            "source": "operator", "approved_by": "the operator"})
+
+    suggestions = client.get("/alias-suggestions").json()
+    charmes = [x for x in suggestions if x["wine_id"] == a]
+    assert len(charmes) == 1
+    assert charmes[0]["normalised"] == "rousseau charmes 2011"
+    assert sorted(charmes[0]["line_ids"]) == sorted(lines)
+    assert charmes[0]["corrections"] == 2 and charmes[0]["cuvee"] == "Charmes-Chambertin"
+    assert "the operator" in charmes[0]["changed_by"]
+    assert client.get("/alias-suggestions", params={"min_occurrences": 3}).json() == []

@@ -36,6 +36,8 @@ def queue() -> Queue:
 
 
 def _translate(e: Exception) -> HTTPException:
+    if isinstance(e, repo.AmbiguousProducer):
+        return HTTPException(409, {"error": str(e), "candidates": e.candidates})
     if isinstance(e, repo.Conflict):
         return HTTPException(409, str(e))
     if isinstance(e, psycopg.errors.UniqueViolation):
@@ -80,11 +82,25 @@ def list_wines(conn: psycopg.Connection = Depends(db)):
     return repo.list_wines(conn)
 
 
+@app.get("/aliases", response_model=list[s.AliasOut])
+def list_aliases(producer_only: Optional[bool] = None,
+                 conn: psycopg.Connection = Depends(db)):
+    """`producer_only=true` is the audit view: every alias with no cuvee."""
+    return repo.list_aliases(conn, producer_only=producer_only)
+
+
+@app.get("/alias-suggestions", response_model=list[s.AliasSuggestionOut])
+def alias_suggestions(min_occurrences: int = 2, conn: psycopg.Connection = Depends(db)):
+    return repo.alias_suggestions(conn, min_occurrences=min_occurrences)
+
+
 @app.post("/wines/{wine_id}/aliases", response_model=s.AliasOut, status_code=201)
 def create_alias(wine_id: UUID, body: s.AliasIn, conn: psycopg.Connection = Depends(db)):
+    payload = body.model_dump()
+    payload["confirm_target"] = str(body.confirm_target) if body.confirm_target else None
     try:
         with conn.transaction():
-            return repo.create_alias(conn, wine_id=str(wine_id), **body.model_dump())
+            return repo.create_alias(conn, wine_id=str(wine_id), **payload)
     except LookupError:
         raise HTTPException(404, "wine not found")
     except (repo.Conflict, psycopg.Error) as e:
@@ -174,6 +190,24 @@ def get_line_benchmark(line_id: UUID, conn: psycopg.Connection = Depends(db)):
              for c in repo.run_comps(conn, run["run_id"])]
     return s.RunOut.model_validate(
         {**run, "sources": repo.run_sources(conn, run["run_id"]), "comps": comps})
+
+
+@app.post("/lines/{line_id}/pricing/acknowledge", response_model=s.PricingOut)
+def acknowledge_pricing(line_id: UUID, body: s.AcknowledgementIn,
+                        conn: psycopg.Connection = Depends(db)):
+    """A named operator accepting a price that is below cost, or above the UK
+    market the client document quotes it against. Without this the line cannot
+    reach a buyer offer at all."""
+    pricing = repo.latest_pricing(conn, str(line_id))
+    if pricing is None:
+        raise HTTPException(404, "line has not been priced")
+    try:
+        with conn.transaction():
+            repo.acknowledge_pricing(conn, pricing["pricing_id"],
+                                     acknowledged_by=body.acknowledged_by, note=body.note)
+    except (repo.Conflict, psycopg.Error) as e:
+        raise _translate(e)
+    return repo.latest_pricing(conn, str(line_id))
 
 
 @app.get("/lines/{line_id}/pricing", response_model=s.PricingOut)
@@ -278,6 +312,15 @@ def price_deal(deal_id: UUID, body: s.PricingIn,
                                  "deep_discount_threshold":
                                      str(threshold) if threshold is not None else None},
                          timeout=JOB_TIMEOUT)
+    return s.JobOut(job_id=job.id, status=job.get_status())
+
+
+@app.post("/snapshots/prune", response_model=s.JobOut, status_code=202)
+def prune_snapshots(keep: Optional[int] = None, q: Queue = Depends(queue)):
+    """Drop snapshots no merchant still needs. Retention is per merchant, so a
+    merchant's latest capture is never pruned."""
+    job = q.enqueue_call(func="app.worker.jobs.prune_snapshots",
+                         kwargs={"keep": keep}, timeout=JOB_TIMEOUT)
     return s.JobOut(job_id=job.id, status=job.get_status())
 
 

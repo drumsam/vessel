@@ -86,6 +86,10 @@ class AliasIn(_In):
     approved_by: str = Field(min_length=1)
     note: Optional[str] = None
 
+    #: Required to create a producer-only alias when the producer has more than
+    #: one canonical wine: name the target again, deliberately.
+    confirm_target: Optional[UUID] = None
+
     @model_validator(mode="after")
     def _has_a_name(self) -> "AliasIn":
         if not (self.producer_text.strip() or self.cuvee_text.strip()):
@@ -101,6 +105,9 @@ class AliasOut(_Out):
     approved_by: str
     approved_at: datetime
     note: Optional[str]
+    #: No cuvee: this alias catches every listing printed under the producer
+    #: alone, so it is operator-only and audited as a set.
+    is_producer_only: bool
 
 
 # ------------------------------------------------------------ deals, lines
@@ -186,6 +193,32 @@ class RunSummary(_Out):
 LineState = Literal["IDENTITY_NOT_APPROVED", "NOT_SEARCHED", "READY", "REVIEW", "NO_MARKET"]
 
 
+class AcknowledgementOut(_Out):
+    ack_id: UUID
+    flags: list[str]
+    acknowledged_by: str
+    acknowledged_at: datetime
+    note: Optional[str]
+
+
+class AcknowledgementIn(_In):
+    acknowledged_by: str = Field(min_length=1)
+    note: Optional[str] = None
+
+
+class AliasSuggestionOut(_Out):
+    """Seller wording an operator has resolved to the same wine more than once."""
+    seller_text: str
+    normalised: str
+    wine_id: UUID
+    producer: str
+    cuvee: str
+    line_ids: list[UUID]
+    corrections: int
+    changed_by: list[str]
+    last_changed_at: datetime
+
+
 class PricingOut(_Out):
     pricing_id: UUID
     run_id: UUID
@@ -211,6 +244,10 @@ class PricingOut(_Out):
     gross_margin: Optional[Decimal]
     flags: list[str]
     state: str
+    #: True when a gating flag (NEGATIVE_GP, SELL_ABOVE_UK_REFERENCE) is present:
+    #: this price cannot reach a buyer offer until an operator accepts it.
+    requires_acknowledgement: bool
+    acknowledgement: Optional[AcknowledgementOut] = None
 
 
 class PricingIn(_In):

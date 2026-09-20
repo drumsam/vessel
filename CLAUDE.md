@@ -59,10 +59,18 @@ The invariants, in short:
 10. `NO_MARKET` means every approved merchant was searched and none offers the
     wine. A line nobody has searched is `NOT_SEARCHED`: no run, no price, no
     buyer export. Never blur the two.
+11. Line status is **derived on read** from the line and its latest run, never
+    stored. A stored status drifts from the benchmark it describes.
+12. `NEGATIVE_GP` and `SELL_ABOVE_UK_REFERENCE` gate the buyer export until a
+    named operator accepts them (decision 0008). `COST_ABOVE_UK_REFERENCE` and
+    `DEEP_DISCOUNT` are context: selling below market is the product.
+13. A producer-only alias (no cuvée) is operator-only, refused where the
+    producer has several wines unless the target is named again, and audited as
+    a set. Farr prints both "Veuve Clicquot" and "Veuve Clicquot Rosé".
 
 `REVIEW_FLAGS` in `app/core/flags.py` is the single definition of what forces
-operator review. `ONE_COMP` is in it deliberately: one merchant is not a market.
-Commercial flags (`NEGATIVE_GP`, `DEEP_DISCOUNT`, …) are context, not gates.
+operator *review*: it is about evidence quality and commercial flags never go in
+it. The buyer *export* is a separate gate; see invariant 12 and decision 0008.
 
 A benchmark run is self-contained: it records every contributing capture and
 every offer exactly as used, so snapshots can be pruned without touching history.
@@ -97,10 +105,10 @@ INGEST → IDENTITY PROPOSAL → IDENTITY VERIFICATION → SNAPSHOT LOOKUP
 ## Testing
 
 ```bash
-python -m pytest -q                      # 167 pass, 53 skip; no network, no services
+python -m pytest -q                      # 167 pass, 69 skip; no network, no services
 docker compose up -d                     # Postgres + Redis, then:
 TEST_DATABASE_URL=postgresql://pricer:pricer@localhost:5432/pricer_test \
-TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q   # 220 pass
+TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q   # 236 pass
 python scripts/rerun_burgundy_proof.py   # expect READY 0  REVIEW 5  NO_MARKET 15
 ```
 
@@ -153,8 +161,12 @@ FastAPI service (`app/api/`), Alembic migrations (`migrations/`), RQ worker
 Pricing rules are in `app/pricing/pricer.py` (decision 0007): margin, discount,
 precedence and the commercial flags, all pure and tested.
 
-Not built yet: Next.js frontend, the remaining ten merchant adapters, AI
-provider implementations, buyer export (the tables exist), the auction layer,
-and snapshot retention.
+Snapshot retention (`prune_snapshots`, per merchant) and alias suggestions over
+the identity trail are built.
+
+Not built yet: Next.js frontend, deal upload (a spreadsheet parser for the
+INGEST stage), the remaining ten merchant adapters, AI provider
+implementations, buyer export documents (the tables and the gate exist), the
+auction layer.
 
 Known open questions are in `docs/decisions/` and in the Burgundy proof report.

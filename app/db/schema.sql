@@ -19,6 +19,12 @@ CREATE TABLE wine (
 
 -- Controlled aliases. Created by operator correction or by a reviewed AI
 -- proposal. Every alias records who approved it — no anonymous aliases.
+--
+-- A producer-only alias (no cuvee: the key ends in '|') catches every listing a
+-- merchant prints under that producer alone. Farr prints both "Veuve Clicquot"
+-- and "Veuve Clicquot Rosé", so a careless one attaches the Rosé to the Brut.
+-- They are operator-only, never an AI proposal, and marked so they can be
+-- audited as a set.
 CREATE TABLE wine_alias (
     alias_id     uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     wine_key     text NOT NULL UNIQUE,
@@ -26,7 +32,11 @@ CREATE TABLE wine_alias (
     source       text NOT NULL CHECK (source IN ('operator','ai_reviewed','import')),
     approved_by  text NOT NULL,
     approved_at  timestamptz NOT NULL DEFAULT now(),
-    note         text
+    note         text,
+    is_producer_only boolean NOT NULL
+                 GENERATED ALWAYS AS (right(wine_key, 1) = '|') STORED,
+    CONSTRAINT wine_alias_producer_only_is_operator CHECK
+        (right(wine_key, 1) <> '|' OR source = 'operator')
 );
 
 -- Pairs that must never collapse. Asserted in tests and enforced at write time.
@@ -371,10 +381,33 @@ CREATE TABLE pricing_result (
     flags             text[] NOT NULL DEFAULT '{}',
     state             text NOT NULL CHECK (state IN ('READY','REVIEW','NO_MARKET')),
 
+    -- Derived from the flags, so it cannot drift from them: a price that is
+    -- below cost, or above the UK market the client document quotes it against,
+    -- needs a named operator to accept it before it can be exported.
+    -- COST_ABOVE_UK_REFERENCE and DEEP_DISCOUNT do not gate: buying badly is a
+    -- commercial fact, and selling below market is the product.
+    requires_acknowledgement boolean NOT NULL
+                      GENERATED ALWAYS AS (flags && ARRAY['NEGATIVE_GP',
+                                           'SELL_ABOVE_UK_REFERENCE']::text[]) STORED,
+
+    UNIQUE (pricing_id, requires_acknowledgement),
     CONSTRAINT pricing_result_cost_currency CHECK ((cost IS NULL) = (cost_currency IS NULL)),
     CONSTRAINT pricing_result_fx_recorded CHECK (
         cost IS NULL OR cost_currency = 'GBP'
         OR (fx_rate IS NOT NULL AND fx_rate_date IS NOT NULL AND fx_source IS NOT NULL))
+);
+
+-- A named operator accepting a gating flag on one pricing result. One per
+-- result: re-pricing produces a new result, which needs its own acknowledgement.
+CREATE TABLE pricing_acknowledgement (
+    ack_id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    pricing_id      uuid NOT NULL REFERENCES pricing_result(pricing_id) ON DELETE CASCADE,
+    flags           text[] NOT NULL,          -- the gating flags as they stood
+    acknowledged_by text NOT NULL,
+    acknowledged_at timestamptz NOT NULL DEFAULT now(),
+    note            text,
+    UNIQUE (pricing_id),
+    UNIQUE (ack_id, pricing_id)
 );
 
 -- ============================================================= buyer offers
@@ -406,6 +439,20 @@ CREATE TABLE buyer_offer_line (
     unit_price      numeric(14,2) NOT NULL CHECK (unit_price > 0),
     line_total      numeric(14,2) NOT NULL,
     condition_notes text,
+
+    -- The export gate, enforced by keys rather than by convention. The pair
+    -- (pricing_id, pricing_requires_ack) is a foreign key into pricing_result,
+    -- so a line cannot claim a price needs no acknowledgement when it does; and
+    -- when it does, ack_id must be an acknowledgement OF THAT price.
+    pricing_requires_ack boolean NOT NULL,
+    ack_id          uuid,
+
     PRIMARY KEY (buyer_offer_id, line_no),
-    CONSTRAINT buyer_offer_line_total CHECK (line_total = unit_price * quantity)
+    FOREIGN KEY (pricing_id, pricing_requires_ack)
+        REFERENCES pricing_result (pricing_id, requires_acknowledgement),
+    FOREIGN KEY (ack_id, pricing_id)
+        REFERENCES pricing_acknowledgement (ack_id, pricing_id),
+    CONSTRAINT buyer_offer_line_total CHECK (line_total = unit_price * quantity),
+    CONSTRAINT buyer_offer_line_acknowledged CHECK
+        (NOT pricing_requires_ack OR ack_id IS NOT NULL)
 );

@@ -93,7 +93,10 @@ scripts/         proof runners
    its own**, and a LWIN used for two wine names opens an operator review rather
    than being discarded. See `docs/decisions/0006`.
 10. **`NO_MARKET` is not "not searched".** A line no merchant has been searched
-    for has no benchmark run, so it cannot be priced or exported.
+    for has no benchmark run, so it cannot be priced or exported. Line status is
+    derived on read, never stored.
+11. **A price below cost, or above the UK Reference, cannot be exported** until
+    a named operator accepts it. See `docs/decisions/0008`.
 
 Benchmark runs resolve each merchant's latest covering capture independently and
 keep every offer exactly as used, so snapshots are a prunable cache. See
@@ -176,7 +179,7 @@ response shape appears in `schema.sql`.
 | `AI_PROVIDER` | `anthropic` \| `openai` \| `gemini` |
 | `AI_MODEL` | provider model id |
 | `COLLECTOR_USER_AGENT` | **required** for collection: honest, identifiable UA with a contact URL |
-| `SNAPSHOT_RETENTION` | how many snapshots to keep for run-diffing |
+| `SNAPSHOT_RETENTION` | captures kept **per merchant** by `prune_snapshots` (default 10) |
 
 ## Local development
 

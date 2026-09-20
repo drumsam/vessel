@@ -7,9 +7,11 @@ values and opens its own database connection.
     DEEP MERCHANT SEARCH .... collect_targeted  (producer + vintage searches)
     DETERMINISTIC BENCHMARK . benchmark_deal
     PRICING ................. price_deal
+    RETENTION ............... prune_snapshots
 """
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -323,3 +325,24 @@ def price_deal(deal_id: str, priced_by: str, fx_rates: Optional[dict] = None,
                 fx_rate=Decimal(fx["rate"]) if fx.get("rate") else None,
                 fx_rate_date=fx.get("date"), fx_source=fx.get("source")))
     return {"priced": priced, "skipped": skipped}
+
+
+# ----------------------------------------------------------------- retention
+
+
+DEFAULT_SNAPSHOT_RETENTION = 10
+
+
+def prune_snapshots(keep: Optional[int] = None) -> dict:
+    """Drop snapshots no merchant still needs (SNAPSHOT_RETENTION).
+
+    Retention is per merchant, not global: the newest `keep` captures of each
+    merchant survive whichever snapshots they happen to sit in, so pruning
+    cannot take away the latest capture a benchmark would resolve. Past runs are
+    self-contained and keep reading exactly as before (decision 0004).
+    """
+    if keep is None:
+        keep = int(os.environ.get("SNAPSHOT_RETENTION", DEFAULT_SNAPSHOT_RETENTION))
+    with transaction() as conn:
+        deleted = repo.prune_snapshots(conn, keep)
+    return {"keep": keep, "deleted": deleted}
