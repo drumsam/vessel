@@ -491,7 +491,7 @@ class JobOut(BaseModel):
 class CompOut(_Out):
     """One offer as the benchmark saw it, read from the run itself. offer_pk is
     null once the snapshot it came from has been pruned; nothing else changes."""
-    role: Literal["comparable", "merchant_best", "cross_unit", "rejected"]
+    role: Literal["comparable", "merchant_best", "cross_unit", "indication", "rejected"]
     reject_reason: Optional[str]
     offer_pk: Optional[UUID]
     merchant_id: str
@@ -504,6 +504,10 @@ class CompOut(_Out):
     #: cross_unit only: price / pack_size as computed by the core. Display
     #: arithmetic, not money: it is never rounded and never priced.
     per_bottle: Optional[Decimal] = None
+    #: indication only: how far a brokerage's view sat from the Reference, and
+    #: how many merchants it says it aggregated. Context, never a price.
+    variance_vs_reference: Optional[Decimal] = None
+    merchant_count: Optional[int] = None
     currency: str
     duty_status: str
     price_kind: str

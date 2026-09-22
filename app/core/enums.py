@@ -13,6 +13,11 @@ class PriceKind(str, Enum):
     ASK = "ASK"
     BID = "BID"
     LAST_TRADE = "LAST_TRADE"
+    #: A brokerage's aggregated indication of where a wine would broker. Not an
+    #: offer of stock: nobody has said they hold it. The KIND screen excludes it
+    #: from Floor, Reference and Median; it is shown as corroboration only.
+    #: See docs/decisions/0013-brokerage-indications.md.
+    INDICATION = "INDICATION"
 
 
 class CommercialUnit(str, Enum):

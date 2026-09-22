@@ -185,7 +185,9 @@ CREATE TABLE offer (
     price            numeric(14,2) NOT NULL,          -- NUMERIC, never float
     currency         char(3) NOT NULL,
     duty_status      text NOT NULL CHECK (duty_status IN ('IB','DP','UNKNOWN')),
-    price_kind       text NOT NULL CHECK (price_kind IN ('ASK','BID','LAST_TRADE')),
+    -- INDICATION is a brokerage's view of where a wine would broker, not an
+    -- offer of stock. The pricing core excludes it; see decision 0013.
+    price_kind       text NOT NULL CHECK (price_kind IN ('ASK','BID','LAST_TRADE','INDICATION')),
 
     is_buyable       boolean NOT NULL,
     offered_units    int,
@@ -380,7 +382,8 @@ CREATE TABLE benchmark_comp (
     comp_id        uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     run_id         uuid NOT NULL REFERENCES benchmark_run(run_id) ON DELETE CASCADE,
     offer_pk       uuid REFERENCES offer(offer_pk) ON DELETE SET NULL,
-    role           text NOT NULL CHECK (role IN ('comparable','merchant_best','cross_unit','rejected')),
+    role           text NOT NULL CHECK (role IN ('comparable','merchant_best','cross_unit',
+                                                 'indication','rejected')),
     reject_reason  text,
     offer_snapshot jsonb NOT NULL,
     UNIQUE (run_id, offer_pk, role),

@@ -58,7 +58,8 @@ app/
   adapters/
     base.py      Adapter protocol: fetch() network, normalise() pure
     condition.py merchant condition prose -> ConditionFlag
-    farr.py  bordeaux_index.py  goedhuis.py
+    farr.py  goedhuis.py                 swept whole
+    bordeaux_index.py  fine_and_rare.py  searched per producer + vintage
   ai/
     provider.py  provider-independent interface + factory
   db/
@@ -83,7 +84,10 @@ scripts/         proof runners
    pricing; Floor and Median are internal.
 5. Duty status, price kind, currency, buyability and positive price are all hard
    screens. Every rejection is retained with a reason.
-6. Zero comparables ⇒ `NO_MARKET`.
+6. Zero comparables ⇒ `NO_MARKET`. A brokerage `INDICATION` is not a
+   comparable: it is a view of where a wine would broker, not an offer of
+   stock, so it is shown as corroboration and prices nothing. See
+   `docs/decisions/0013`.
 7. **Freshness.** Only offers captured within 14 days before `as_of` (and not
    after it) are comparable; the rest are rejected as `STALE` and stay visible.
    See `docs/decisions/0003`.

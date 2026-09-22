@@ -1939,3 +1939,91 @@ def test_a_price_above_the_market_is_not_a_negative_discount(client):
                      below_reference)
                 VALUES (%s, 1, %s, now(), 650.00, 2, -1.1420)""",
              (offer["buyer_offer_id"], run_id), fetch=False)
+
+
+# --- brokerage indications (decision 0013) ------------------------------------
+
+
+def frw_product(name, cuvee, amount, merchants=3, producer=R):
+    """A FINE+RARE product page's pageProps, as the adapter receives them."""
+    return {"url": f"https://www.frw.co.uk/product/x/{name.lower().replace(' ', '-')}",
+            "product": {"_id": f"id-{name}", "name": name,
+                        "parent": {"name": cuvee, "producer": {"name": producer}}},
+            "productMarketInfo": {"unitSize": "75", "unit": "cl", "listingCount": merchants + 1,
+                                  "merchantCount": merchants,
+                                  "unitPrice": {"amount": amount, "currencyCode": "GBP"}}}
+
+
+def _collect_frw(client, wine_id, products, vintage=2011) -> str:
+    jid = client.post("/snapshots/targeted", json={
+        "merchant_id": "fine-rare", "wine_id": wine_id, "vintage": vintage,
+        "params": {"producer_slug": "domaine-armand-rousseau"}}).json()["job_id"]
+    return _run_patched(client, jid, "collect_targeted", lambda orig: (
+        lambda merchant_id, wine_id, vintage, params, is_demo=False: orig(
+            merchant_id, wine_id, vintage, params, is_demo=is_demo,
+            fetch=lambda a, p, v: products, robots=lambda url: None)
+    ))["result"]
+
+
+@pg
+def test_an_indication_is_kept_as_corroboration_and_prices_nothing(client):
+    """FINE+RARE at £590 beside Farr at £610: the Reference stays Farr's, the
+    indication is on the run with its variance, and FINE+RARE is not depth."""
+    wid = _seed_wine(client)
+    _collect(client)
+    _collect_frw(client, wid, [frw_product("2011 Charmes-Chambertin", "Charmes-Chambertin",
+                                           590, merchants=8)])
+    deal_id, line_id = _deal(client, wid, quantity=1)
+    _benchmark(client, deal_id)
+
+    run = client.get(f"/lines/{line_id}/benchmark").json()
+    assert (run["uk_reference"], run["comp_count"]) == ("610.00", 1)
+    assert "ONE_COMP" in run["flags"]                      # FINE+RARE is not a second merchant
+    [ind] = [c for c in run["comps"] if c["role"] == "indication"]
+    assert (ind["merchant"], ind["price"]) == ("FINE+RARE", "590.00")
+    assert Decimal(ind["variance_vs_reference"]) == Decimal("-0.0328")
+    assert ind["merchant_count"] == 8                      # context, not depth
+    assert all(c["merchant_id"] != "fine-rare"
+               for c in run["comps"] if c["role"] in ("comparable", "merchant_best"))
+
+
+@pg
+def test_an_indication_never_reaches_a_client_document(client):
+    """A line whose only evidence is an indication is NO_MARKET, so it gates,
+    and it carries no market claim: a brokerage's view is not a UK market."""
+    wid = _seed_wine(client)
+    _collect(client, FARR_BOOK[2:])                        # Farr searched, wine not listed
+    _collect_frw(client, wid, [frw_product("2011 Charmes-Chambertin", "Charmes-Chambertin", 590)])
+    deal_id, line_id = _deal(client, wid, quantity=1)
+    _benchmark(client, deal_id)
+    run = client.get(f"/lines/{line_id}/benchmark").json()
+    assert run["state"] == "NO_MARKET" and run["uk_reference"] is None
+    assert [c["role"] for c in run["comps"] if c["role"] == "indication"] == ["indication"]
+
+    _sql("UPDATE seller_line SET manual_price = 500.00", fetch=False)
+    _price(client, deal_id)
+    client.post(f"/lines/{line_id}/pricing/acknowledge", json={"note": "cost-plus"})
+    offer = client.post(f"/deals/{deal_id}/buyer-offers", json={
+        "client": "A Merchant Ltd", "lines": [{"line_id": line_id}]}).json()
+    assert offer["lines"][0]["market_claim"] is None
+
+
+@pg
+def test_an_indication_is_stored_as_what_it_is(client):
+    wid = _seed_wine(client)
+    _collect_frw(client, wid, [frw_product("2011 Charmes-Chambertin", "Charmes-Chambertin", 590)])
+    [row] = _sql("SELECT * FROM offer")
+    assert (row["price_kind"], row["duty_status"]) == ("INDICATION", "UNKNOWN")
+    assert (row["is_buyable"], row["offered_units"]) == (False, 0)
+    assert row["stock_type"] == "BROKERED"
+    assert row["raw"]["market"]["merchantCount"] == 3
+
+
+@pg
+def test_fine_and_rare_is_searched_never_swept(client):
+    """A brokerage is a deep-search source: it answers per producer and vintage,
+    so it can no more join a sweep than Bordeaux Index can."""
+    sid = jobs.collect_snapshot(["fine-rare"], fetch=lambda a: [], robots=lambda url: None)
+    [snap] = _sql("SELECT failures FROM snapshot WHERE snapshot_id = %s", (sid,))
+    assert snap["failures"][0]["merchant_id"] == "fine-rare"
+    assert "collect_targeted" in snap["failures"][0]["error"]

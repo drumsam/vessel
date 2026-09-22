@@ -57,6 +57,10 @@ export default function LineDetail({ lineId, line, onChange }) {
   const pricing = line?.pricing;
   const comps = run?.comps || [];
   const byRole = (role) => comps.filter((c) => c.role === role);
+  const variance = (value) =>
+    value === null || value === undefined
+      ? "—"
+      : `${Number(value) > 0 ? "+" : ""}${(Number(value) * 100).toFixed(1)}%`;
 
   return (
     <div className="card">
@@ -156,7 +160,8 @@ export default function LineDetail({ lineId, line, onChange }) {
                 <tr><th>Merchant</th><th className="num">Price</th><th>Format</th><th>Condition</th><th>Used</th></tr>
               </thead>
               <tbody>
-                {[...byRole("merchant_best"), ...byRole("cross_unit"), ...byRole("rejected")].map((c, i) => (
+                {[...byRole("merchant_best"), ...byRole("cross_unit"),
+                  ...byRole("indication"), ...byRole("rejected")].map((c, i) => (
                   <tr key={`${c.role}-${c.offer_pk || i}`}>
                     <td>{c.merchant}</td>
                     <td className="num">
@@ -168,7 +173,15 @@ export default function LineDetail({ lineId, line, onChange }) {
                     <td>
                       {c.role === "merchant_best" ? <span className="tag ready">priced</span>
                         : c.role === "cross_unit" ? <span className="tag">shown, not priced</span>
-                        : <span className="tag plain">{c.reject_reason}</span>}
+                        : c.role === "indication" ? (
+                          <>
+                            <span className="tag">indication, not priced</span>
+                            <div className="muted">
+                              {variance(c.variance_vs_reference)} vs Reference
+                              {c.merchant_count ? `, across ${c.merchant_count} merchants` : ""}
+                            </div>
+                          </>
+                        ) : <span className="tag plain">{c.reject_reason}</span>}
                     </td>
                   </tr>
                 ))}

@@ -41,8 +41,10 @@ The invariants, in short:
 3. Depth counts merchants, not listings.
 4. Floor = lowest merchant-best · Reference = second-lowest (or the only one,
    flagged `ONE_COMP`) · Median = median of merchant-bests.
-5. Hard screens: In Bond, ASK, GBP, buyable, positive price, not a mixed lot.
-   Every rejection is retained with its reason.
+5. Hard screens: In Bond, ASK, GBP, buyable, positive price, whole pence, not a
+   mixed lot. Every rejection is retained with its reason. A brokerage
+   `INDICATION` is not an ASK and never prices; it is kept as corroboration
+   beside cross-unit evidence, with its variance from the Reference. See 0013.
 6. Zero comparables ⇒ `NO_MARKET`.
 7. Money is `Decimal` in Python and `numeric(14,2)` in Postgres. No float ever
    touches a price. Exactly three places round, all ROUND_HALF_EVEN to pence:
@@ -72,6 +74,9 @@ The invariants, in short:
 16. Collection has two modes: the sweep (`collect_snapshot`) and the search
     (`deep_search`, for merchants that answer per producer and vintage). Search
     keys are read from the merchant's own index, never guessed. See 0011.
+17. A source that publishes a view rather than stock counts as **one merchant**,
+    whatever `merchantCount` it quotes. Depth counts merchants we hold an offer
+    from. See 0013.
 13. A producer-only alias (no cuvée) is operator-only, refused where the
     producer has several wines unless the target is named again, and audited as
     a set. Farr prints both "Veuve Clicquot" and "Veuve Clicquot Rosé".
@@ -119,10 +124,10 @@ INGEST → IDENTITY PROPOSAL → IDENTITY VERIFICATION → SNAPSHOT LOOKUP
 ## Testing
 
 ```bash
-python -m pytest -q                      # 167 pass, 96 skip; no network, no services
+python -m pytest -q                      # 191 pass, 101 skip; no network, no services
 docker compose up -d                     # Postgres + Redis, then:
 TEST_DATABASE_URL=postgresql://pricer:pricer@localhost:5432/pricer_test \
-TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q   # 263 pass
+TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q   # 292 pass
 python scripts/rerun_burgundy_proof.py   # expect READY 0  REVIEW 5  NO_MARKET 15
 cd web && npm test                       # 5 tests: the browser-side parsing rules
 cd web && npm run e2e                    # the whole operator flow in a browser;
@@ -170,8 +175,9 @@ position, ask for a trade feed rather than scraping.
 
 ## Current state
 
-Done: deterministic core, identity resolver, three verified adapters (Farr,
-Bordeaux Index, Goedhuis Waddesdon), Postgres schema, AI provider interface,
+Done: deterministic core, identity resolver, four verified adapters — Farr and
+Goedhuis Waddesdon (sweep), Bordeaux Index and FINE+RARE (search) — Postgres
+schema, AI provider interface,
 FastAPI service (`app/api/`), Alembic migrations (`migrations/`), RQ worker
 (`app/worker/`) for snapshot collection and deterministic benchmark.
 
@@ -194,7 +200,7 @@ DEEP MERCHANT SEARCH is built (`deep_search`, `merchant_search_key`), and a
 Playwright smoke test drives the whole operator flow.
 
 Not built yet: the LWIN import (decision 0012 — waiting on the file), the
-remaining ten merchant adapters, AI provider implementations, a rendered buyer
+remaining nine merchant adapters, AI provider implementations, a rendered buyer
 document (PDF), the auction layer.
 
 Known open questions are in `docs/decisions/` and in the Burgundy proof report.

@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from dataclasses import replace
 from itertools import combinations
 from pathlib import Path
 
@@ -17,13 +18,15 @@ from app.adapters.base import Candidate, whole_pence
 from app.adapters.bordeaux_index import BordeauxIndexAdapter, parse_offer_row, parse_title
 from app.adapters.condition import normalise_condition
 from app.adapters.farr import FarrAdapter, parse_size, split_wine_field
+from app.adapters.fine_and_rare import (
+    FineAndRareAdapter, parse_producer_index, parse_unit, product_urls)
 from app.adapters.goedhuis import GoedhuisAdapter, is_eligible_variant, parse_sku
 from app.core.benchmark import benchmark as _benchmark
 from app.core.enums import ConditionFlag, DutyStatus, PriceKind, Reject, State, StockType
 from app.core.flags import MAX_OFFER_AGE_DAYS, REVIEW_FLAGS, Flag
 from app.core.models import Offer, SellerLine
 from app.identity.resolver import (
-    STRUCTURAL_EXCLUSIONS, CanonicalWine, Registry, collided_lwins, wine_key)
+    STRUCTURAL_EXCLUSIONS, CanonicalWine, Registry, collided_lwins, norm_producer, wine_key)
 
 WINE = "w-rousseau-chambertin"
 
@@ -688,3 +691,164 @@ def test_goedhuis_keeps_condition_wording_not_only_for_non_oc(wording, flag):
     c = GoedhuisAdapter().normalise(product, captured_at=AS_OF)
     assert flag in c.offer.condition_flags
     assert wording in c.offer.condition_notes
+
+
+# ------------------------------- FINE+RARE: a brokerage, not a stockholder
+#
+# Its unitPrice is an aggregated pan-European broking indication. Nobody has
+# said they hold the wine at it, which is why every variant reads quantity 0.
+# See docs/decisions/0013-brokerage-indications.md.
+
+FRW_FIXTURE = json.loads(
+    (Path(__file__).parent / "fixtures/fine-rare-2026-09-22.json").read_text())
+FRW = {r["product"]["name"]: r for r in FRW_FIXTURE["products"]}
+
+
+def frw_candidate(name: str) -> Candidate:
+    out = FineAndRareAdapter().normalise(FRW[name], captured_at=AS_OF)
+    assert isinstance(out, Candidate), out
+    return out
+
+
+def indication(**kw) -> Offer:
+    """A FINE+RARE indication for the line under test."""
+    base = dict(offer_id="frw:1", merchant_id="fine-rare", merchant="FINE+RARE",
+                price=Decimal("590.00"), price_kind=PriceKind.INDICATION,
+                duty_status=DutyStatus.UNKNOWN, is_buyable=False, offered_units=0,
+                stock_type=StockType.BROKERED, stock_type_basis="declared")
+    base.update(kw)
+    return offer(**base)
+
+
+def test_an_indication_can_never_become_the_uk_reference():
+    """FINE+RARE's £590 sits beside Farr's £610 and Bordeaux Index's £650 for
+    2011 Rousseau Charmes — close enough to look like a comparable. It is not
+    one: nobody has offered stock at it, so it cannot price anything."""
+    r = benchmark(line(), [indication(price=Decimal("590.00")),
+                           offer(merchant_id="farr", price=Decimal("610.00")),
+                           offer(merchant_id="bordeaux-index", price=Decimal("650.00"))])
+    assert (r.uk_floor, r.uk_reference) == (Decimal("610.00"), Decimal("650.00"))
+    assert r.comp_count == 2
+    assert all(o.merchant_id != "fine-rare" for o in r.merchant_bests)
+    assert all(o.merchant_id != "fine-rare" for o in r.comparables)
+
+
+def test_an_indication_alone_is_no_market():
+    """A market is somewhere you can buy. An indication is a view about one."""
+    r = benchmark(line(), [indication()])
+    assert r.state is State.NO_MARKET
+    assert r.uk_reference is None and r.comp_count == 0
+
+
+def test_an_indication_is_surfaced_as_corroboration_with_its_variance():
+    r = benchmark(line(), [indication(price=Decimal("590.00")),
+                           offer(merchant_id="farr", price=Decimal("610.00")),
+                           offer(merchant_id="bordeaux-index", price=Decimal("650.00"))])
+    [evidence] = r.indications
+    assert evidence.offer.price == Decimal("590.00")
+    assert evidence.variance_vs_reference == (Decimal("590") - Decimal("650")) / Decimal("650")
+    assert r.indications[0].offer.merchant == "FINE+RARE"
+
+
+def test_an_indication_with_no_reference_to_compare_against_has_no_variance():
+    r = benchmark(line(), [indication()])
+    assert r.indications[0].variance_vs_reference is None
+
+
+@pytest.mark.parametrize("kw", [
+    dict(vintage=2012),                                  # another vintage
+    dict(pack_size=6, price=Decimal("3540.00")),         # another commercial unit
+    dict(bottle_ml=1500),                                # another size
+    dict(currency="EUR"),
+    dict(captured_at=AS_OF - timedelta(days=30)),        # stale
+])
+def test_an_indication_for_something_else_is_not_corroboration(kw):
+    """Corroboration has to be of the same thing, or it corroborates nothing."""
+    r = benchmark(line(), [indication(**kw), offer(merchant_id="farr")])
+    assert r.indications == []
+
+
+def test_fine_and_rare_counts_as_one_merchant_however_many_it_polled():
+    """merchantCount is context. Depth counts merchants we have an offer from,
+    not merchants a brokerage says it polled — 8 of them behind one indication
+    is still one FINE+RARE, and an indication is not an offer at all."""
+    c = frw_candidate("2011 Chambertin")
+    assert c.offer.raw["market"]["merchantCount"] == 8
+    r = benchmark(line(vintage=2011), [
+        replace(c.offer, wine_id=WINE, bottle_ml=750, pack_size=1, captured_at=AS_OF),
+        offer(merchant_id="farr", price=Decimal("1800.00")),
+    ])
+    assert r.comp_count == 1                      # Farr only
+    assert Flag.ONE_COMP in r.flags
+    assert len(r.indications) == 1
+
+
+def test_fine_and_rare_publishes_an_indication_not_an_ask():
+    c = frw_candidate("2009 Charmes Chambertin")
+    assert c.offer.price_kind is PriceKind.INDICATION
+    assert c.offer.price == Decimal("860")
+    assert c.offer.is_buyable is False and c.offer.offered_units == 0
+    assert c.offer.duty_status is DutyStatus.UNKNOWN     # nobody has said IB or DP
+    assert c.offer.stock_type is StockType.BROKERED
+    assert (c.producer_text, c.cuvee_text) == ("Domaine Armand Rousseau", "Charmes Chambertin")
+
+
+def test_fine_and_rare_assortment_case_is_a_mixed_lot():
+    """FINE+RARE writes 'Assortment', never 'mixed': a pattern looking only for
+    'mixed' ingests a twelve-bottle DRC assortment as one wine."""
+    out = FineAndRareAdapter().normalise(FRW["2002 DRC Assortment (2xEZ, 2xGDE, 3xLT, 1xRI"
+                                             ", 1xRC, 3xRSV)"], captured_at=AS_OF)
+    assert out.reason is Reject.MIXED_LOT
+
+
+@pytest.mark.parametrize("name", ["2016 Assorted Case Bordeaux", "NV Trimbach Mixed Case",
+                                  "2002 DRC Assortment (2xEZ)"])
+def test_mixed_lot_matches_assort_and_assortment(name):
+    product = {"url": "u", "product": {"_id": "1", "name": name,
+                                       "parent": {"name": name, "producer": {"name": "P"}}},
+               "productMarketInfo": {"unitSize": "75", "unit": "cl",
+                                     "unitPrice": {"amount": 100, "currencyCode": "GBP"}}}
+    assert FineAndRareAdapter().normalise(product, captured_at=AS_OF).reason is Reject.MIXED_LOT
+
+
+def test_a_product_with_no_published_indication_is_a_rejection():
+    """Most of the back catalogue carries no market info at all."""
+    product = {"url": "u", "product": {"_id": "1", "name": "1959 Charmes Chambertin",
+                                       "parent": {"name": "Charmes Chambertin",
+                                                  "producer": {"name": "Domaine Armand Rousseau"}}},
+               "productMarketInfo": None}
+    out = FineAndRareAdapter().normalise(product, captured_at=AS_OF)
+    assert out.reason is Reject.NON_POSITIVE_PRICE and "no broking indication" in out.detail
+
+
+@pytest.mark.parametrize("size,unit,ml", [
+    ("75", "cl", 750), ("150", "cl", 1500), ("1.5", "l", 1500), ("750", "ml", 750),
+    ("75", None, None), ("", "cl", None),
+])
+def test_fine_and_rare_unit_parsing(size, unit, ml):
+    assert parse_unit(size, unit) == ml
+
+
+def test_fine_and_rare_product_urls_select_a_producer_and_vintage_exactly():
+    """The URL ends /<vintage>-<wine>-<producer-slug>, so deep search selects
+    rather than searches — and 2011 must not pick up 2011-something-else."""
+    xml = "".join(f"<url><loc>{u}</loc></url>" for u in [
+        "https://www.frw.co.uk/product/a/2011-charmes-chambertin-domaine-armand-rousseau",
+        "https://www.frw.co.uk/product/b/2009-charmes-chambertin-domaine-armand-rousseau",
+        "https://www.frw.co.uk/product/c/2011-chambertin-jacques-frederic-mugnier",
+        "https://www.frw.co.uk/product/d/nv-trimbach-mixed-case-1989-2001-trimbach",
+    ])
+    assert product_urls(xml, "domaine-armand-rousseau", 2011) == [
+        "https://www.frw.co.uk/product/a/2011-charmes-chambertin-domaine-armand-rousseau"]
+    assert product_urls(xml, "trimbach", 1000) == [
+        "https://www.frw.co.uk/product/d/nv-trimbach-mixed-case-1989-2001-trimbach"]
+    assert product_urls(xml, "domaine-armand-rousseau", 2014) == []
+
+
+def test_fine_and_rare_producer_index_is_the_deep_search_key():
+    keys = parse_producer_index(
+        "<url><loc>https://www.frw.co.uk/producer/612ec2800600000000000554/"
+        "domaine-armand-rousseau</loc></url>")
+    assert keys == {"domaine armand rousseau": "domaine-armand-rousseau"}
+    assert wine_key("Domaine Armand Rousseau", "x").startswith(
+        norm_producer("domaine armand rousseau"))

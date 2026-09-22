@@ -522,7 +522,8 @@ def resolve_offers(conn: psycopg.Connection, *, wine_id: str, vintage: int,
 
 
 def offer_snapshot(o: Offer, merchant_offer_id: str,
-                   per_bottle: Optional[Decimal] = None) -> dict:
+                   per_bottle: Optional[Decimal] = None,
+                   variance_vs_reference: Optional[Decimal] = None) -> dict:
     """The offer exactly as the benchmark used it. Money is a string, so it
     survives JSON without passing through a float. Migration 0003 builds the
     same document in SQL for runs that predate it."""
@@ -539,6 +540,11 @@ def offer_snapshot(o: Offer, merchant_offer_id: str,
         "condition_notes": o.condition_notes, "source_url": o.source_url,
         "captured_at": o.captured_at.isoformat() if o.captured_at else None,
         "per_bottle": str(per_bottle) if per_bottle is not None else None,
+        # indication only: how far the brokerage's view sat from the Reference
+        # at the moment of the run. Context, never a price (decision 0013).
+        "variance_vs_reference": (str(variance_vs_reference.quantize(RATE))
+                                  if variance_vs_reference is not None else None),
+        "merchant_count": (o.raw or {}).get("market", {}).get("merchantCount"),
     }
 
 
@@ -564,16 +570,18 @@ def save_benchmark(conn: psycopg.Connection, result: BenchmarkResult,
              for s in resolution.sources])
 
         rows: list[tuple[Any, ...]] = []
-        rows += [(o, "comparable", None, None) for o in result.comparables]
-        rows += [(o, "merchant_best", None, None) for o in result.merchant_bests]
-        rows += [(c.offer, "cross_unit", None, c.per_bottle) for c in result.cross_unit]
-        rows += [(r.offer, "rejected", r.reason.value, None) for r in result.rejections]
+        rows += [(o, "comparable", None, None, None) for o in result.comparables]
+        rows += [(o, "merchant_best", None, None, None) for o in result.merchant_bests]
+        rows += [(c.offer, "cross_unit", None, c.per_bottle, None) for c in result.cross_unit]
+        rows += [(i.offer, "indication", None, None, i.variance_vs_reference)
+                 for i in result.indications]
+        rows += [(r.offer, "rejected", r.reason.value, None, None) for r in result.rejections]
         cur.executemany(
             """INSERT INTO benchmark_comp (run_id, offer_pk, role, reject_reason, offer_snapshot)
                VALUES (%s, %s, %s, %s, %s)""",
             [(run_id, o.offer_id, role, reason,
-              Jsonb(offer_snapshot(o, resolution.merchant_offer_ids[o.offer_id], pb)))
-             for o, role, reason, pb in rows])
+              Jsonb(offer_snapshot(o, resolution.merchant_offer_ids[o.offer_id], pb, variance)))
+             for o, role, reason, pb, variance in rows])
     return run_id
 
 

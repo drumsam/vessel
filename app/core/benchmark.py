@@ -13,6 +13,9 @@ added. The adapter contract may evolve; this must not.
   3. Commercial unit equality is exact: 1x75cl matches 1x75cl, 6x75cl matches
      6x75cl. No division, no multiplication, ever. Cross-unit evidence is
      returned separately as excluded evidence for the operator to see.
+     A brokerage INDICATION is excluded by the KIND screen in the same way and
+     returned as corroboration: a price nobody has offered stock at cannot be a
+     Floor, a Reference or a Median. See docs/decisions/0013.
   4. Market depth is counted in MERCHANTS. A merchant that lists the same wine
      twice never becomes its own second-lowest reference.
   5. Floor = lowest merchant-best. Reference = second-lowest merchant-best, or
@@ -78,6 +81,17 @@ class Rejection:
 
 
 @dataclass(frozen=True)
+class IndicationEvidence:
+    """A brokerage's aggregated indication of where a wine would broker, and how
+    far it sits from the Reference. Corroboration, never a price: the indication
+    does not imply the wine exists, and the merchant that published it holds no
+    stock at that price. Shown to the operator, never on a client document.
+    """
+    offer: Offer
+    variance_vs_reference: Optional[Decimal]     # (indication - reference) / reference
+
+
+@dataclass(frozen=True)
 class CrossUnitEvidence:
     """Same wine, same vintage, same bottle size, DIFFERENT commercial unit.
     Shown to the operator with the arithmetic spelled out. Never used to price.
@@ -97,6 +111,7 @@ class BenchmarkResult:
     comparables: list[Offer] = field(default_factory=list)
     rejections: list[Rejection] = field(default_factory=list)
     cross_unit: list[CrossUnitEvidence] = field(default_factory=list)
+    indications: list[IndicationEvidence] = field(default_factory=list)
 
     merchant_bests: list[Offer] = field(default_factory=list)
     duplicate_listings: int = 0
@@ -166,6 +181,28 @@ def _screen(line: SellerLine, o: Offer, as_of: datetime) -> Optional[Reject]:
     return None
 
 
+def _is_indication(line: SellerLine, o: Offer, as_of: datetime) -> bool:
+    """Right wine, right vintage, right format, and a live brokerage indication.
+
+    Buyability and duty status are deliberately NOT required: an indication is
+    never stock, so every one of them is unbuyable by definition. That is what
+    makes it corroboration rather than a comparable.
+    """
+    return (
+        o.price_kind is PriceKind.INDICATION
+        and o.wine_id == line.wine_id
+        and not o.is_mixed_lot
+        and o.vintage == line.vintage
+        and o.bottle_ml == line.bottle_ml
+        and o.pack_size == line.pack_size
+        and o.currency == GBP
+        and o.price is not None
+        and o.price > Decimal("0")
+        and o.price == o.price.quantize(CENT)
+        and _is_fresh(o, as_of)
+    )
+
+
 def _is_cross_unit(line: SellerLine, o: Offer, as_of: datetime) -> bool:
     """Right wine, right vintage, right bottle size, wrong commercial unit —
     and otherwise a valid, fresh In Bond ask."""
@@ -196,6 +233,7 @@ def benchmark(line: SellerLine, offers: Iterable[Offer], *, as_of: datetime) -> 
     result = BenchmarkResult(line=line, as_of=as_of)
     result.flags |= line.inherited_flags
 
+    indications: list[Offer] = []
     for o in offers:
         reason = _screen(line, o, as_of)
         if reason is None:
@@ -206,6 +244,12 @@ def benchmark(line: SellerLine, offers: Iterable[Offer], *, as_of: datetime) -> 
             result.cross_unit.append(
                 CrossUnitEvidence(offer=o, per_bottle=o.price / o.pack_size)
             )
+        elif _is_indication(line, o, as_of):
+            # Not tied to which screen fired: KIND excludes an indication from
+            # pricing, but one with an unknown duty status is rejected by DUTY
+            # first. Either way it is still corroboration, and the predicate
+            # itself admits nothing but an INDICATION.
+            indications.append(o)
 
     # --- depth in merchants, not listings -------------------------------
     best: dict[str, Offer] = {}
@@ -216,7 +260,14 @@ def benchmark(line: SellerLine, offers: Iterable[Offer], *, as_of: datetime) -> 
     result.merchant_bests = sorted(best.values(), key=lambda x: x.price)
     result.duplicate_listings = len(result.comparables) - len(result.merchant_bests)
 
+    def with_variance(reference: Optional[Decimal]) -> list[IndicationEvidence]:
+        return [IndicationEvidence(offer=o,
+                                   variance_vs_reference=((o.price - reference) / reference)
+                                   if reference else None)
+                for o in sorted(indications, key=lambda x: x.price)]
+
     if not result.merchant_bests:
+        result.indications = with_variance(None)
         result.flags.add(Flag.NO_MARKET)
         return result
 
@@ -237,6 +288,8 @@ def benchmark(line: SellerLine, offers: Iterable[Offer], *, as_of: datetime) -> 
             result.flags.add(Flag.STOCK_BASIS_UNCONFIRMED)
 
     result.oldest_comp_age = as_of - min(o.captured_at for o in result.merchant_bests)
+
+    result.indications = with_variance(result.uk_reference)
 
     covering = [o for o in result.merchant_bests
                 if o.offered_units is None or o.offered_units >= line.quantity]

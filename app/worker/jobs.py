@@ -23,6 +23,8 @@ import psycopg
 from app.adapters.base import Adapter, Candidate, Rejected, whole_pence
 from app.adapters.bordeaux_index import LIST_URL as BI_URL, BordeauxIndexAdapter
 from app.adapters.farr import FEED_URL as FARR_URL, FarrAdapter
+from app.adapters.fine_and_rare import (
+    PRODUCER_INDEX_URL as FRW_URL, FineAndRareAdapter)
 from app.adapters.goedhuis import PRODUCTS_URL as GOEDHUIS_URL, GoedhuisAdapter
 from app.core.benchmark import benchmark
 from app.core.enums import Reject
@@ -64,6 +66,8 @@ WHOLE_BOOK: dict[str, WholeBook] = {
 
 TARGETED: dict[str, Targeted] = {
     "bordeaux-index": Targeted(BordeauxIndexAdapter, BI_URL, ("producer_slug",)),
+    # A brokerage: what it publishes is an indication, not stock (decision 0013).
+    "fine-rare": Targeted(FineAndRareAdapter, FRW_URL, ("producer_slug",)),
 }
 
 
