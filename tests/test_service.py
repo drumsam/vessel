@@ -1911,8 +1911,24 @@ def test_search_keys_are_read_from_the_merchants_own_index(client, monkeypatch):
     assert out["keys"] == 2
     keys = {k["producer_key"]: k for k in
             client.get("/merchants/bordeaux-index/search-keys").json()}
-    assert keys["domaine armand rousseau"]["params"] == {"producer_slug": "domaine_armand_rousseau"}
+    assert keys["domaine armand rousseau"]["params"] == {
+        "producer_slugs": ["domaine_armand_rousseau"]}
     assert keys["chateau haut brion"]["source"] == "merchant_index"
+
+
+@pg
+def test_a_producer_published_under_two_slugs_keeps_both(client, monkeypatch):
+    """Searching only one of them would quietly halve that producer's depth."""
+    from app.adapters.bordeaux_index import BordeauxIndexAdapter
+    monkeypatch.setattr(BordeauxIndexAdapter, "search_keys",
+                        lambda self, client=None: {
+                            "Chateau Haut-Brion": "chateau_haut-brion",
+                            "Chateau  Haut Brion": "haut-brion"})
+    out = jobs.learn_search_keys("bordeaux-index", str(client.operator["operator_id"]),
+                                 robots=lambda url: None)
+    assert (out["keys"], out["slugs"]) == (1, 2)
+    [key] = client.get("/merchants/bordeaux-index/search-keys").json()
+    assert key["params"] == {"producer_slugs": ["chateau_haut-brion", "haut-brion"]}
 
 
 @pg

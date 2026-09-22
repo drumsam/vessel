@@ -36,10 +36,20 @@ never masks a gap elsewhere.
 and a normalised producer to that merchant's own search terms. The slug form is
 not guessable: `producer=domaine_armand_rousseau` works at Bordeaux Index and
 `domaine-armand-rousseau` is a 404 — the rehearsal lost a whole search to
-exactly that. BI publishes its own producer index at `/fine-wine/producer/<slug>`,
-and `learn_search_keys` reads it into the table. An operator can set a key by
-hand. A missing key is a recorded skip, never an attempt at a likely-looking
-string.
+exactly that. BI publishes its own producer index in its sitemap
+(`/filters.xml`), and `learn_search_keys` reads it into the table. An operator
+can set a key by hand. A missing key is a recorded skip, never an attempt at a
+likely-looking string.
+
+**A 404 means two different things, and they are not read alike.** A known
+producer with nothing in a vintage is zero rows: searched, nothing found. A slug
+the merchant does not publish is our mistake and raises `UnknownProducerSlug`,
+because treating it as an empty answer is how a search silently reports no
+market. Every slug is checked against the merchant's index before it is used.
+
+**A producer may be published under several slugs**, and they are searched
+together and de-duplicated. Searching one of them would halve that producer's
+depth; counting a wine listed under both twice would invent depth.
 
 ## Consequence
 

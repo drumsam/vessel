@@ -124,10 +124,10 @@ INGEST → IDENTITY PROPOSAL → IDENTITY VERIFICATION → SNAPSHOT LOOKUP
 ## Testing
 
 ```bash
-python -m pytest -q                      # 191 pass, 101 skip; no network, no services
+python -m pytest -q                      # 196 pass, 102 skip; no network, no services
 docker compose up -d                     # Postgres + Redis, then:
 TEST_DATABASE_URL=postgresql://pricer:pricer@localhost:5432/pricer_test \
-TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q   # 292 pass
+TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q   # 298 pass
 python scripts/rerun_burgundy_proof.py   # expect READY 0  REVIEW 5  NO_MARKET 15
 cd web && npm test                       # 5 tests: the browser-side parsing rules
 cd web && npm run e2e                    # the whole operator flow in a browser;

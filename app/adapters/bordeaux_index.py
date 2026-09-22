@@ -37,6 +37,7 @@ format, not the cheapest per bottle. Every `.offer` row is emitted separately.
 from __future__ import annotations
 
 import re
+import time
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Iterator, Sequence
@@ -53,7 +54,24 @@ CURRENCY_URL = BASE + "/currency-set/GBP"
 #: The machine-readable index of every producer BI filters by: 1,778 of them on
 #: 2026-09-20. The /fine-wine page lists only the nine it is featuring, which is
 #: not an index — a deep search built on it silently has no key for anyone else.
+#: It is also the authority on whether a slug exists at all, which is what tells
+#: a vintage with no listings apart from a slug we invented.
 PRODUCER_INDEX_URL = BASE + "/filters.xml"
+
+#: How long the producer index is reused before being fetched again.
+PRODUCER_INDEX_TTL_SECONDS = 3600
+
+_index_cache: tuple[float, dict[str, str]] | None = None
+
+
+class UnknownProducerSlug(Exception):
+    """A slug Bordeaux Index does not publish. Not an empty market — a mistake.
+
+    A 404 means one of two entirely different things, and reading them the same
+    way is how a search silently reports no market. `domaine-armand-rousseau`
+    404s because the slug form is wrong (it is `domaine_armand_rousseau`); a
+    known producer with nothing in a vintage 404s too.
+    """
 
 # The slug form matters and cannot be guessed from the name:
 # producer=domaine_armand_rousseau works and domaine-armand-rousseau is a 404
@@ -138,22 +156,63 @@ class BordeauxIndexAdapter(Adapter):
     id = "bordeaux-index"
     merchant = "Bordeaux Index"
 
-    def fetch(self, producer_slug: str, vintage: int) -> Sequence[dict]:  # pragma: no cover
-        import httpx
-        with httpx.Client(timeout=60, follow_redirects=True,
-                          headers={"User-Agent": user_agent()}) as c:
-            c.get(CURRENCY_URL)                     # pin GBP for this session
-            r = c.get(LIST_URL, params={"producer": producer_slug, "vintage": vintage})
-            r.raise_for_status()
-            return list(extract_cards(r.text))
+    def fetch(self, producer_slug: str | None = None, vintage: int | None = None, *,
+              producer_slugs: Sequence[str] | None = None, client=None) -> Sequence[dict]:
+        """One producer in one vintage, or several slugs for one producer.
 
-    def search_keys(self) -> dict[str, str]:  # pragma: no cover - network
-        """The merchant's own producer index, for merchant_search_key."""
-        import httpx
-        r = httpx.get(PRODUCER_INDEX_URL, timeout=60, follow_redirects=True,
-                      headers={"User-Agent": user_agent()})
+        Every slug is checked against Bordeaux Index's own index first, because
+        a 404 has two meanings: a known producer with nothing in that vintage is
+        zero rows, and a slug BI does not publish is a mistake of ours and is
+        raised. Results across slugs are unioned and de-duplicated, since a
+        producer can be listed under more than one.
+        """
+        slugs = list(producer_slugs or ([producer_slug] if producer_slug else []))
+        if not slugs:
+            raise ValueError("a producer slug is required")
+
+        owns_client = client is None
+        if owns_client:  # pragma: no cover - network
+            import httpx
+            client = httpx.Client(timeout=60, follow_redirects=True,
+                                  headers={"User-Agent": user_agent()})
+        try:
+            known = set(self.search_keys(client=client).values())
+            unknown = [s for s in slugs if s not in known]
+            if unknown:
+                raise UnknownProducerSlug(
+                    f"{', '.join(sorted(unknown))} not in Bordeaux Index's producer index; "
+                    f"the slug form is underscored, e.g. domaine_armand_rousseau")
+
+            client.get(CURRENCY_URL)                # pin GBP for this session
+            cards: dict[str, dict] = {}
+            for slug in slugs:
+                r = client.get(LIST_URL, params={"producer": slug, "vintage": vintage})
+                if r.status_code == 404:
+                    continue                        # a vintage this producer has nothing in
+                r.raise_for_status()
+                for card in extract_cards(r.text):
+                    cards.setdefault(card.get("code") or card.get("url") or card["title"], card)
+            return list(cards.values())
+        finally:
+            if owns_client:  # pragma: no cover - network
+                client.close()
+
+    def search_keys(self, client=None) -> dict[str, str]:
+        """The merchant's own producer index, for merchant_search_key. Cached:
+        it is 200KB and a deep search asks about it once per producer."""
+        global _index_cache
+        if _index_cache and time.monotonic() - _index_cache[0] < PRODUCER_INDEX_TTL_SECONDS:
+            return _index_cache[1]
+        if client is None:  # pragma: no cover - network
+            import httpx
+            r = httpx.get(PRODUCER_INDEX_URL, timeout=120, follow_redirects=True,
+                          headers={"User-Agent": user_agent()})
+        else:
+            r = client.get(PRODUCER_INDEX_URL)
         r.raise_for_status()
-        return parse_producer_index(r.text)
+        index = parse_producer_index(r.text)
+        _index_cache = (time.monotonic(), index)
+        return index
 
     def normalise(self, raw: dict, captured_at: datetime | None = None):
         """`raw` is one card: {"title": str, "offers": [str, ...], "url": str}.

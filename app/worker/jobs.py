@@ -53,7 +53,9 @@ class WholeBook:
 @dataclass(frozen=True)
 class Targeted:
     """A merchant that can only be searched by producer and vintage.
-    `params` names the merchant-specific search terms the caller must supply."""
+    `params` names the merchant-specific search terms, one of which the caller
+    must supply: a producer may be listed under more than one slug, and those
+    are searched together."""
     adapter: Callable[[], Adapter]
     robots_url: str
     params: tuple[str, ...]
@@ -64,10 +66,12 @@ WHOLE_BOOK: dict[str, WholeBook] = {
     "goedhuis": WholeBook(GoedhuisAdapter, GOEDHUIS_URL),
 }
 
+SLUG_PARAMS = ("producer_slug", "producer_slugs")
+
 TARGETED: dict[str, Targeted] = {
-    "bordeaux-index": Targeted(BordeauxIndexAdapter, BI_URL, ("producer_slug",)),
+    "bordeaux-index": Targeted(BordeauxIndexAdapter, BI_URL, SLUG_PARAMS),
     # A brokerage: what it publishes is an indication, not stock (decision 0013).
-    "fine-rare": Targeted(FineAndRareAdapter, FRW_URL, ("producer_slug",)),
+    "fine-rare": Targeted(FineAndRareAdapter, FRW_URL, SLUG_PARAMS),
 }
 
 
@@ -231,10 +235,10 @@ def collect_targeted(merchant_id: str, wine_id: str, vintage: int, params: dict,
     spec = TARGETED.get(merchant_id)
     if spec is None:
         raise ValueError(f"{merchant_id!r} has no targeted search")
-    missing = [k for k in spec.params if not params.get(k)]
-    if missing:
-        raise ValueError(f"{merchant_id} search needs {missing}")
-    fetch = fetch or (lambda a, p, v: a.fetch(p["producer_slug"], v))
+    if not any(params.get(k) for k in spec.params):
+        raise ValueError(f"{merchant_id} search needs one of {list(spec.params)}")
+    fetch = fetch or (lambda a, p, v: a.fetch(p.get("producer_slug"), v,
+                                              producer_slugs=p.get("producer_slugs")))
 
     with transaction() as conn:
         wine = repo.get_wine(conn, wine_id)
@@ -369,13 +373,21 @@ def learn_search_keys(merchant_id: str, set_by: str, *,
         raise ValueError(f"{merchant_id!r} is not searched by producer")
     robots(spec.robots_url)
     printed = spec.adapter().search_keys()
+
+    # A producer can be published under more than one slug ("chateau_haut-brion"
+    # and "haut-brion" normalise alike). Those are one key with both slugs, and
+    # a search unions them: dropping one would quietly halve a producer's depth.
+    by_key: dict[str, list[str]] = {}
+    for name, slug in printed.items():
+        by_key.setdefault(norm_producer(name), []).append(slug)
+
     with transaction() as conn:
-        for name, slug in printed.items():
-            repo.set_search_key(conn, merchant_id=merchant_id,
-                                producer_key=norm_producer(name),
-                                params={"producer_slug": slug}, source="merchant_index",
-                                set_by=set_by, note=f"from the merchant's index as {name!r}")
-    return {"merchant_id": merchant_id, "keys": len(printed)}
+        for producer_key, slugs in by_key.items():
+            repo.set_search_key(conn, merchant_id=merchant_id, producer_key=producer_key,
+                                params={"producer_slugs": sorted(set(slugs))},
+                                source="merchant_index", set_by=set_by,
+                                note=f"from the merchant's own index ({len(slugs)} slug(s))")
+    return {"merchant_id": merchant_id, "keys": len(by_key), "slugs": len(printed)}
 
 
 def deep_search(deal_id: str, *, min_comps: int = 2, merchant_ids: Optional[Sequence[str]] = None,

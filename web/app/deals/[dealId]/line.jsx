@@ -178,7 +178,9 @@ export default function LineDetail({ lineId, line, onChange }) {
                             <span className="tag">indication, not priced</span>
                             <div className="muted">
                               {variance(c.variance_vs_reference)} vs Reference
-                              {c.merchant_count ? `, across ${c.merchant_count} merchants` : ""}
+                              {c.merchant_count
+                                ? `, ${c.merchant} reports ${c.merchant_count} sellers`
+                                : ""}
                             </div>
                           </>
                         ) : <span className="tag plain">{c.reject_reason}</span>}

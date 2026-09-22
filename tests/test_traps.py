@@ -852,3 +852,104 @@ def test_fine_and_rare_producer_index_is_the_deep_search_key():
     assert keys == {"domaine armand rousseau": "domaine-armand-rousseau"}
     assert wine_key("Domaine Armand Rousseau", "x").startswith(
         norm_producer("domaine armand rousseau"))
+
+
+def test_an_indication_for_another_wine_of_the_same_producer_is_not_corroboration():
+    """FINE+RARE lists every Rousseau grand cru at the same vintage and size.
+    Charmes-Chambertin 2011 corroborates nothing about a Chambertin 2011 line:
+    they are different wines at £590 and £1,750. The predicate requires the
+    approved wine_id, whichever screen rejected the offer."""
+    chambertin_line = line(wine_id="w-rousseau-chambertin")
+    charmes = indication(wine_id="w-rousseau-charmes", price=Decimal("590.00"))
+    r = benchmark(chambertin_line, [charmes,
+                                    offer(wine_id="w-rousseau-chambertin",
+                                          merchant_id="farr", price=Decimal("1800.00"))])
+    assert r.indications == []
+    assert [x.reason for x in r.rejections] == [Reject.WINE]
+
+
+def test_the_indication_predicate_requires_every_part_of_the_format():
+    """wine_id, vintage, bottle size and commercial unit, all four, or it is not
+    corroboration of this line."""
+    same = dict(wine_id=WINE, vintage=2011, bottle_ml=750, pack_size=1)
+    assert benchmark(line(), [indication(**same)]).indications != []
+    for field, wrong in [("wine_id", "w-somebody-else"), ("vintage", 2012),
+                         ("bottle_ml", 1500), ("pack_size", 6)]:
+        r = benchmark(line(), [indication(**{**same, field: wrong})])
+        assert r.indications == [], field
+
+
+# ---------------------------- Bordeaux Index: what a 404 means
+
+def bi_client(pages: dict, index: str = None):
+    """An httpx client that answers from `pages`: {path+query: (status, body)}."""
+    import httpx
+
+    default_index = "".join(
+        f"<url><loc>https://bordeauxindex.com/fine-wine/producer/{slug}</loc></url>"
+        for slug in ("domaine_armand_rousseau", "domaine_armand_rousseau_selection",
+                     "chateau_haut-brion"))
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        key = request.url.path + ("?" + str(request.url.query.decode()) if request.url.query else "")
+        if request.url.path == "/filters.xml":
+            return httpx.Response(200, text=index if index is not None else default_index)
+        if request.url.path == "/currency-set/GBP":
+            return httpx.Response(200, text="")
+        status, body = pages.get(key, (404, ""))
+        return httpx.Response(status, text=body)
+
+    return httpx.Client(transport=httpx.MockTransport(handler),
+                        base_url="https://bordeauxindex.com")
+
+
+def bi_listing(title: str, price: str, code: str) -> str:
+    return (f'<div class="wine-inbond"><h2 class="wine-name">{title}</h2>'
+            f'<a class="livetrade" href="/livetrade/{code}"></a>'
+            f'<div class="offer">Bottle (75cl) CONDITION Original Case STATUS In-Bond '
+            f'You buy £{price} 2 Bottle(s) Available</div></div>')
+
+
+def test_bordeaux_index_404_on_a_known_producer_is_an_empty_vintage_not_an_error():
+    """Bordeaux Index 404s a producer page for a vintage it holds nothing in.
+    That is a real, empty answer: the producer was searched and has nothing."""
+    import app.adapters.bordeaux_index as bi
+    bi._index_cache = None
+    with bi_client({}) as client:
+        rows = BordeauxIndexAdapter().fetch("domaine_armand_rousseau", 2011, client=client)
+    assert rows == []
+
+
+def test_bordeaux_index_404_on_an_unknown_slug_is_an_error_not_an_empty_market():
+    """The rehearsal searched `domaine-armand-rousseau`, got a 404, and recorded
+    a merchant with nothing to offer. The slug form is underscored, and a slug
+    Bordeaux Index does not publish is our mistake — never a quiet no-market."""
+    import app.adapters.bordeaux_index as bi
+    bi._index_cache = None
+    with bi_client({}) as client:
+        with pytest.raises(bi.UnknownProducerSlug, match="domaine-armand-rousseau"):
+            BordeauxIndexAdapter().fetch("domaine-armand-rousseau", 2011, client=client)
+
+
+def test_bordeaux_index_unions_a_producers_slugs_and_keeps_each_wine_once():
+    """A producer published under two slugs is one producer. Searching only the
+    first would halve its depth; counting a wine listed under both twice would
+    invent depth that is not there."""
+    import app.adapters.bordeaux_index as bi
+    bi._index_cache = None
+    pages = {
+        "/fine-wine/all?producer=domaine_armand_rousseau&vintage=2011":
+            (200, bi_listing("2011 Domaine Armand Rousseau, Chambertin Grand Cru", "3,300.00",
+                             "rouc-2011")),
+        "/fine-wine/all?producer=domaine_armand_rousseau_selection&vintage=2011":
+            (200, bi_listing("2011 Domaine Armand Rousseau, Chambertin Grand Cru", "3,300.00",
+                             "rouc-2011")
+                  + bi_listing("2011 Domaine Armand Rousseau, Charmes-Chambertin Grand Cru",
+                               "610.00", "roush-2011")),
+    }
+    with bi_client(pages) as client:
+        rows = BordeauxIndexAdapter().fetch(
+            producer_slugs=["domaine_armand_rousseau", "domaine_armand_rousseau_selection"],
+            vintage=2011, client=client)
+    assert len(rows) == 2
+    assert sorted(r["code"] for r in rows) == ["rouc-2011", "roush-2011"]
