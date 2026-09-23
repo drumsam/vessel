@@ -1,0 +1,1607 @@
+[
+ {
+  "line": "L01",
+  "vintage": 2022,
+  "unit": "6x750",
+  "ls": "150",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "150",
+  "A_ref": "150",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:150"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L02",
+  "vintage": 2022,
+  "unit": "6x750",
+  "ls": "150",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "150",
+  "A_ref": "150",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:150"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L03",
+  "vintage": 2022,
+  "unit": "6x750",
+  "ls": "150",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "150",
+  "A_ref": "150",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:150"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L04",
+  "vintage": 2021,
+  "unit": "6x750",
+  "ls": "490",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "490",
+  "A_ref": "490",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:490"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L05",
+  "vintage": 2021,
+  "unit": "6x750",
+  "ls": "550",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "550",
+  "A_ref": "550",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:550"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L06",
+  "vintage": 2021,
+  "unit": "6x750",
+  "ls": "230",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "230",
+  "A_ref": "230",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:230"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L07",
+  "vintage": 2021,
+  "unit": "12x750",
+  "ls": "370",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "370",
+  "A_ref": "370",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:370"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L08",
+  "vintage": 2021,
+  "unit": "6x750",
+  "ls": "1250",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "1250",
+  "A_ref": "1250",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:1250"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L09",
+  "vintage": 2021,
+  "unit": "6x750",
+  "ls": "435",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "435",
+  "A_ref": "435",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:435"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L10",
+  "vintage": 2021,
+  "unit": "6x750",
+  "ls": "795",
+  "A_state": "READY",
+  "A_depth": 2,
+  "A_floor": "795",
+  "A_ref": "862.00",
+  "A_flags": [],
+  "A_bests": [
+   "Lea & Sandeman:795",
+   "Bordeaux Index:862.00"
+  ],
+  "A_dupes": 0,
+  "B_state": "REVIEW",
+  "B_depth": 1,
+  "B_ref": "862.00",
+  "B_flags": [
+   "ONE_COMP"
+  ]
+ },
+ {
+  "line": "L11",
+  "vintage": 2021,
+  "unit": "6x750",
+  "ls": "175",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "175",
+  "A_ref": "175",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:175"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L12",
+  "vintage": 2021,
+  "unit": "6x750",
+  "ls": "300",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "300",
+  "A_ref": "300",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:300"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L13",
+  "vintage": 2021,
+  "unit": "6x750",
+  "ls": "280",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "280",
+  "A_ref": "280",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:280"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L14",
+  "vintage": 2020,
+  "unit": "6x750",
+  "ls": "390",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "390",
+  "A_ref": "390",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:390"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L15",
+  "vintage": 2020,
+  "unit": "3x1500",
+  "ls": "480",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "480",
+  "A_ref": "480",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:480"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L16",
+  "vintage": 2020,
+  "unit": "3x750",
+  "ls": "1000",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "1000",
+  "A_ref": "1000",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:1000"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L17",
+  "vintage": 2020,
+  "unit": "6x750",
+  "ls": "600",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "600",
+  "A_ref": "600",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:600"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L18",
+  "vintage": 2020,
+  "unit": "3x750",
+  "ls": "750",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "750",
+  "A_ref": "750",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:750"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L19",
+  "vintage": 2020,
+  "unit": "6x750",
+  "ls": "780",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "780",
+  "A_ref": "780",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:780"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L20",
+  "vintage": 2020,
+  "unit": "6x750",
+  "ls": "420",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "420",
+  "A_ref": "420",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:420"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L21",
+  "vintage": 2020,
+  "unit": "6x750",
+  "ls": "1200",
+  "A_state": "READY",
+  "A_depth": 2,
+  "A_floor": "1200",
+  "A_ref": "2070.00",
+  "A_flags": [
+   "WIDE_SPREAD"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:1200",
+   "Bordeaux Index:2070.00"
+  ],
+  "A_dupes": 1,
+  "B_state": "REVIEW",
+  "B_depth": 1,
+  "B_ref": "2070.00",
+  "B_flags": [
+   "ONE_COMP"
+  ]
+ },
+ {
+  "line": "L22",
+  "vintage": 2020,
+  "unit": "6x750",
+  "ls": "485",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "485",
+  "A_ref": "485",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:485"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L23",
+  "vintage": 2020,
+  "unit": "6x750",
+  "ls": "310",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "310",
+  "A_ref": "310",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:310"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L24",
+  "vintage": 2020,
+  "unit": "6x750",
+  "ls": "210",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "210",
+  "A_ref": "210",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:210"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L25",
+  "vintage": 2020,
+  "unit": "12x750",
+  "ls": "400",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "400",
+  "A_ref": "400",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:400"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L26",
+  "vintage": 2020,
+  "unit": "12x750",
+  "ls": "335",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "335",
+  "A_ref": "335",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:335"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L27",
+  "vintage": 2020,
+  "unit": "12x750",
+  "ls": "505",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "505",
+  "A_ref": "505",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:505"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L28",
+  "vintage": 2020,
+  "unit": "6x750",
+  "ls": "750",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "750",
+  "A_ref": "750",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:750"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L29",
+  "vintage": 2020,
+  "unit": "6x750",
+  "ls": "550",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "550",
+  "A_ref": "550",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:550"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L30",
+  "vintage": 2020,
+  "unit": "6x750",
+  "ls": "600",
+  "A_state": "READY",
+  "A_depth": 3,
+  "A_floor": "600",
+  "A_ref": "690.00",
+  "A_flags": [],
+  "A_bests": [
+   "Lea & Sandeman:600",
+   "Albany Vintners:690.00",
+   "Goedhuis Waddesdon:695.00"
+  ],
+  "A_dupes": 0,
+  "B_state": "READY",
+  "B_depth": 2,
+  "B_ref": "695.00",
+  "B_flags": []
+ },
+ {
+  "line": "L31",
+  "vintage": 2020,
+  "unit": "6x750",
+  "ls": "675",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "675",
+  "A_ref": "675",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:675"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L32",
+  "vintage": 2020,
+  "unit": "6x750",
+  "ls": "195",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "195",
+  "A_ref": "195",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:195"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L33",
+  "vintage": 2020,
+  "unit": "6x750",
+  "ls": "280",
+  "A_state": "READY",
+  "A_depth": 2,
+  "A_floor": "280",
+  "A_ref": "372.00",
+  "A_flags": [
+   "WIDE_SPREAD"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:280",
+   "Bordeaux Index:372.00"
+  ],
+  "A_dupes": 0,
+  "B_state": "REVIEW",
+  "B_depth": 1,
+  "B_ref": "372.00",
+  "B_flags": [
+   "ONE_COMP"
+  ]
+ },
+ {
+  "line": "L34",
+  "vintage": 2020,
+  "unit": "6x750",
+  "ls": "510",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "510",
+  "A_ref": "510",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:510"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L35",
+  "vintage": 2020,
+  "unit": "6x750",
+  "ls": "850",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "850",
+  "A_ref": "850",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:850"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L36",
+  "vintage": 2019,
+  "unit": "6x750",
+  "ls": "600",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "600",
+  "A_ref": "600",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:600"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L37",
+  "vintage": 2019,
+  "unit": "6x750",
+  "ls": "275",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "275",
+  "A_ref": "275",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:275"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L38",
+  "vintage": 2019,
+  "unit": "3x750",
+  "ls": "695",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "695",
+  "A_ref": "695",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:695"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L39",
+  "vintage": 2019,
+  "unit": "6x750",
+  "ls": "395",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "395",
+  "A_ref": "395",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:395"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L40",
+  "vintage": 2019,
+  "unit": "6x750",
+  "ls": "630",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "630",
+  "A_ref": "630",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:630"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L41",
+  "vintage": 2019,
+  "unit": "6x750",
+  "ls": "180",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "180",
+  "A_ref": "180",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:180"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L42",
+  "vintage": 2019,
+  "unit": "6x750",
+  "ls": "450",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "450",
+  "A_ref": "450",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:450"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L43",
+  "vintage": 2019,
+  "unit": "6x750",
+  "ls": "1275",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "1275",
+  "A_ref": "1275",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:1275"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L44",
+  "vintage": 2019,
+  "unit": "6x750",
+  "ls": "520",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "520",
+  "A_ref": "520",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:520"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L45",
+  "vintage": 2019,
+  "unit": "6x750",
+  "ls": "200",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "200",
+  "A_ref": "200",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:200"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L46",
+  "vintage": 2019,
+  "unit": "6x750",
+  "ls": "695",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "695",
+  "A_ref": "695",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:695"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L47",
+  "vintage": 2019,
+  "unit": "6x750",
+  "ls": "420",
+  "A_state": "READY",
+  "A_depth": 2,
+  "A_floor": "415.00",
+  "A_ref": "420",
+  "A_flags": [],
+  "A_bests": [
+   "Bordeaux Index:415.00",
+   "Lea & Sandeman:420"
+  ],
+  "A_dupes": 1,
+  "B_state": "REVIEW",
+  "B_depth": 1,
+  "B_ref": "415.00",
+  "B_flags": [
+   "ONE_COMP"
+  ]
+ },
+ {
+  "line": "L48",
+  "vintage": 2019,
+  "unit": "6x750",
+  "ls": "240",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "240",
+  "A_ref": "240",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:240"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L49",
+  "vintage": 2019,
+  "unit": "6x750",
+  "ls": "540",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "540",
+  "A_ref": "540",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:540"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L50",
+  "vintage": 2019,
+  "unit": "6x750",
+  "ls": "350",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "350",
+  "A_ref": "350",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:350"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L51",
+  "vintage": 2018,
+  "unit": "6x750",
+  "ls": "510",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "510",
+  "A_ref": "510",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:510"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L52",
+  "vintage": 2018,
+  "unit": "6x750",
+  "ls": "1200",
+  "A_state": "READY",
+  "A_depth": 3,
+  "A_floor": "1125.00",
+  "A_ref": "1200",
+  "A_flags": [],
+  "A_bests": [
+   "Bordeaux Index:1125.00",
+   "Lea & Sandeman:1200",
+   "Goedhuis Waddesdon:1250.00"
+  ],
+  "A_dupes": 6,
+  "B_state": "READY",
+  "B_depth": 2,
+  "B_ref": "1250.00",
+  "B_flags": []
+ },
+ {
+  "line": "L53",
+  "vintage": 2018,
+  "unit": "6x750",
+  "ls": "500",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "500",
+  "A_ref": "500",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:500"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L54",
+  "vintage": 2018,
+  "unit": "6x750",
+  "ls": "650",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "650",
+  "A_ref": "650",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:650"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L55",
+  "vintage": 2018,
+  "unit": "12x750",
+  "ls": "450",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "450",
+  "A_ref": "450",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:450"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L56",
+  "vintage": 2018,
+  "unit": "6x750",
+  "ls": "400",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "400",
+  "A_ref": "400",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:400"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L57",
+  "vintage": 2018,
+  "unit": "12x750",
+  "ls": "1000",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "1000",
+  "A_ref": "1000",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:1000"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L58",
+  "vintage": 2018,
+  "unit": "12x750",
+  "ls": "320",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "320",
+  "A_ref": "320",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:320"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L59",
+  "vintage": 2018,
+  "unit": "12x750",
+  "ls": "348",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "348",
+  "A_ref": "348",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:348"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L60",
+  "vintage": 2018,
+  "unit": "6x750",
+  "ls": "1500",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "1500",
+  "A_ref": "1500",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:1500"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L61",
+  "vintage": 2017,
+  "unit": "6x750",
+  "ls": "445",
+  "A_state": "READY",
+  "A_depth": 2,
+  "A_floor": "350.00",
+  "A_ref": "445",
+  "A_flags": [
+   "WIDE_SPREAD"
+  ],
+  "A_bests": [
+   "Goedhuis Waddesdon:350.00",
+   "Lea & Sandeman:445"
+  ],
+  "A_dupes": 0,
+  "B_state": "REVIEW",
+  "B_depth": 1,
+  "B_ref": "350.00",
+  "B_flags": [
+   "ONE_COMP"
+  ]
+ },
+ {
+  "line": "L62",
+  "vintage": 2017,
+  "unit": "6x750",
+  "ls": "270",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "270",
+  "A_ref": "270",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:270"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L63",
+  "vintage": 2016,
+  "unit": "6x750",
+  "ls": "550",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "550",
+  "A_ref": "550",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:550"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L64",
+  "vintage": 2016,
+  "unit": "6x1500",
+  "ls": "1120",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "1120",
+  "A_ref": "1120",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:1120"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L65",
+  "vintage": 2015,
+  "unit": "1x3000",
+  "ls": "460",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "460",
+  "A_ref": "460",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:460"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L66",
+  "vintage": 2015,
+  "unit": "6x750",
+  "ls": "690",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "690",
+  "A_ref": "690",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:690"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L67",
+  "vintage": 2015,
+  "unit": "6x1500",
+  "ls": "1250",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "1250",
+  "A_ref": "1250",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:1250"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L68",
+  "vintage": 2015,
+  "unit": "6x750",
+  "ls": "1300",
+  "A_state": "READY",
+  "A_depth": 3,
+  "A_floor": "1300",
+  "A_ref": "1300.00",
+  "A_flags": [],
+  "A_bests": [
+   "Lea & Sandeman:1300",
+   "Goedhuis Waddesdon:1300.00",
+   "Lay & Wheeler Trading:1414"
+  ],
+  "A_dupes": 0,
+  "B_state": "READY",
+  "B_depth": 2,
+  "B_ref": "1414",
+  "B_flags": []
+ },
+ {
+  "line": "L69",
+  "vintage": 2014,
+  "unit": "6x750",
+  "ls": "450",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "450",
+  "A_ref": "450",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:450"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ },
+ {
+  "line": "L70",
+  "vintage": 2011,
+  "unit": "6x750",
+  "ls": "595",
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_floor": "595",
+  "A_ref": "595",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "A_bests": [
+   "Lea & Sandeman:595"
+  ],
+  "A_dupes": 0,
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ]
+ }
+]

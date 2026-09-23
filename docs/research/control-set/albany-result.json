@@ -1,0 +1,9 @@
+{"merchant":"Albany Vintners","captured_at":"2026-09-23","route":"/api/ai/wines.json (robots explicitly allows /api/ai/); index lastUpdated 2026-09-22T14:26:04Z","wines":1279,
+ "confirmed":[{"line":"L30","title":"2020 Thibault Liger-Belair, Nuits St Georges Les St Georges 1er Cru","pack":6,"ml":750,"price":"690.00","basis":"in_bond_gbp_per_case","stock_band":"low","availability":"in_stock","verified":"same wine, vintage, unit as L&S line"}],
+ "neighbour_only":[{"line":"L57","note":"2017 Lamy Clos de la Chateniere 12x75 GBP 1550 - different vintage; vintage-band evidence only"},
+                   {"line":"L42","note":"2020 T. Liger-Belair La Charmotte 6x75 GBP 340 - our line is 2019; vintage-band evidence only"},
+                   {"line":"L30","note":"2017 T. Liger-Belair Les St Georges 6x75 GBP 660 - vintage-band evidence for L30"}],
+ "traps":["Three unrelated Magniens in the catalogue (Henri/Charles, Michel, Frederic) and no Stephane Magnien - the identity trap seen live.",
+          "Pierre-Yves Colin-Morey and Philippe Colin both present; neither is Joseph Colin.",
+          "price_basis is stated per row as in_bond_gbp_per_case - assert it, never assume.",
+          "stock_band low/medium/high is not a quantity; offered_units must be None."]}

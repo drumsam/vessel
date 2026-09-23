@@ -581,7 +581,92 @@ class RunSourceOut(_Out):
     captured_at: datetime
 
 
+class NeighbourOut(_Out):
+    """One neighbouring vintage of the same wine and unit. Evidence about the
+    comps, never a comp: no figure here can become a Floor, a Reference or a
+    Median, and none of it reaches a client document."""
+    vintage: int
+    median: Money
+    merchants: int
+    stale: bool
+    newest_captured_at: Optional[datetime]
+
+
+class BandOfferOut(_Out):
+    offer_id: Optional[UUID]
+    merchant_id: str
+    merchant: str
+    price: Money
+    edge: Money                      # the band edge it failed, after widening
+    multiple: Decimal                # price / edge, for the operator to see
+    flag: str
+
+
+class FormatDisagreementOut(_Out):
+    """One merchant disagreeing with itself across formats. The per-bottle
+    figures exist here and nowhere else: they are not stored on an offer, not
+    exported, and never shown as a price."""
+    merchant: str
+    comp_unit: str
+    comp_per_bottle: Money
+    other_unit: str
+    other_per_bottle: Money
+    difference: Decimal
+    flag: str
+
+
+class ExclusionOut(_Out):
+    """A comp the band dropped, and who put it back. Only a dear comp is ever
+    dropped automatically; a cheap one is flagged and kept (spec 5)."""
+    exclusion_id: UUID
+    offer_pk: Optional[UUID]
+    merchant: str
+    price: Money
+    flag: str
+    band_edge: Money
+    band_multiple: Decimal
+    excluded_at: datetime
+    reinstated_at: Optional[datetime] = None
+    reinstated_by: Optional[OperatorRef] = None
+    reinstated_reason: Optional[str] = None
+    replacement_run_id: Optional[UUID] = None
+
+
+class VintageBandOut(_Out):
+    """The vintage-neighbour sanity check for a run. `band_low` and `band_high`
+    are absent together when fewer than two neighbouring vintages were found:
+    silence, not a guess."""
+    unit: str
+    band_low: Optional[Money]
+    band_high: Optional[Money]
+    neighbours: list[NeighbourOut] = []
+    low_outliers: list[BandOfferOut] = []
+    excluded: list[ExclusionOut] = []
+    format_incoherent: list[FormatDisagreementOut] = []
+    tiers_available: bool
+    note: Optional[str] = None
+
+
+class PriceCoincidenceOut(_Out):
+    """Two merchants quoting one price to the penny — possibly one parcel seen
+    twice. An operator note: it never gates and never changes depth."""
+    price: Money
+    merchants: list[str]
+    any_brokered: bool
+    flag: str
+    note: str
+
+
+class ReinstateIn(_In):
+    """Putting an automatically excluded comp back. Who did it comes from the
+    session, never from the caller."""
+    reason: str = Field(min_length=1, max_length=500)
+
+
 class RunOut(RunSummary):
     line_id: UUID
     sources: list[RunSourceOut]
     comps: list[CompOut]
+    #: Absent on runs computed before the check existed.
+    vintage_band: Optional[VintageBandOut] = None
+    same_price_notes: list[PriceCoincidenceOut] = []

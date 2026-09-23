@@ -1,0 +1,9 @@
+{"merchant":"Vinum Fine Wines","captured_at":"2026-09-23","route":"extranet.hub.wine/html/vinum","rows":2474,"burgundy_rows":1186,
+ "confirmed":[],
+ "near":[{"line":"L57","offer":"2018 Hubert Lamy Clos de la Chateniere 3x150cl GBP 650","reason":"different bottle size and unit"}],
+ "notes":["Zero comps for this 70-line control set. Vinum's Burgundy is older and grander: Jayer, Truchot, Comte Liger-Belair, Faiveley grands crus.",
+          "Useful vintage-band evidence: 2015 Mugneret-Gibourg Vosne-Romanee village 6x75 GBP 1,590 (cf. BI 2016 GBP 1,489, 2018 GBP 1,223, 2020 GBP 2,070)."],
+ "traps":["Price cell can contain TWO prices ('GBP 760 / GBP 700' in one cell) - parse as a list and reject the row if it is ambiguous, never take the first.",
+          "'Avail.' contains a newline ('Future\\nArrival'); normalise whitespace before comparing.",
+          "The Price column is unlabelled as to duty status - duty_status stays UNKNOWN until Vinum confirms.",
+          "Comte Liger-Belair vs Thibault Liger-Belair both present - the exclusion pair is live here."]}

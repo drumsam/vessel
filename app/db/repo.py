@@ -18,6 +18,7 @@ from app.core.benchmark import BenchmarkResult
 from app.core.enums import ConditionFlag, DutyStatus, PriceKind, StockType
 from app.core.flags import Flag
 from app.core.models import Offer, SellerLine
+from app.market.vintage_band import FormatDisagreement, NeighbourVintage, VintageBandCheck
 from app.pricing.pricer import PricedLine
 from app.identity.resolver import (
     STRUCTURAL_EXCLUSIONS,
@@ -506,6 +507,10 @@ class Resolution:
     sources: list[dict]                  # merchant_id, snapshot_id, captured_at
     merchant_offer_ids: dict[str, str]   # offer_pk -> the merchant's own offer id
 
+    @property
+    def offer_by_id(self) -> dict[str, Offer]:
+        return {o.offer_id: o for o in self.offers}
+
 
 def resolve_offers(conn: psycopg.Connection, *, wine_id: str, vintage: int,
                    as_of: datetime) -> Resolution:
@@ -962,3 +967,120 @@ def thin_targets(conn: psycopg.Connection, deal_id: str, min_comps: int = 2) -> 
          GROUP BY l.wine_id, l.vintage, w.producer, w.wine_key
         HAVING coalesce(min(r.comp_count), 0) < %s
          ORDER BY w.producer, l.vintage""", (deal_id, min_comps)).fetchall()
+
+
+# ------------------------------------------- the vintage-neighbour sanity check
+#
+# docs/research/vintage-neighbour-check-spec.md. Read by the review screens and
+# by nothing else: no function below is called from pricing or from an export.
+
+
+def wine_region(conn: psycopg.Connection, wine_id: str) -> Optional[str]:
+    """The region a wine's vintage tiers are keyed by, or None when nobody has
+    recorded one. None widens nothing, which makes the check speak more often."""
+    row = conn.execute("SELECT region FROM wine WHERE wine_id = %s", (wine_id,)).fetchone()
+    return row["region"] if row else None
+
+
+def vintage_tiers(conn: psycopg.Connection, region: Optional[str]) -> dict[int, int]:
+    """{vintage: tier} for one region, or {} when nobody has recorded any.
+
+    An empty table means the band is not widened, which makes the check speak
+    more often rather than less — the conservative direction.
+    """
+    if not region:
+        return {}
+    return {r["vintage"]: r["tier"] for r in conn.execute(
+        "SELECT vintage, tier FROM vintage_tier WHERE region = %s", (region,))}
+
+
+def _neighbour_json(n: NeighbourVintage) -> dict:
+    return {"vintage": n.vintage, "median": str(exact_money(n.median)),
+            "merchants": n.merchants, "stale": n.stale,
+            "newest_captured_at": (n.newest_captured_at.isoformat()
+                                   if n.newest_captured_at else None)}
+
+
+def _outlier_json(ref) -> dict:
+    return {"offer_id": ref.offer_id, "merchant_id": ref.merchant_id,
+            "merchant": ref.merchant, "price": str(exact_money(ref.price)),
+            "edge": str(exact_money(ref.edge)),
+            "multiple": str(ref.multiple.quantize(RATE)), "flag": ref.flag}
+
+
+def _incoherence_json(d: FormatDisagreement) -> dict:
+    # The per-bottle figures exist inside this check's output and nowhere else:
+    # they are never stored on an offer and never exported (spec 3b).
+    return {"offer_id": d.offer_id, "merchant_id": d.merchant_id, "merchant": d.merchant,
+            "comp_unit": d.comp_unit, "comp_per_bottle": str(d.comp_per_bottle.quantize(CENT)),
+            "other_unit": d.other_unit, "other_per_bottle": str(d.other_per_bottle.quantize(CENT)),
+            "difference": str(d.difference.quantize(RATE)), "flag": d.flag}
+
+
+def save_vintage_band(conn: psycopg.Connection, run_id: str, check: VintageBandCheck,
+                      resolution: Resolution) -> None:
+    """The band for one run, and one exclusion row per comp it dropped."""
+    conn.execute(
+        """INSERT INTO vintage_band_check (run_id, unit, band_low, band_high, neighbours,
+                                           low_outliers, format_incoherent, tiers_available, note)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+        (run_id, check.unit, exact_money(check.band_low), exact_money(check.band_high),
+         Jsonb([_neighbour_json(n) for n in check.neighbours]),
+         Jsonb([_outlier_json(o) for o in check.low_outliers]),
+         Jsonb([_incoherence_json(d) for d in check.format_incoherent]),
+         check.tiers_available, check.note))
+
+    with conn.cursor() as cur:
+        cur.executemany(
+            """INSERT INTO benchmark_comp_exclusion
+                   (run_id, offer_pk, offer_snapshot, flag, band_edge, band_multiple)
+               VALUES (%s, %s, %s, %s, %s, %s)""",
+            [(run_id, ref.offer_id,
+              Jsonb(offer_snapshot(resolution.offer_by_id[ref.offer_id],
+                                   resolution.merchant_offer_ids[ref.offer_id])),
+              ref.flag, exact_money(ref.edge), ref.multiple.quantize(RATE))
+             for ref in check.high_outliers])
+
+
+def run_band(conn: psycopg.Connection, run_id: str) -> Optional[dict]:
+    return conn.execute(
+        "SELECT * FROM vintage_band_check WHERE run_id = %s", (run_id,)).fetchone()
+
+
+def run_exclusions(conn: psycopg.Connection, run_id: str) -> list[dict]:
+    return conn.execute(
+        """SELECT exclusion_id, offer_pk, offer_snapshot, flag, band_edge, band_multiple,
+                  excluded_at, reinstated_at, reinstated_by, reinstated_reason,
+                  replacement_run_id
+             FROM benchmark_comp_exclusion WHERE run_id = %s
+            ORDER BY (offer_snapshot->>'price')::numeric DESC, exclusion_id""",
+        (run_id,)).fetchall()
+
+
+def open_exclusion(conn: psycopg.Connection, exclusion_id: str) -> Optional[dict]:
+    """An exclusion that has not been put back yet, with its line."""
+    return conn.execute(
+        """SELECT x.*, r.line_id, r.as_of
+             FROM benchmark_comp_exclusion x
+             JOIN benchmark_run r ON r.run_id = x.run_id
+            WHERE x.exclusion_id = %s AND x.reinstated_at IS NULL""",
+        (exclusion_id,)).fetchone()
+
+
+def record_reinstatement(conn: psycopg.Connection, exclusion_id: str, *, reinstated_by: str,
+                         reason: str, replacement_run_id: str) -> dict:
+    """Who put the comp back, when, why, and the run that resulted.
+
+    The original run is not edited: it stays exactly as it was computed, and the
+    new run is what the line reads from now. Nothing is deleted.
+    """
+    row = conn.execute(
+        """UPDATE benchmark_comp_exclusion
+              SET reinstated_at = now(), reinstated_by = %s, reinstated_reason = %s,
+                  replacement_run_id = %s
+            WHERE exclusion_id = %s AND reinstated_at IS NULL
+        RETURNING *""",
+        (reinstated_by, reason, replacement_run_id, exclusion_id)).fetchone()
+    if row is None:
+        raise Conflict(f"exclusion {exclusion_id} is not open")
+    return row

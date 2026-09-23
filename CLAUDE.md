@@ -124,10 +124,10 @@ INGEST → IDENTITY PROPOSAL → IDENTITY VERIFICATION → SNAPSHOT LOOKUP
 ## Testing
 
 ```bash
-python -m pytest -q                      # 196 pass, 102 skip; no network, no services
+python -m pytest -q                      # 260 pass, 105 skip; no network, no services
 docker compose up -d                     # Postgres + Redis, then:
 TEST_DATABASE_URL=postgresql://pricer:pricer@localhost:5432/pricer_test \
-TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q   # 298 pass
+TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q   # 365 pass
 python scripts/rerun_burgundy_proof.py   # expect READY 0  REVIEW 5  NO_MARKET 15
 cd web && npm test                       # 5 tests: the browser-side parsing rules
 cd web && npm run e2e                    # the whole operator flow in a browser;
@@ -188,6 +188,13 @@ precedence and the commercial flags, all pure and tested.
 
 Snapshot retention (`prune_snapshots`, per merchant) and alias suggestions over
 the identity trail are built.
+
+`app/market/` holds the checks that are *about* the comps rather than part of
+the arithmetic, and nothing in it may change a figure the core produced:
+`vintage_band.py` (decision 0015 — a comp far above its own wine's neighbouring
+vintages is excluded and recorded, a comp far below is flagged and kept) and
+`parcel.py` (decision 0014 — two merchants at one price to the penny is an
+operator note, never a gate).
 
 Operator accounts and sessions are built (`app/api/auth.py`,
 `scripts/manage_operators.py`). The Next.js operator console is in `web/`:

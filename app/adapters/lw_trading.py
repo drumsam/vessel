@@ -61,6 +61,9 @@ _MIXED = re.compile(r"\bmixed\b|\bassort(?:ment|ed)?s?\b", re.I)
 
 _DUTY = {"in bond": DutyStatus.IN_BOND, "duty paid": DutyStatus.DUTY_PAID}
 
+_LEADING_VINTAGE = re.compile(r"^\s*(?:\d{4}|NV|N\.V\.)\s*[,]?\s*", re.I)
+_TRAILING_PACK = re.compile(r"[\s,]*\d+\s*x\s*[\d.]+\s*(?:cl|ml|l)\s*$", re.I)
+
 
 def attributes(product: dict) -> dict[str, str]:
     """{attribute name: first term}. Read by name: position is not stable."""
@@ -70,6 +73,36 @@ def attributes(product: dict) -> dict[str, str]:
         if attribute.get("name") and terms:
             out[attribute["name"]] = terms[0]
     return out
+
+
+def cuvee_from_name(name: str, producer: str) -> str:
+    """The cuvee inside a Store API product name.
+
+    L&W writes the whole listing into one field:
+    "2020 Bernard Dugat-Py, Gevrey-Chambertin, Coeur du Roy Tres Vieilles Vignes
+    6x75cl". Handed to the resolver whole, the vintage and the pack size become
+    part of the identity key, so every vintage of one wine is a different wine
+    and nothing can ever match the canonical table. The vintage and the format
+    are read from the attributes; they have no business in a name.
+
+    The merchant's own wording is not destroyed — it is kept verbatim in
+    `offer.raw["name"]`. This is only the slice the resolver is given.
+    """
+    text = _TRAILING_PACK.sub("", _LEADING_VINTAGE.sub("", name or "")).strip()
+    head, comma, rest = text.partition(",")
+    if comma and _is_the_producer(head, producer):
+        text = rest.strip()
+    return text
+
+
+def _is_the_producer(segment: str, producer: str) -> bool:
+    """True when a leading comma segment is just the producer again. L&W writes
+    both "Bernard Dugat-Py" and "Dugat-Py" for the same domaine, so containment
+    either way counts — but only against the row's own Producer attribute."""
+    from app.identity.resolver import norm_producer
+
+    one, other = norm_producer(segment), norm_producer(producer)
+    return bool(one) and bool(other) and (one in other or other in one)
 
 
 def parse_pack(pack: str) -> Optional[tuple[int, int]]:
@@ -197,5 +230,7 @@ class LayWheelerTradingAdapter(Adapter):
                  # which it is rather than the line being quietly dropped.
                  "availability": availability, "attributes": attrs},
         )
-        return Candidate(offer=offer, producer_text=attrs.get("Producer", ""),
-                         cuvee_text=name, lwin7=lwin_from_sku(raw.get("sku", "")))
+        producer_text = attrs.get("Producer", "")
+        return Candidate(offer=offer, producer_text=producer_text,
+                         cuvee_text=cuvee_from_name(name, producer_text),
+                         lwin7=lwin_from_sku(raw.get("sku", "")))

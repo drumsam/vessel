@@ -6,6 +6,7 @@ If one of these fails, a wrong price is about to reach a client.
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from dataclasses import replace
@@ -24,15 +25,17 @@ from app.adapters.goedhuis import GoedhuisAdapter, is_eligible_variant, parse_sk
 from app.adapters.lea_sandeman import (
     LeaSandemanAdapter, dedupe_rows, parse_pack, parse_rows)
 from app.adapters.lw_trading import (
-    PER_PAGE, LayWheelerTradingAdapter, attributes, lwin_from_sku, parse_price)
+    PER_PAGE, LayWheelerTradingAdapter, attributes, cuvee_from_name, lwin_from_sku,
+    parse_price)
 from app.core.benchmark import benchmark as _benchmark
 from app.core.enums import ConditionFlag, DutyStatus, PriceKind, Reject, State, StockType
 from app.core.flags import MAX_OFFER_AGE_DAYS, REVIEW_FLAGS, Flag
 from app.core.models import Offer, SellerLine
+from app.market.parcel import SAME_PRICE_AS_ANOTHER_MERCHANT, price_coincidences
 from app.worker.politeness import allowed, crawl_delay
 from app.identity.resolver import (
-    PRODUCER_EXCLUSIONS, STRUCTURAL_EXCLUSIONS, CanonicalWine, Registry, collided_lwins,
-    norm_producer, producers_excluded, wine_key)
+    PRODUCER_EXCLUSIONS, STRUCTURAL_EXCLUSIONS, Alias, CanonicalWine, Registry,
+    collided_lwins, norm_producer, producers_excluded, wine_key)
 
 WINE = "w-rousseau-chambertin"
 
@@ -1205,21 +1208,72 @@ def test_lw_trading_courcel_les_grands_epenots_rejected_for_grand_clos():
             "domaine de courcel|pommard 1er cru les grands epenots") in STRUCTURAL_EXCLUSIONS
 
 
-def test_lw_trading_coeur_du_roy_tres_vieilles_vignes_goes_to_review():
+def test_lw_trading_coeur_du_roy_is_one_wine_under_two_spellings():
     """L&W lists Dugat-Py "Coeur du Roy Tres Vieilles Vignes" 2020 at £765 and
-    a seller writes "Coeur de Roy". Dugat-Py bottles both, and L&W itself
-    spells the same cuvee both ways across vintages, so the du/de difference
-    settles nothing: no automatic match, the line waits for a person."""
+    a seller writes "Coeur de Roy". L&W itself spells the same cuvee both ways
+    across vintages, and sometimes prefixes "Cuvee". An operator has ruled them
+    one wine (23 September 2026), so they are one wine by approved alias — not
+    by a rule that du and de are interchangeable, which would also merge wines
+    that are genuinely different. Each merchant's wording is kept verbatim.
+
+    Left unmerged, the 2020 would price against nothing: £765 is the only UK
+    offer of that vintage in the sweep, and the line would read NO_MARKET."""
     candidate = lw_offer("2020 Bernard Dugat-Py, Gevrey-Chambertin, Coeur du Roy")
     assert candidate.offer.price == Decimal("765.00")
-    registry = Registry([
-        CanonicalWine("coeur-de-roy", "Bernard Dugat-Py", "Gevrey-Chambertin Coeur de Roy"),
-    ])
-    assert registry.resolve_candidate(candidate.producer_text, candidate.cuvee_text) is None
-    spellings = {p["name"].split(", ")[-1].replace(" 6x75cl", "").replace(" 12x75cl", "")
-                 for p in LW_PRODUCTS if "coeur" in p["name"].lower()}
-    assert any("Coeur du Roy" in s for s in spellings)
-    assert any("Coeur de Roy" in s for s in spellings)
+
+    canonical = CanonicalWine("coeur-de-roy", "Bernard Dugat-Py",
+                              "Gevrey-Chambertin Coeur de Roy Tres Vieilles Vignes")
+    bare = Registry([canonical])
+    assert bare.resolve_candidate(candidate.producer_text, candidate.cuvee_text) is None
+
+    aliases = [
+        Alias(key=wine_key("Bernard Dugat-Py",
+                           "Gevrey-Chambertin Coeur du Roy Tres Vieilles Vignes"),
+              wine_id="coeur-de-roy", approved_by="operator", approved_at="2026-09-23",
+              note="Dugat-Py spells this cuvee du Roy and de Roy; one wine"),
+        Alias(key=wine_key("Bernard Dugat-Py",
+                           "Gevrey-Chambertin Cuvee Coeur de Roy Tres Vieilles Vignes"),
+              wine_id="coeur-de-roy", approved_by="operator", approved_at="2026-09-23",
+              note="the same cuvee with L&W's Cuvee prefix"),
+    ]
+    registry = Registry([canonical], aliases)
+    resolved = {c.cuvee_text: registry.resolve_candidate(c.producer_text, c.cuvee_text)
+                for c in (lw_offer(name) for name in [
+                    "2020 Bernard Dugat-Py, Gevrey-Chambertin, Coeur du Roy",
+                    "2004 Bernard Dugat-Py, Gevrey-Chambertin, Coeur de Roy",
+                    "2022 Dugat-Py, Gevrey-Chambertin, Cuvee Coeur de Roy"])}
+    assert set(resolved.values()) == {"coeur-de-roy"}
+    # Three merchant spellings, one wine, and every spelling still on the record.
+    assert sorted(resolved) == [
+        "Gevrey-Chambertin, Coeur de Roy Tres Vieilles Vignes",
+        "Gevrey-Chambertin, Coeur du Roy Tres Vieilles Vignes",
+        "Gevrey-Chambertin, Cuvee Coeur de Roy Tres Vieilles Vignes",
+    ]
+    assert lw_product("Coeur du Roy")["name"] == \
+        "2020 Bernard Dugat-Py, Gevrey-Chambertin, Coeur du Roy Tres Vieilles Vignes 6x75cl"
+
+    # The merge is this domaine's, by name. It is not a licence to read one
+    # Dugat as another: Claude Dugat and Dugat-Py stay excluded.
+    assert producers_excluded("Domaine Claude Dugat", "Domaine Dugat-Py")
+
+
+def test_lw_trading_vintage_and_pack_never_enter_the_identity_key():
+    """The Store API writes the whole listing into `name`. Handed over whole,
+    "2020 ... 6x75cl" and "2022 ... 12x75cl" are two different wines and neither
+    can ever match the canonical table. The vintage and the format come from the
+    attributes; the name contributes the cuvee only."""
+    for needle in ["2020 Bernard Dugat-Py, Gevrey-Chambertin, Coeur du Roy",
+                   "2018 Dugat-Py, Gevrey-Chambertin, Cuvee Coeur de Roy"]:
+        candidate = lw_offer(needle)
+        assert candidate.producer_text == "Bernard Dugat-py"
+        assert not re.search(r"\d{4}|x75cl", candidate.cuvee_text)
+        assert candidate.offer.raw["name"].startswith(needle)   # kept verbatim
+    assert cuvee_from_name("2019 Domaine Faiveley, Mazis-Chambertin Grand Cru 6x75cl",
+                           "Domaine Faiveley") == "Mazis-Chambertin Grand Cru"
+    # A cuvee that happens to lead with the producer's name is not stripped
+    # twice: only a segment that IS the row's producer goes.
+    assert cuvee_from_name("2019 Domaine Faiveley, Faiveley Selection 6x75cl",
+                           "Domaine Faiveley") == "Faiveley Selection"
 
 
 # ------------------------------------- robots.txt as merchants actually write it
@@ -1289,3 +1343,77 @@ def test_robots_allow_beats_a_shorter_disallow():
     text = "User-agent: *\nDisallow: /wp-admin/\nAllow: /wp-admin/admin-ajax.php\n"
     assert allowed(text, "https://x/wp-admin/", UA) is False
     assert allowed(text, "https://x/wp-admin/admin-ajax.php", UA) is True
+
+
+# ------------------------- brokered stock, and two merchants quoting one price
+#
+# Control set L68, 21 September 2026 (decision 0014).
+
+def brokered(**kw) -> Offer:
+    return offer(stock_type=StockType.BROKERED, **kw)
+
+
+def test_l68_goedhuis_brokered_offer_stays_in_the_benchmark():
+    """Goedhuis brokes (SKU -BR-) at £1,300 against Lea & Sandeman at £1,325.
+    Dropping brokered offers would delete the cheaper of the only two UK prices
+    on this line: the Floor would rise by £25 and the line would lose its
+    second merchant and become ONE_COMP. A brokered offer is a real offer."""
+    goedhuis = brokered(offer_id="gw:l68", merchant_id="goedhuis", merchant="Goedhuis",
+                        price=Decimal("1300.00"))
+    lea = offer(offer_id="ls:l68", merchant_id="lea-sandeman", merchant="Lea & Sandeman",
+                price=Decimal("1325.00"))
+
+    r = benchmark(line(), [goedhuis, lea])
+    assert r.comp_count == 2 and r.state is State.READY
+    assert r.uk_floor == Decimal("1300.00") and r.uk_reference == Decimal("1325.00")
+    assert [o.merchant_id for o in r.merchant_bests] == ["goedhuis", "lea-sandeman"]
+    assert price_coincidences(r.merchant_bests) == []
+
+
+def test_l68_identical_price_is_an_operator_note_never_a_gate():
+    """Goedhuis (brokered) £1,300.00 and Lea & Sandeman £1,300.00, to the penny:
+    two listings, possibly one parcel. The operator is told. Nothing else
+    changes — the comp stays, depth stays 2, the Reference stays £1,300, and
+    the line stays READY."""
+    goedhuis = brokered(offer_id="gw:l68", merchant_id="goedhuis", merchant="Goedhuis",
+                        price=Decimal("1300.00"))
+    lea = offer(offer_id="ls:l68", merchant_id="lea-sandeman", merchant="Lea & Sandeman",
+                price=Decimal("1300.00"))
+
+    r = benchmark(line(), [goedhuis, lea])
+    [coincidence] = price_coincidences(r.merchant_bests)
+    assert coincidence.merchants == ["Goedhuis", "Lea & Sandeman"]
+    assert coincidence.price == Decimal("1300.00") and coincidence.any_brokered is True
+    assert "may be the same parcel" in coincidence.note
+
+    assert r.comp_count == 2 and r.state is State.READY
+    assert r.uk_floor == r.uk_reference == Decimal("1300.00")
+    assert SAME_PRICE_AS_ANOTHER_MERCHANT not in {f.value for f in REVIEW_FLAGS}
+    assert not any(f.value == SAME_PRICE_AS_ANOTHER_MERCHANT for f in r.flags)
+
+
+def test_a_penny_apart_is_two_merchants_not_one_parcel():
+    """£1,300.00 against £1,299.99 is keen pricing, not a shared parcel. Only
+    equality to the penny is reported, or the note becomes noise and is ignored
+    on the day it matters."""
+    assert price_coincidences([
+        brokered(offer_id="a", merchant_id="goedhuis", merchant="Goedhuis",
+                 price=Decimal("1300.00")),
+        offer(offer_id="b", merchant_id="lea-sandeman", merchant="Lea & Sandeman",
+              price=Decimal("1299.99")),
+    ]) == []
+
+
+def test_one_merchant_listing_twice_is_not_a_parcel_coincidence():
+    """Bordeaux Index lists the same case twice at one price (control set §7).
+    That is a duplicate listing, which merchant-best already collapses — it is
+    not two merchants and must never read as one parcel seen by two."""
+    twice = [offer(offer_id="bi:1", merchant_id="bordeaux-index", merchant="Bordeaux Index",
+                   price=Decimal("1300.00")),
+             offer(offer_id="bi:2", merchant_id="bordeaux-index", merchant="Bordeaux Index",
+                   price=Decimal("1300.00"))]
+    assert price_coincidences(twice) == []
+
+    r = benchmark(line(), twice)
+    assert r.comp_count == 1 and r.duplicate_listings == 1
+    assert price_coincidences(r.merchant_bests) == []

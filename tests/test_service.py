@@ -309,7 +309,8 @@ def test_migrations_reproduce_schema_sql_exactly():
 @pytest.mark.parametrize("old,new", [
     ("price            numeric(14,2) NOT NULL", "price            numeric(14,3) NOT NULL"),
     ("CHECK (wine_id_a < wine_id_b)", "CHECK (wine_id_a <> wine_id_b)"),
-    ("REFERENCES offer(offer_pk) ON DELETE SET NULL", "REFERENCES offer(offer_pk)"),
+    ("offer_pk       uuid REFERENCES offer(offer_pk) ON DELETE SET NULL",
+     "offer_pk       uuid REFERENCES offer(offer_pk)"),
     ("    WHERE status = 'ok';", "    ;"),
 ])
 def test_equivalence_check_detects_a_one_line_drift(old, new):
@@ -2043,3 +2044,164 @@ def test_fine_and_rare_is_searched_never_swept(client):
     [snap] = _sql("SELECT failures FROM snapshot WHERE snapshot_id = %s", (sid,))
     assert snap["failures"][0]["merchant_id"] == "fine-rare"
     assert "collect_targeted" in snap["failures"][0]["error"]
+
+
+# --- the vintage-neighbour sanity check ---------------------------------------
+#
+# docs/research/vintage-neighbour-check-spec.md, tests 8 and 9. The unit tests
+# for the band itself are in tests/test_vintage_band.py; these two are about
+# what the pipeline does with it.
+
+MG = "Mugneret-Gibourg"
+MG_CUVEE = "Vosne-Romanee"
+
+
+def mg_card(vintage: int, *prices: str) -> dict:
+    """One Bordeaux Index LiveTrade card: a vintage of the 6x75 In Bond, with
+    every offer BI shows on it. Two prices for one vintage sit on one card —
+    two cards would be two products."""
+    return {"title": f"{vintage} Domaine Mugneret-Gibourg, {MG_CUVEE}",
+            "code": f"mugneret-{vintage}",
+            "url": f"https://bordeauxindex.com/livetrade/mugneret-{vintage}",
+            "offers": [f"Case (6 x 75cl) CONDITION Original Case STATUS In-Bond ETA In Stock "
+                       f"You buy £{price} 1 Case(s) Available" for price in prices]}
+
+
+def ls_row(price: str, vintage: int = 2020) -> dict:
+    """One Lea & Sandeman In Bond list row, thirteen cells, read by position."""
+    return {"cells": ["Burgundy", "Red", str(vintage),
+                      f"{MG_CUVEE.upper()}, DOMAINE {MG.upper()}", "51234", "6x75cl", "2",
+                      price, "1550.00", "IB", "", "", "ADD TO BASKET"],
+            "source_url": "https://www.leaandsandeman.co.uk/fine-wine.html"}
+
+
+def _collect_ls(client, rows) -> str:
+    jid = client.post("/snapshots", json={"merchant_ids": ["lea-sandeman"]}).json()["job_id"]
+    return _run_patched(client, jid, "collect_snapshot", lambda orig: (
+        lambda merchant_ids=None, is_demo=False: orig(
+            merchant_ids, is_demo=is_demo, fetch=lambda a: rows, robots=lambda url: None)
+    ))["result"]
+
+
+def _collect_mg(client, wine_id, cards, vintage=2020) -> str:
+    jid = client.post("/snapshots/targeted", json={
+        "merchant_id": "bordeaux-index", "wine_id": wine_id, "vintage": vintage,
+        "params": {"producer_slug": "domaine-mugneret-gibourg"}}).json()["job_id"]
+    return _run_patched(client, jid, "collect_targeted", lambda orig: (
+        lambda merchant_id, wine_id, vintage, params, is_demo=False: orig(
+            merchant_id, wine_id, vintage, params, is_demo=is_demo,
+            fetch=lambda a, p, v: cards, robots=lambda url: None)
+    ))["result"]
+
+
+def _mugneret_line(client):
+    """The live L21 case: BI £2,070 and L&S £1,200 for the 2020 6x75 In Bond,
+    with BI's own 2017 and 2018 as the neighbouring vintages."""
+    wid = _seed_wine(client, producer=f"Domaine {MG}", cuvee=MG_CUVEE)
+    _collect_mg(client, wid, [mg_card(2020, "2070.00", "2074.00"),
+                              mg_card(2017, "1489.00", "1520.00"),
+                              mg_card(2018, "1223.00")])
+    _collect_ls(client, [ls_row("1200.00")])
+    r = client.post("/deals", json={
+        "name": "Vosne parcel", "currency": "GBP", "target_margin": 0.2,
+        "lines": [{"row_index": 0, "raw_description": "Mugneret-Gibourg Vosne 2020 6x75 IB",
+                   "raw_row": {"A": "Mugneret-Gibourg Vosne 2020", "B": "6"},
+                   "quantity": 6, "cost": "900.00", "cost_currency": "GBP"}]})
+    deal = r.json()
+    line_id = deal["lines"][0]["line_id"]
+    assert client.put(f"/lines/{line_id}/identity", json={
+        "wine_id": wid, "vintage": 2020, "bottle_ml": 750, "pack_size": 6,
+        "source": "operator", "flags": []}).status_code == 200
+    _benchmark(client, deal["deal_id"])
+    return deal["deal_id"], line_id
+
+
+@pg
+def test_mugneret_gibourg_2020_is_excluded_by_the_band_in_the_pipeline(client):
+    """The whole point, end to end: Bordeaux Index £2,070 against Lea & Sandeman
+    £1,200, with BI's own 2017 and 2018 at £1,489 and £1,223. Left alone the
+    line goes out READY off £2,070, 72% above a live UK ask."""
+    _, line_id = _mugneret_line(client)
+    run = client.get(f"/lines/{line_id}/benchmark").json()
+
+    assert run["uk_reference"] == "1200.00" and run["comp_count"] == 1
+    assert run["state"] == "REVIEW" and "ONE_COMP" in run["flags"]
+
+    band = run["vintage_band"]
+    assert (band["band_low"], band["band_high"]) == ("1223.00", "1489.00")
+    assert [(n["vintage"], n["median"]) for n in band["neighbours"]] == [
+        (2017, "1489.00"), (2018, "1223.00")]
+    assert band["tiers_available"] is False and "no vintage tiers recorded" in band["note"]
+
+    # BOTH of Bordeaux Index's listings go, not just its best. Excluding only
+    # the cheaper of them would promote the other and the Reference would fall
+    # from £2,070 to £2,074: the check would have achieved nothing.
+    assert [(x["merchant"], x["price"]) for x in band["excluded"]] == [
+        ("Bordeaux Index", "2074.00"), ("Bordeaux Index", "2070.00")]
+    assert {x["flag"] for x in band["excluded"]} == {"COMP_EXCLUDED_VINTAGE_BAND"}
+    assert {x["band_edge"] for x in band["excluded"]} == {"2010.15"}   # 1489.00 x 1.35
+    assert all(x["reinstated_at"] is None for x in band["excluded"])
+    assert all(c["merchant_id"] != "bordeaux-index"
+               for c in run["comps"] if c["role"] == "merchant_best")
+
+
+@pg
+def test_excluded_comp_is_reinstatable_with_provenance(client):
+    """One click puts Bordeaux Index's £2,070 back, and the record says who did
+    it and why. The original run is not edited: a new run is computed, the old
+    one still reads £1,200, and the band still says the comp is out of band."""
+    _, line_id = _mugneret_line(client)
+    before = client.get(f"/lines/{line_id}/benchmark").json()
+    excluded = [x for x in before["vintage_band"]["excluded"] if x["price"] == "2070.00"][0]
+
+    r = client.post(f"/comp-exclusions/{excluded['exclusion_id']}/reinstate",
+                    json={"reason": "BI confirmed the ask by phone"})
+    assert r.status_code == 200, r.text
+    after = r.json()
+
+    assert after["run_id"] != before["run_id"]
+    assert after["uk_reference"] == "2070.00" and after["comp_count"] == 2
+    # One comp back, the other still out: putting one back is not a blanket
+    # amnesty for every comp the band caught.
+    assert [x["price"] for x in after["vintage_band"]["excluded"]] == ["2074.00"]
+    # Still out of band, and still said so — it is simply no longer removed.
+    assert after["vintage_band"]["band_high"] == "1489.00"
+
+    [row] = _sql("SELECT * FROM benchmark_comp_exclusion WHERE exclusion_id = %s",
+                 (excluded["exclusion_id"],))
+    assert str(row["reinstated_by"]) == str(client.operator["operator_id"])
+    assert row["reinstated_reason"] == "BI confirmed the ask by phone"
+    assert str(row["replacement_run_id"]) == after["run_id"]
+    assert row["band_multiple"] == Decimal("1.0298")       # 2070.00 / 2010.15
+
+    # The run it was excluded from is untouched.
+    [old] = _sql("SELECT uk_reference FROM benchmark_run WHERE run_id = %s",
+                 (before["run_id"],))
+    assert old["uk_reference"] == Decimal("1200.00")
+
+
+@pg
+def test_export_contains_no_band_fields(client):
+    """A band is not a price and never appears on a client document: no band,
+    no neighbouring vintage, no per-bottle format figure, nothing."""
+    deal_id, line_id = _mugneret_line(client)
+    run = client.get(f"/lines/{line_id}/benchmark").json()
+    assert run["vintage_band"]["band_high"] == "1489.00"   # it exists on the run
+
+    _price(client, deal_id)
+    pricing = client.get(f"/lines/{line_id}/pricing").json()
+    client.post(f"/lines/{line_id}/pricing/acknowledge", json={"note": "seen, REVIEW"})
+    offer = client.post(f"/deals/{deal_id}/buyer-offers", json={
+        "client": "A Merchant Ltd", "lines": [{"line_id": line_id}]})
+    assert offer.status_code == 201, offer.text
+
+    printed = json.dumps(offer.json())
+    for banned in ("band", "neighbour", "vintage_band", "1489", "1223", "2070",
+                   "COMP_EXCLUDED_VINTAGE_BAND", "per_bottle"):
+        assert banned not in printed, banned
+    assert "market_claim" in printed and json.dumps(pricing) is not None
+
+    # And nothing in the export tables carries one either.
+    [claim] = _sql("SELECT * FROM buyer_offer_market_claim")
+    assert set(claim) == {"buyer_offer_id", "line_no", "run_id", "as_of",
+                          "uk_reference", "comp_count", "below_reference"}

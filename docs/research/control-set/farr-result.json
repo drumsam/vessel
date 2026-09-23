@@ -1,0 +1,3 @@
+{"merchant":"Farr Vintners","captured_at":"2026-09-21T14:40:09Z","burgundy_rows":1116,"matches":0,
+ "note":"Producers overlap (Anne Gros, Courcel, Lambrays, Faiveley, Liger-Belair, Magnien, Maume present) but no wine/vintage/format overlaps the Lea & Sandeman list. Farr holds different vintages: e.g. Courcel 2009 vs L&S 2014-2020; Clos des Lambrays 2020/2021/2024 vs L&S 2015/2018.",
+ "identity_traps_seen":["rossignol -> Rossignol-Trapet (Gevrey), not Nicolas Rossignol (Volnay)","clerget -> Domaine Y. Clerget, not Christian Clerget","liger belair -> both Thibault Liger-Belair and Domaine du Comte Liger-Belair","Combe d'Orveau -> made by both Anne Gros and Faiveley"]}

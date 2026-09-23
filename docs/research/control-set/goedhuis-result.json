@@ -1,0 +1,9 @@
+{"merchant":"Goedhuis Waddesdon","captured_at":"2026-09-21T14:41:52Z","products_scanned":4677,
+ "matches":[
+  {"line":"L61","title":"09B7NSGDF6PK _ 2017 - Nuits St Georges 1er Cru Les Damodes Domaine Faiveley - 6x75cl","eligible":true,"price":"350.00","sku":"09B7NSGDF6PK-IB-BR-350-InBond-ExcVAT","stock":"BROKERED","verified":"same wine, vintage, pack"},
+  {"line":"L68","title":"09B5CLLA6PK _ 2015 - Clos des Lambrays Grand Cru Domaine des Lambrays - 6x75cl","eligible":true,"price":"1300.00","sku":"09B5CLLA6PK-IB-BR-1300-InBond-ExcVAT","stock":"BROKERED","verified":"same wine, vintage, pack"},
+  {"line":"L30","title":"09C0NGGLB6PK _ 2020 - Nuits St Georges 1er Cru Les St Georges Thibault Liger-Belair - 6x75cl","eligible":true,"price":"695.00","sku":"09C0NGGLB6PK-IB-BR-695-InBond-ExcVAT","stock":"BROKERED","verified":"same wine; 'Les St Georges' matched 'Les Saint Georges' via st->saint normalisation"},
+  {"line":"L52","title":"09B8CLLA6PK _ 2018 - Clos des Lambrays Grand Cru Domaine des Lambrays - 6x75cl","eligible":true,"price":"1250.00","sku":"09B8CLLA6PK-IB-BR-1250-InBond-ExcVAT","stock":"BROKERED","verified":"same wine, vintage, pack"},
+  {"line":"L36","title":"09B9PCEC6PK _ 2019 - Pommard 1er Cru Grand Clos des Epenots Domaine de Courcel - 6x75cl","eligible":false,"reason":"no available IB InBond ExcVAT variant with positive price","verified":"identity correct, correctly rejected on buyability"}
+ ],
+ "false_positives":0}

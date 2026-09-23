@@ -41,6 +41,23 @@ export default function LineDetail({ lineId, line, onChange }) {
     }
   }
 
+  async function reinstate(exclusion) {
+    const reason = window.prompt(
+      `Put ${exclusion.merchant}'s ${money(exclusion.price)} back into the benchmark?\n` +
+      "Say why — it is kept with your name.");
+    if (!reason) return;
+    setBusy(true);
+    setError(null);
+    try {
+      setRun(await api.post(`/comp-exclusions/${exclusion.exclusion_id}/reinstate`, { reason }));
+      onChange();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function acknowledge() {
     setBusy(true);
     setError(null);
@@ -154,6 +171,14 @@ export default function LineDetail({ lineId, line, onChange }) {
             Searched: {run.sources.map((s) => s.merchant_id).join(", ") || "nobody"} ·
             as of {new Date(run.as_of).toLocaleString("en-GB")}
           </p>
+          {(run.same_price_notes || []).map((n) => (
+            <p key={n.price} className="notice" style={{ fontSize: 13 }}>
+              {n.merchants.join(" and ")} both ask {money(n.price)}
+              {n.any_brokered ? ", and one of them is broking" : ""} — this may be one
+              parcel listed twice. Both are counted; it is worth a look.
+            </p>
+          ))}
+          <VintageBand band={run.vintage_band} onReinstate={reinstate} busy={busy} />
           <div className="scroll">
             <table>
               <thead>
@@ -192,6 +217,68 @@ export default function LineDetail({ lineId, line, onChange }) {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+
+/** The vintage-neighbour sanity check. Evidence about the comps, never a price:
+ *  nothing here is a number we would ever quote a client. */
+function VintageBand({ band, onReinstate, busy }) {
+  if (!band) return null;
+  const excluded = band.excluded || [];
+  const open = excluded.filter((x) => !x.reinstated_at);
+  const put_back = excluded.filter((x) => x.reinstated_at);
+
+  return (
+    <div style={{ marginTop: 12 }}>
+      <h3 style={{ marginBottom: 6 }}>Neighbouring vintages</h3>
+      {band.band_low ? (
+        <p className="muted" style={{ fontSize: 13 }}>
+          {band.unit.replace("x", "×")}: this wine&apos;s {band.neighbours.map((n) => n.vintage).join(", ")}{" "}
+          sit between {money(band.band_low)} and {money(band.band_high)}
+          {band.neighbours.some((n) => n.stale) ? " (some of it older than the comp window)" : ""}.
+          {band.note ? ` ${band.note}.` : ""}
+        </p>
+      ) : (
+        <p className="muted" style={{ fontSize: 13 }}>{band.note || "No band."}</p>
+      )}
+
+      {open.map((x) => (
+        <div key={x.exclusion_id} className="notice bad" style={{ fontSize: 13 }}>
+          {x.merchant} at {money(x.price)} was left out: {Number(x.band_multiple).toFixed(2)}×
+          the {money(x.band_edge)} edge of its own neighbouring vintages.
+          <div style={{ marginTop: 8 }}>
+            <button className="small" disabled={busy} onClick={() => onReinstate(x)}>
+              Put it back
+            </button>
+          </div>
+        </div>
+      ))}
+
+      {(band.low_outliers || []).map((o) => (
+        <div key={o.offer_id || o.merchant} className="notice" style={{ fontSize: 13 }}>
+          {o.merchant} at {money(o.price)} is well below the band, and has been kept.
+          A cheap comp is often the true price — dropping it would push the Reference up.
+          Decide it yourself.
+        </div>
+      ))}
+
+      {(band.format_incoherent || []).map((d, i) => (
+        <p key={i} className="muted" style={{ fontSize: 13 }}>
+          {d.merchant} disagrees with itself: {money(d.other_per_bottle)}/btl in{" "}
+          {d.other_unit.replace("x", "×")} against {money(d.comp_per_bottle)}/btl in{" "}
+          {d.comp_unit.replace("x", "×")}. Shown as evidence; neither is priced from.
+        </p>
+      ))}
+
+      {put_back.map((x) => (
+        <p key={x.exclusion_id} className="muted" style={{ fontSize: 13 }}>
+          {x.merchant} at {money(x.price)} was put back by{" "}
+          {x.reinstated_by?.display_name || "an operator"} on{" "}
+          {new Date(x.reinstated_at).toLocaleDateString("en-GB")} — {x.reinstated_reason}
+        </p>
+      ))}
     </div>
   );
 }

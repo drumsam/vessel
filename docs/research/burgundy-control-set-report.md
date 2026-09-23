@@ -83,15 +83,19 @@ never loosens, so it is consistent with fail-closed.
 ### 2. Brokered offers can be the same parcel as another merchant's stock
 
 L68: Goedhuis (brokered, SKU `-BR-`) at **£1,300.00**, Lea & Sandeman at
-**£1,300.00** — to the penny. A broker listing someone else's parcel is exactly
-how two "merchants" become one bottle. The depth rule counts merchants, so it
-cannot see this. In view B it doesn't matter (L&S excluded), but in view A this
-line's depth of 3 may really be 2.
+**£1,300.00** — to the penny. Two listings, possibly one parcel.
 
-Not fixable deterministically from what we collect. Options: (a) surface
-`BROKERED` comps to the operator with an "identical price to another merchant"
-note — informational, not gating; (b) ask Goedhuis whether brokered lines
-disclose source. Recommend (a) now.
+**This is not a mark against brokers.** Much of the trade brokes now, a brokered
+offer is a real offer, and it is often the only visible price on a thin wine. The
+point is narrower: identical prices may be one parcel seen twice, so counting
+them as two merchants overstates how many places the wine can actually be bought.
+
+Operator note only, never gating: "same price as another merchant — may be the
+same parcel". The comp stays in the benchmark.
+
+Related, and it matters for the outlier check: on platforms where the holder sets
+the price, asking prices skew high. That is another reason the vintage-band check
+auto-excludes only *dear* outliers and never cheap ones.
 
 ### 3. Case-size mismatches are common and the rule held
 

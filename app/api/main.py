@@ -7,6 +7,7 @@ back here exactly as persisted.
 from __future__ import annotations
 
 import os
+from decimal import Decimal
 from typing import Iterator, Optional
 from uuid import UUID
 
@@ -18,8 +19,11 @@ from rq.exceptions import NoSuchJobError
 from rq.job import Job
 
 from app.api import auth, schemas as s
+from app.core.enums import StockType
 from app.db import repo
+from app.market.parcel import SAME_PRICE_AS_ANOTHER_MERCHANT
 from app.db.connection import transaction
+from app.worker import jobs
 from app.worker.queue import get_queue
 
 app = FastAPI(title="UK Fine Wine Deal Pricer")
@@ -258,7 +262,63 @@ def get_line_benchmark(line_id: UUID, conn: psycopg.Connection = Depends(db)):
                                        "offer_pk": c["offer_pk"]})
              for c in repo.run_comps(conn, run["run_id"])]
     return s.RunOut.model_validate(
-        {**run, "sources": repo.run_sources(conn, run["run_id"]), "comps": comps})
+        {**run, "sources": repo.run_sources(conn, run["run_id"]), "comps": comps,
+         "vintage_band": _band_out(conn, run["run_id"]),
+         "same_price_notes": _same_price_notes(comps)})
+
+
+def _same_price_notes(comps: list[s.CompOut]) -> list[dict]:
+    """Two merchants at one price, to the penny — possibly one parcel seen
+    twice. Read from the run's own merchant-bests, so it is still right after
+    the snapshots behind it have been pruned (decision 0014)."""
+    bests: dict[Decimal, list[s.CompOut]] = {}
+    for c in comps:
+        if c.role == "merchant_best":
+            bests.setdefault(c.price, []).append(c)
+    out = []
+    for price, group in sorted(bests.items()):
+        if len({c.merchant_id for c in group}) < 2:
+            continue
+        merchants = sorted(c.merchant for c in group)
+        out.append({
+            "price": price, "merchants": merchants,
+            "any_brokered": any(c.stock_type == StockType.BROKERED.value for c in group),
+            "flag": SAME_PRICE_AS_ANOTHER_MERCHANT,
+            "note": (f"same price as another merchant ({', '.join(merchants)} at {price}) "
+                     "— may be the same parcel")})
+    return out
+
+
+def _band_out(conn: psycopg.Connection, run_id) -> Optional[dict]:
+    """The band for a run, with its exclusions. None for runs computed before
+    the check existed — absent, not an empty band that claims it was checked."""
+    band = repo.run_band(conn, str(run_id))
+    if band is None:
+        return None
+    exclusions = []
+    for x in repo.run_exclusions(conn, str(run_id)):
+        snapshot = x["offer_snapshot"]
+        exclusions.append(_op(conn, {**x, "merchant": snapshot["merchant"],
+                                     "price": snapshot["price"]}, "reinstated_by"))
+    return {**band, "excluded": exclusions}
+
+
+@protected.post("/comp-exclusions/{exclusion_id}/reinstate", response_model=s.RunOut)
+def reinstate_comp(exclusion_id: UUID, body: s.ReinstateIn,
+                   conn: psycopg.Connection = Depends(db),
+                   operator: dict = Depends(current_operator)):
+    """Put an automatically excluded comp back: the one click in spec 5.
+
+    The original run is not edited. A new run is computed with the comp
+    restored, and the exclusion row records who asked and why.
+    """
+    try:
+        done = jobs.reinstate_comp(str(exclusion_id), str(operator["operator_id"]), body.reason)
+    except LookupError as e:
+        raise HTTPException(404, str(e))
+    except (repo.Conflict, psycopg.Error) as e:
+        raise _translate(e)
+    return get_line_benchmark(UUID(done["line_id"]), conn)
 
 
 @protected.post("/lines/{line_id}/pricing/acknowledge", response_model=s.PricingOut)

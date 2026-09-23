@@ -7,6 +7,7 @@ values and opens its own database connection.
     DEEP MERCHANT SEARCH .... deep_search       (the gaps, per producer + vintage)
                               collect_targeted  (one producer + vintage)
     DETERMINISTIC BENCHMARK . benchmark_deal
+    VINTAGE-BAND CHECK ...... inside benchmark_deal, and reinstate_comp to undo it
     PRICING ................. price_deal
     RETENTION ............... prune_snapshots
 """
@@ -33,6 +34,7 @@ from app.core.enums import Reject
 from app.db import repo
 from app.db.connection import transaction
 from app.identity.resolver import collided_lwins, norm_producer
+from app.market.vintage_band import check_vintage_band, without_high_outliers
 from app.pricing.pricer import DEEP_DISCOUNT_THRESHOLD, CannotPrice, price_line
 from app.worker.politeness import check_robots
 
@@ -290,7 +292,7 @@ def benchmark_deal(deal_id: str, as_of: Optional[str] = None) -> dict:
     has looked, and NO_MARKET would claim that somebody did.
     """
     when = datetime.fromisoformat(as_of) if as_of else _now()
-    runs, unapproved, no_coverage = {}, [], []
+    runs, unapproved, no_coverage, excluded = {}, [], [], {}
     with transaction() as conn:
         if repo.get_deal(conn, deal_id) is None:
             raise LookupError(f"deal {deal_id} not found")
@@ -304,10 +306,76 @@ def benchmark_deal(deal_id: str, as_of: Optional[str] = None) -> dict:
             if not res.sources:
                 no_coverage.append(line.line_id)
                 continue
-            result = benchmark(line, res.offers, as_of=when)
-            runs[line.line_id] = str(repo.save_benchmark(conn, result, res))
+            run_id, check = _benchmark_with_band(conn, line, res, when)
+            runs[line.line_id] = run_id
+            if check.high_outliers:
+                excluded[line.line_id] = [ref.merchant for ref in check.high_outliers]
     return {"as_of": when.isoformat(), "runs": runs,
-            "unapproved_identity": unapproved, "no_coverage": no_coverage}
+            "unapproved_identity": unapproved, "no_coverage": no_coverage,
+            "comps_excluded_by_band": excluded}
+
+
+def _benchmark_with_band(conn: psycopg.Connection, line, res: repo.Resolution,
+                         when: datetime, *, wine_region: Optional[str] = None,
+                         reinstated: Sequence[str] = ()) -> tuple[str, "object"]:
+    """Benchmark, sanity-check the comps against their neighbouring vintages,
+    and re-benchmark without any comp the band found too dear.
+
+    The order matters: the band runs on comps the benchmark has already
+    accepted, so it can never introduce one. `reinstated` names offers an
+    operator has put back, which the band must not exclude a second time — the
+    person has seen the number and overruled the rule.
+
+    Neighbours and other formats come out of the same resolution the benchmark
+    used. Nothing extra is fetched, and nothing here is ever a price.
+    """
+    result = benchmark(line, res.offers, as_of=when)
+    region = wine_region if wine_region is not None else repo.wine_region(conn, line.wine_id)
+    # Every comparable, not just the merchant-bests: Bordeaux Index lists the
+    # 2020 Mugneret-Gibourg six-pack at £2,070 AND £2,074, and excluding only
+    # the best of them promotes the other. The Reference would fall from £2,070
+    # to £2,074 and the whole check would have achieved nothing.
+    check = check_vintage_band(
+        line, result.comparables,
+        neighbour_offers=res.offers, other_format_offers=res.offers, as_of=when,
+        tiers=repo.vintage_tiers(conn, region))
+    if reinstated:
+        check = replace(check, high_outliers=[ref for ref in check.high_outliers
+                                              if ref.offer_id not in set(reinstated)])
+    if check.high_outliers:
+        result = benchmark(line, without_high_outliers(res.offers, check), as_of=when)
+
+    run_id = str(repo.save_benchmark(conn, result, res))
+    repo.save_vintage_band(conn, run_id, check, res)
+    return run_id, check
+
+
+def reinstate_comp(exclusion_id: str, reinstated_by: str, reason: str) -> dict:
+    """Put an automatically excluded comp back, and say who did it.
+
+    "One-click put it back" (spec 5). The original run is never edited: a new
+    run is computed with the comp restored, and the exclusion row records who
+    asked, why, and which run resulted. The band still runs on the new run, so
+    the operator can see the comp is still out of band — it is simply no longer
+    excluded.
+    """
+    with transaction() as conn:
+        row = repo.open_exclusion(conn, exclusion_id)
+        if row is None:
+            raise LookupError(f"no open exclusion {exclusion_id}")
+        line_row = repo.get_line(conn, str(row["line_id"]))
+        line = repo.seller_line_for_benchmark(line_row)
+        if line is None:
+            raise LookupError(f"line {row['line_id']} no longer has an approved identity")
+        when = row["as_of"]
+        res = repo.resolve_offers(conn, wine_id=line.wine_id, vintage=line.vintage, as_of=when)
+        already = [str(x["offer_pk"]) for x in repo.run_exclusions(conn, str(row["run_id"]))
+                   if x["reinstated_at"] is not None or str(x["exclusion_id"]) == exclusion_id]
+        run_id, check = _benchmark_with_band(conn, line, res, when, reinstated=already)
+        repo.record_reinstatement(conn, exclusion_id, reinstated_by=reinstated_by,
+                                  reason=reason, replacement_run_id=run_id)
+    return {"exclusion_id": exclusion_id, "run_id": run_id,
+            "line_id": str(row["line_id"]), "reinstated_by": reinstated_by}
 
 
 # ------------------------------------------------------------------- pricing
