@@ -58,8 +58,9 @@ app/
   adapters/
     base.py      Adapter protocol: fetch() network, normalise() pure
     condition.py merchant condition prose -> ConditionFlag
-    farr.py  goedhuis.py                 swept whole
-    bordeaux_index.py  fine_and_rare.py  searched per producer + vintage
+    farr.py  goedhuis.py  lea_sandeman.py            swept whole
+    bordeaux_index.py  fine_and_rare.py  lw_trading.py
+                                                     searched per producer
   ai/
     provider.py  provider-independent interface + factory
   db/

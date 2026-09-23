@@ -1,0 +1,3581 @@
+{
+ "source": "https://laywheelertrading.com/wp-json/wc/store/v1/products",
+ "captured_at": "2026-09-23T15:41:54Z",
+ "note": "Live WooCommerce Store API responses. Products verbatim minus description, images, links and category blocks. Faiveley is trimmed to show the X-WP-TotalPages pagination; Courcel and the Dugat-Py Coeur rows are whole.",
+ "responses": [
+  {
+   "query": {
+    "search": "Faiveley",
+    "per_page": 100,
+    "page": 1
+   },
+   "headers": {
+    "x-wp-total": "185",
+    "x-wp-totalpages": "2"
+   },
+   "products": [
+    {
+     "id": 103566,
+     "name": "2009 Domaine Faiveley, Gevrey-Chambertin Premier Cru, Combe au Moine 6x75cl",
+     "slug": "2009-domaine-faiveley-gevrey-chambertin-premier-cru-combe-au-moine-6x75cl-hub-VS10308999-6-IB-11438221",
+     "parent": 0,
+     "type": "simple",
+     "variation": "",
+     "permalink": "https://laywheelertrading.com/product/2009-domaine-faiveley-gevrey-chambertin-premier-cru-combe-au-moine-6x75cl-hub-VS10308999-6-IB-11438221/",
+     "sku": "hub-VS10308999-6-IB-11438221",
+     "on_sale": false,
+     "prices": {
+      "price": "80000",
+      "regular_price": "80000",
+      "sale_price": "80000",
+      "price_range": null,
+      "currency_code": "GBP",
+      "currency_symbol": "£",
+      "currency_minor_unit": 2,
+      "currency_decimal_separator": ".",
+      "currency_thousand_separator": ",",
+      "currency_prefix": "£",
+      "currency_suffix": ""
+     },
+     "price_html": "<div class=\"hub-price\"><span class=\"hub-price-in-bond\"><span class=\"woocommerce-Price-amount amount\"><span class=\"woocommerce-Price-currencySymbol\">&pound;</span>800</span>/Case <span class=\"hub-price-postfix\">(Excl. UK Duty &amp; VAT)</span></span><span class=\"hub-price-retail\"><span class=\"woocommerce-Price-amount amount\"><span class=\"woocommerce-Price-currencySymbol\">£</span>981.46</span>/Case <span class=\"hub-price-postfix\">(Incl. UK Duty &amp; VAT)</span></span><span class=\"hub-duty-status\">Duty Status: <strong>In Bond</strong></span><span class=\"hub-availability\">Availability: <strong>Immediate</strong></span></div>",
+     "average_rating": "0",
+     "review_count": 0,
+     "tags": [],
+     "attributes": [
+      {
+       "id": 6,
+       "name": "Wine Type",
+       "taxonomy": "pa_wine-type",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 1544,
+         "name": "Red",
+         "slug": "red"
+        }
+       ]
+      },
+      {
+       "id": 1,
+       "name": "Country",
+       "taxonomy": "pa_country",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2861,
+         "name": "France",
+         "slug": "france"
+        }
+       ]
+      },
+      {
+       "id": 2,
+       "name": "Region",
+       "taxonomy": "pa_region",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3535,
+         "name": "Burgundy",
+         "slug": "burgundy"
+        }
+       ]
+      },
+      {
+       "id": 3,
+       "name": "Subregion",
+       "taxonomy": "pa_subregion",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3594,
+         "name": "Gevrey-Chambertin",
+         "slug": "gevrey-chambertin"
+        }
+       ]
+      },
+      {
+       "id": 7,
+       "name": "Vintage",
+       "taxonomy": "pa_vintage",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 92,
+         "name": "2009",
+         "slug": "2009"
+        }
+       ]
+      },
+      {
+       "id": 8,
+       "name": "Producer",
+       "taxonomy": "pa_producer",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 4943,
+         "name": "Domaine Faiveley",
+         "slug": "domaine-faiveley"
+        }
+       ]
+      },
+      {
+       "id": 13,
+       "name": "Appellation",
+       "taxonomy": "pa_appellation",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 4647,
+         "name": "Gevrey-Chambertin",
+         "slug": "gevrey-chambertin"
+        }
+       ]
+      },
+      {
+       "id": 10,
+       "name": "Classification",
+       "taxonomy": "pa_classification",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3538,
+         "name": "Premier Cru",
+         "slug": "premier-cru"
+        }
+       ]
+      },
+      {
+       "id": 4,
+       "name": "Bottle Size",
+       "taxonomy": "pa_bottle-size",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2859,
+         "name": "75cl",
+         "slug": "75cl"
+        }
+       ]
+      },
+      {
+       "id": 5,
+       "name": "Pack Size",
+       "taxonomy": "pa_pack-size",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2863,
+         "name": "6x75cl",
+         "slug": "6x75cl"
+        }
+       ]
+      },
+      {
+       "id": 20,
+       "name": "Pack Type",
+       "taxonomy": "pa_pack-type",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 4353,
+         "name": "Original Cardboard Case",
+         "slug": "original-cardboard-case"
+        }
+       ]
+      },
+      {
+       "id": 14,
+       "name": "Alcohol Percentage",
+       "taxonomy": "pa_alcohol-percentage",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 6034,
+         "name": "13.00",
+         "slug": "1300"
+        }
+       ]
+      },
+      {
+       "id": 23,
+       "name": "Duty Status",
+       "taxonomy": "pa_duty-status",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2475,
+         "name": "In Bond",
+         "slug": "in-bond"
+        }
+       ]
+      },
+      {
+       "id": 17,
+       "name": "Availability",
+       "taxonomy": "pa_availability",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 419,
+         "name": "Immediate",
+         "slug": "immediate"
+        }
+       ]
+      }
+     ],
+     "variations": [],
+     "has_options": false,
+     "is_purchasable": true,
+     "is_in_stock": true,
+     "is_on_backorder": false,
+     "low_stock_remaining": 1,
+     "stock_availability": {
+      "text": "1 Available",
+      "class": "in-stock wd-style-default"
+     },
+     "sold_individually": false,
+     "weight": "",
+     "dimensions": {
+      "length": "",
+      "width": "",
+      "height": ""
+     },
+     "formatted_weight": "N/A",
+     "formatted_dimensions": "N/A",
+     "is_password_protected": false
+    },
+    {
+     "id": 110630,
+     "name": "2014 Domaine Faiveley, Latricieres-Chambertin Grand Cru 6x75cl",
+     "slug": "2014-domaine-faiveley-latricieres-chambertin-grand-cru-6x75cl-hub-VS10134790-6-IB-10409898",
+     "parent": 0,
+     "type": "simple",
+     "variation": "",
+     "permalink": "https://laywheelertrading.com/product/2014-domaine-faiveley-latricieres-chambertin-grand-cru-6x75cl-hub-VS10134790-6-IB-10409898/",
+     "sku": "hub-VS10134790-6-IB-10409898",
+     "on_sale": false,
+     "prices": {
+      "price": "73500",
+      "regular_price": "73500",
+      "sale_price": "73500",
+      "price_range": null,
+      "currency_code": "GBP",
+      "currency_symbol": "£",
+      "currency_minor_unit": 2,
+      "currency_decimal_separator": ".",
+      "currency_thousand_separator": ",",
+      "currency_prefix": "£",
+      "currency_suffix": ""
+     },
+     "price_html": "<div class=\"hub-price\"><span class=\"hub-price-in-bond\"><span class=\"woocommerce-Price-amount amount\"><span class=\"woocommerce-Price-currencySymbol\">&pound;</span>735</span>/Case <span class=\"hub-price-postfix\">(Excl. UK Duty &amp; VAT)</span></span><span class=\"hub-price-retail\"><span class=\"woocommerce-Price-amount amount\"><span class=\"woocommerce-Price-currencySymbol\">£</span>903.46</span>/Case <span class=\"hub-price-postfix\">(Incl. UK Duty &amp; VAT)</span></span><span class=\"hub-duty-status\">Duty Status: <strong>In Bond</strong></span><span class=\"hub-availability\">Availability: <strong>Immediate</strong></span></div>",
+     "average_rating": "0",
+     "review_count": 0,
+     "tags": [],
+     "attributes": [
+      {
+       "id": 6,
+       "name": "Wine Type",
+       "taxonomy": "pa_wine-type",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 1544,
+         "name": "Red",
+         "slug": "red"
+        }
+       ]
+      },
+      {
+       "id": 1,
+       "name": "Country",
+       "taxonomy": "pa_country",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2861,
+         "name": "France",
+         "slug": "france"
+        }
+       ]
+      },
+      {
+       "id": 2,
+       "name": "Region",
+       "taxonomy": "pa_region",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3535,
+         "name": "Burgundy",
+         "slug": "burgundy"
+        }
+       ]
+      },
+      {
+       "id": 3,
+       "name": "Subregion",
+       "taxonomy": "pa_subregion",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 4023,
+         "name": "Latricieres-Chambertin",
+         "slug": "latricieres-chambertin"
+        }
+       ]
+      },
+      {
+       "id": 7,
+       "name": "Vintage",
+       "taxonomy": "pa_vintage",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 57,
+         "name": "2014",
+         "slug": "2014"
+        }
+       ]
+      },
+      {
+       "id": 8,
+       "name": "Producer",
+       "taxonomy": "pa_producer",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 4943,
+         "name": "Domaine Faiveley",
+         "slug": "domaine-faiveley"
+        }
+       ]
+      },
+      {
+       "id": 13,
+       "name": "Appellation",
+       "taxonomy": "pa_appellation",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 15111,
+         "name": "Latricieres-Chambertin",
+         "slug": "latricieres-chambertin"
+        }
+       ]
+      },
+      {
+       "id": 10,
+       "name": "Classification",
+       "taxonomy": "pa_classification",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3570,
+         "name": "Grand Cru",
+         "slug": "grand-cru"
+        }
+       ]
+      },
+      {
+       "id": 4,
+       "name": "Bottle Size",
+       "taxonomy": "pa_bottle-size",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2859,
+         "name": "75cl",
+         "slug": "75cl"
+        }
+       ]
+      },
+      {
+       "id": 5,
+       "name": "Pack Size",
+       "taxonomy": "pa_pack-size",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2863,
+         "name": "6x75cl",
+         "slug": "6x75cl"
+        }
+       ]
+      },
+      {
+       "id": 14,
+       "name": "Alcohol Percentage",
+       "taxonomy": "pa_alcohol-percentage",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 6034,
+         "name": "13.00",
+         "slug": "1300"
+        }
+       ]
+      },
+      {
+       "id": 23,
+       "name": "Duty Status",
+       "taxonomy": "pa_duty-status",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2475,
+         "name": "In Bond",
+         "slug": "in-bond"
+        }
+       ]
+      },
+      {
+       "id": 17,
+       "name": "Availability",
+       "taxonomy": "pa_availability",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 419,
+         "name": "Immediate",
+         "slug": "immediate"
+        }
+       ]
+      }
+     ],
+     "variations": [],
+     "has_options": false,
+     "is_purchasable": true,
+     "is_in_stock": true,
+     "is_on_backorder": false,
+     "low_stock_remaining": 2,
+     "stock_availability": {
+      "text": "2 Available",
+      "class": "in-stock wd-style-default"
+     },
+     "sold_individually": false,
+     "weight": "",
+     "dimensions": {
+      "length": "",
+      "width": "",
+      "height": ""
+     },
+     "formatted_weight": "N/A",
+     "formatted_dimensions": "N/A",
+     "is_password_protected": false
+    },
+    {
+     "id": 120259,
+     "name": "2019 Domaine Faiveley, Mazis-Chambertin Grand Cru 6x75cl",
+     "slug": "2019-domaine-faiveley-mazis-chambertin-grand-cru-6x75cl-hub-VS10129349-6-IB-10395877",
+     "parent": 0,
+     "type": "simple",
+     "variation": "",
+     "permalink": "https://laywheelertrading.com/product/2019-domaine-faiveley-mazis-chambertin-grand-cru-6x75cl-hub-VS10129349-6-IB-10395877/",
+     "sku": "hub-VS10129349-6-IB-10395877",
+     "on_sale": false,
+     "prices": {
+      "price": "110000",
+      "regular_price": "110000",
+      "sale_price": "110000",
+      "price_range": null,
+      "currency_code": "GBP",
+      "currency_symbol": "£",
+      "currency_minor_unit": 2,
+      "currency_decimal_separator": ".",
+      "currency_thousand_separator": ",",
+      "currency_prefix": "£",
+      "currency_suffix": ""
+     },
+     "price_html": "<div class=\"hub-price\"><span class=\"hub-price-in-bond\"><span class=\"woocommerce-Price-amount amount\"><span class=\"woocommerce-Price-currencySymbol\">&pound;</span>1,100</span>/Case <span class=\"hub-price-postfix\">(Excl. UK Duty &amp; VAT)</span></span><span class=\"hub-price-retail\"><span class=\"woocommerce-Price-amount amount\"><span class=\"woocommerce-Price-currencySymbol\">£</span>1,343.11</span>/Case <span class=\"hub-price-postfix\">(Incl. UK Duty &amp; VAT)</span></span><span class=\"hub-duty-status\">Duty Status: <strong>In Bond</strong></span><span class=\"hub-availability\">Availability: <strong>Immediate</strong></span></div>",
+     "average_rating": "0",
+     "review_count": 0,
+     "tags": [
+      {
+       "id": 15472,
+       "name": "Cellar Collection - Burgundy",
+       "slug": "cellar-collection-burgundy",
+       "link": "https://laywheelertrading.com/product-tag/cellar-collection-burgundy/"
+      }
+     ],
+     "attributes": [
+      {
+       "id": 6,
+       "name": "Wine Type",
+       "taxonomy": "pa_wine-type",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 1544,
+         "name": "Red",
+         "slug": "red"
+        }
+       ]
+      },
+      {
+       "id": 1,
+       "name": "Country",
+       "taxonomy": "pa_country",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2861,
+         "name": "France",
+         "slug": "france"
+        }
+       ]
+      },
+      {
+       "id": 2,
+       "name": "Region",
+       "taxonomy": "pa_region",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3535,
+         "name": "Burgundy",
+         "slug": "burgundy"
+        }
+       ]
+      },
+      {
+       "id": 3,
+       "name": "Subregion",
+       "taxonomy": "pa_subregion",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 14052,
+         "name": "Mazis-Chambertin",
+         "slug": "mazis-chambertin"
+        }
+       ]
+      },
+      {
+       "id": 7,
+       "name": "Vintage",
+       "taxonomy": "pa_vintage",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 208,
+         "name": "2019",
+         "slug": "2019"
+        }
+       ]
+      },
+      {
+       "id": 8,
+       "name": "Producer",
+       "taxonomy": "pa_producer",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 4943,
+         "name": "Domaine Faiveley",
+         "slug": "domaine-faiveley"
+        }
+       ]
+      },
+      {
+       "id": 13,
+       "name": "Appellation",
+       "taxonomy": "pa_appellation",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 14893,
+         "name": "Mazis-Chambertin",
+         "slug": "mazis-chambertin"
+        }
+       ]
+      },
+      {
+       "id": 10,
+       "name": "Classification",
+       "taxonomy": "pa_classification",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3570,
+         "name": "Grand Cru",
+         "slug": "grand-cru"
+        }
+       ]
+      },
+      {
+       "id": 4,
+       "name": "Bottle Size",
+       "taxonomy": "pa_bottle-size",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2859,
+         "name": "75cl",
+         "slug": "75cl"
+        }
+       ]
+      },
+      {
+       "id": 5,
+       "name": "Pack Size",
+       "taxonomy": "pa_pack-size",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2863,
+         "name": "6x75cl",
+         "slug": "6x75cl"
+        }
+       ]
+      },
+      {
+       "id": 14,
+       "name": "Alcohol Percentage",
+       "taxonomy": "pa_alcohol-percentage",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 6089,
+         "name": "14.00",
+         "slug": "1400"
+        }
+       ]
+      },
+      {
+       "id": 23,
+       "name": "Duty Status",
+       "taxonomy": "pa_duty-status",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2475,
+         "name": "In Bond",
+         "slug": "in-bond"
+        }
+       ]
+      },
+      {
+       "id": 17,
+       "name": "Availability",
+       "taxonomy": "pa_availability",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 419,
+         "name": "Immediate",
+         "slug": "immediate"
+        }
+       ]
+      }
+     ],
+     "variations": [],
+     "has_options": false,
+     "is_purchasable": true,
+     "is_in_stock": true,
+     "is_on_backorder": false,
+     "low_stock_remaining": 1,
+     "stock_availability": {
+      "text": "1 Available",
+      "class": "in-stock wd-style-default"
+     },
+     "sold_individually": false,
+     "weight": "",
+     "dimensions": {
+      "length": "",
+      "width": "",
+      "height": ""
+     },
+     "formatted_weight": "N/A",
+     "formatted_dimensions": "N/A",
+     "is_password_protected": false
+    }
+   ]
+  },
+  {
+   "query": {
+    "search": "Faiveley",
+    "per_page": 100,
+    "page": 2
+   },
+   "headers": {
+    "x-wp-total": "185",
+    "x-wp-totalpages": "2"
+   },
+   "products": [
+    {
+     "id": 288336,
+     "name": "2020 Domaine Faiveley, Chambertin-Clos de Beze Grand Cru 6x75cl",
+     "slug": "2020-domaine-faiveley-chambertin-clos-de-beze-grand-cru-6x75cl-103125020200600750",
+     "parent": 0,
+     "type": "simple",
+     "variation": "",
+     "permalink": "https://laywheelertrading.com/product/2020-domaine-faiveley-chambertin-clos-de-beze-grand-cru-6x75cl-103125020200600750/",
+     "sku": "LXSIB103125020200600750",
+     "on_sale": false,
+     "prices": {
+      "price": "199500",
+      "regular_price": "199500",
+      "sale_price": "199500",
+      "price_range": null,
+      "currency_code": "GBP",
+      "currency_symbol": "£",
+      "currency_minor_unit": 2,
+      "currency_decimal_separator": ".",
+      "currency_thousand_separator": ",",
+      "currency_prefix": "£",
+      "currency_suffix": ""
+     },
+     "price_html": "<div class=\"hub-price\"><span class=\"hub-price-in-bond\"><span class=\"woocommerce-Price-amount amount\"><span class=\"woocommerce-Price-currencySymbol\">&pound;</span>1,995</span>/Case <span class=\"hub-price-postfix\">(Excl. UK Duty &amp; VAT)</span></span><span class=\"hub-price-retail\"><span class=\"woocommerce-Price-amount amount\"><span class=\"woocommerce-Price-currencySymbol\">£</span>2,416.32</span>/Case <span class=\"hub-price-postfix\">(Incl. UK Duty &amp; VAT)</span></span><span class=\"hub-duty-status\">Duty Status: <strong>In Bond</strong></span><span class=\"hub-availability\">Availability: <strong>Future Arrival</strong></span></div><span class=\"hub-exp-arrival\">ETA to UK address: <strong>8-10 weeks</strong></span>",
+     "average_rating": "0",
+     "review_count": 0,
+     "tags": [],
+     "attributes": [
+      {
+       "id": 6,
+       "name": "Wine Type",
+       "taxonomy": "pa_wine-type",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 1544,
+         "name": "Red",
+         "slug": "red"
+        }
+       ]
+      },
+      {
+       "id": 1,
+       "name": "Country",
+       "taxonomy": "pa_country",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2861,
+         "name": "France",
+         "slug": "france"
+        }
+       ]
+      },
+      {
+       "id": 2,
+       "name": "Region",
+       "taxonomy": "pa_region",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3535,
+         "name": "Burgundy",
+         "slug": "burgundy"
+        }
+       ]
+      },
+      {
+       "id": 3,
+       "name": "Subregion",
+       "taxonomy": "pa_subregion",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 4942,
+         "name": "Chambertin-Clos de Beze",
+         "slug": "chambertin-clos-de-beze"
+        }
+       ]
+      },
+      {
+       "id": 7,
+       "name": "Vintage",
+       "taxonomy": "pa_vintage",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 731,
+         "name": "2020",
+         "slug": "2020"
+        }
+       ]
+      },
+      {
+       "id": 8,
+       "name": "Producer",
+       "taxonomy": "pa_producer",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 4943,
+         "name": "Domaine Faiveley",
+         "slug": "domaine-faiveley"
+        }
+       ]
+      },
+      {
+       "id": 10,
+       "name": "Classification",
+       "taxonomy": "pa_classification",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3570,
+         "name": "Grand Cru",
+         "slug": "grand-cru"
+        }
+       ]
+      },
+      {
+       "id": 4,
+       "name": "Bottle Size",
+       "taxonomy": "pa_bottle-size",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2859,
+         "name": "75cl",
+         "slug": "75cl"
+        }
+       ]
+      },
+      {
+       "id": 5,
+       "name": "Pack Size",
+       "taxonomy": "pa_pack-size",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2863,
+         "name": "6x75cl",
+         "slug": "6x75cl"
+        }
+       ]
+      },
+      {
+       "id": 14,
+       "name": "Alcohol Percentage",
+       "taxonomy": "pa_alcohol-percentage",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 6031,
+         "name": "13.50",
+         "slug": "1350"
+        }
+       ]
+      },
+      {
+       "id": 23,
+       "name": "Duty Status",
+       "taxonomy": "pa_duty-status",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2475,
+         "name": "In Bond",
+         "slug": "in-bond"
+        }
+       ]
+      },
+      {
+       "id": 17,
+       "name": "Availability",
+       "taxonomy": "pa_availability",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 420,
+         "name": "Future Arrival",
+         "slug": "future-arrival"
+        }
+       ]
+      }
+     ],
+     "variations": [],
+     "has_options": false,
+     "is_purchasable": true,
+     "is_in_stock": true,
+     "is_on_backorder": false,
+     "low_stock_remaining": 1,
+     "stock_availability": {
+      "text": "1 Available",
+      "class": "in-stock wd-style-default"
+     },
+     "sold_individually": false,
+     "weight": "",
+     "dimensions": {
+      "length": "",
+      "width": "",
+      "height": ""
+     },
+     "formatted_weight": "N/A",
+     "formatted_dimensions": "N/A",
+     "is_password_protected": false
+    },
+    {
+     "id": 289426,
+     "name": "2020 Domaine Faiveley, Gevrey-Chambertin Premier Cru, Lavaux Saint-Jacques 6x75cl",
+     "slug": "2020-domaine-faiveley-gevrey-chambertin-premier-cru-lavaux-saint-jacques-6x75cl-144928220200600750",
+     "parent": 0,
+     "type": "simple",
+     "variation": "",
+     "permalink": "https://laywheelertrading.com/product/2020-domaine-faiveley-gevrey-chambertin-premier-cru-lavaux-saint-jacques-6x75cl-144928220200600750/",
+     "sku": "LXSIB144928220200600750",
+     "on_sale": false,
+     "prices": {
+      "price": "60000",
+      "regular_price": "60000",
+      "sale_price": "60000",
+      "price_range": null,
+      "currency_code": "GBP",
+      "currency_symbol": "£",
+      "currency_minor_unit": 2,
+      "currency_decimal_separator": ".",
+      "currency_thousand_separator": ",",
+      "currency_prefix": "£",
+      "currency_suffix": ""
+     },
+     "price_html": "<div class=\"hub-price\"><span class=\"hub-price-in-bond\"><span class=\"woocommerce-Price-amount amount\"><span class=\"woocommerce-Price-currencySymbol\">&pound;</span>600</span>/Case <span class=\"hub-price-postfix\">(Excl. UK Duty &amp; VAT)</span></span><span class=\"hub-price-retail\"><span class=\"woocommerce-Price-amount amount\"><span class=\"woocommerce-Price-currencySymbol\">£</span>742.32</span>/Case <span class=\"hub-price-postfix\">(Incl. UK Duty &amp; VAT)</span></span><span class=\"hub-duty-status\">Duty Status: <strong>In Bond</strong></span><span class=\"hub-availability\">Availability: <strong>Future Arrival</strong></span></div><span class=\"hub-exp-arrival\">ETA to UK address: <strong>8-10 weeks</strong></span>",
+     "average_rating": "0",
+     "review_count": 0,
+     "tags": [],
+     "attributes": [
+      {
+       "id": 6,
+       "name": "Wine Type",
+       "taxonomy": "pa_wine-type",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 1544,
+         "name": "Red",
+         "slug": "red"
+        }
+       ]
+      },
+      {
+       "id": 1,
+       "name": "Country",
+       "taxonomy": "pa_country",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2861,
+         "name": "France",
+         "slug": "france"
+        }
+       ]
+      },
+      {
+       "id": 2,
+       "name": "Region",
+       "taxonomy": "pa_region",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3535,
+         "name": "Burgundy",
+         "slug": "burgundy"
+        }
+       ]
+      },
+      {
+       "id": 3,
+       "name": "Subregion",
+       "taxonomy": "pa_subregion",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3594,
+         "name": "Gevrey-Chambertin",
+         "slug": "gevrey-chambertin"
+        }
+       ]
+      },
+      {
+       "id": 7,
+       "name": "Vintage",
+       "taxonomy": "pa_vintage",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 731,
+         "name": "2020",
+         "slug": "2020"
+        }
+       ]
+      },
+      {
+       "id": 8,
+       "name": "Producer",
+       "taxonomy": "pa_producer",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 4943,
+         "name": "Domaine Faiveley",
+         "slug": "domaine-faiveley"
+        }
+       ]
+      },
+      {
+       "id": 10,
+       "name": "Classification",
+       "taxonomy": "pa_classification",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3538,
+         "name": "Premier Cru",
+         "slug": "premier-cru"
+        }
+       ]
+      },
+      {
+       "id": 4,
+       "name": "Bottle Size",
+       "taxonomy": "pa_bottle-size",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2859,
+         "name": "75cl",
+         "slug": "75cl"
+        }
+       ]
+      },
+      {
+       "id": 5,
+       "name": "Pack Size",
+       "taxonomy": "pa_pack-size",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2863,
+         "name": "6x75cl",
+         "slug": "6x75cl"
+        }
+       ]
+      },
+      {
+       "id": 14,
+       "name": "Alcohol Percentage",
+       "taxonomy": "pa_alcohol-percentage",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 6031,
+         "name": "13.50",
+         "slug": "1350"
+        }
+       ]
+      },
+      {
+       "id": 23,
+       "name": "Duty Status",
+       "taxonomy": "pa_duty-status",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2475,
+         "name": "In Bond",
+         "slug": "in-bond"
+        }
+       ]
+      },
+      {
+       "id": 17,
+       "name": "Availability",
+       "taxonomy": "pa_availability",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 420,
+         "name": "Future Arrival",
+         "slug": "future-arrival"
+        }
+       ]
+      }
+     ],
+     "variations": [],
+     "has_options": false,
+     "is_purchasable": true,
+     "is_in_stock": true,
+     "is_on_backorder": false,
+     "low_stock_remaining": 1,
+     "stock_availability": {
+      "text": "1 Available",
+      "class": "in-stock wd-style-default"
+     },
+     "sold_individually": false,
+     "weight": "",
+     "dimensions": {
+      "length": "",
+      "width": "",
+      "height": ""
+     },
+     "formatted_weight": "N/A",
+     "formatted_dimensions": "N/A",
+     "is_password_protected": false
+    }
+   ]
+  },
+  {
+   "query": {
+    "search": "Courcel",
+    "per_page": 100,
+    "page": 1
+   },
+   "headers": {
+    "x-wp-total": "7",
+    "x-wp-totalpages": "1"
+   },
+   "products": [
+    {
+     "id": 299704,
+     "name": "2011 Domaine de Courcel, Pommard Premier Cru, Les Croix Noires 12x75cl",
+     "slug": "2011-domaine-de-courcel-pommard-premier-cru-les-croix-noires-12x75cl-102758920111200750",
+     "parent": 0,
+     "type": "simple",
+     "variation": "",
+     "permalink": "https://laywheelertrading.com/product/2011-domaine-de-courcel-pommard-premier-cru-les-croix-noires-12x75cl-102758920111200750/",
+     "sku": "LXSIB102758920111200750",
+     "on_sale": false,
+     "prices": {
+      "price": "116100",
+      "regular_price": "116100",
+      "sale_price": "116100",
+      "price_range": null,
+      "currency_code": "GBP",
+      "currency_symbol": "£",
+      "currency_minor_unit": 2,
+      "currency_decimal_separator": ".",
+      "currency_thousand_separator": ",",
+      "currency_prefix": "£",
+      "currency_suffix": ""
+     },
+     "price_html": "<div class=\"hub-price\"><span class=\"hub-price-in-bond\"><span class=\"woocommerce-Price-amount amount\"><span class=\"woocommerce-Price-currencySymbol\">&pound;</span>1,161</span>/Case <span class=\"hub-price-postfix\">(Excl. UK Duty &amp; VAT)</span></span><span class=\"hub-price-retail\"><span class=\"woocommerce-Price-amount amount\"><span class=\"woocommerce-Price-currencySymbol\">£</span>1,437.84</span>/Case <span class=\"hub-price-postfix\">(Incl. UK Duty &amp; VAT)</span></span><span class=\"hub-duty-status\">Duty Status: <strong>In Bond</strong></span><span class=\"hub-availability\">Availability: <strong>Future Arrival</strong></span></div><span class=\"hub-exp-arrival\">ETA to UK address: <strong>8-10 weeks</strong></span>",
+     "average_rating": "0",
+     "review_count": 0,
+     "tags": [],
+     "attributes": [
+      {
+       "id": 6,
+       "name": "Wine Type",
+       "taxonomy": "pa_wine-type",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 1544,
+         "name": "Red",
+         "slug": "red"
+        }
+       ]
+      },
+      {
+       "id": 1,
+       "name": "Country",
+       "taxonomy": "pa_country",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2861,
+         "name": "France",
+         "slug": "france"
+        }
+       ]
+      },
+      {
+       "id": 2,
+       "name": "Region",
+       "taxonomy": "pa_region",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3535,
+         "name": "Burgundy",
+         "slug": "burgundy"
+        }
+       ]
+      },
+      {
+       "id": 3,
+       "name": "Subregion",
+       "taxonomy": "pa_subregion",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3922,
+         "name": "Pommard",
+         "slug": "pommard"
+        }
+       ]
+      },
+      {
+       "id": 7,
+       "name": "Vintage",
+       "taxonomy": "pa_vintage",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 75,
+         "name": "2011",
+         "slug": "2011"
+        }
+       ]
+      },
+      {
+       "id": 8,
+       "name": "Producer",
+       "taxonomy": "pa_producer",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 25876,
+         "name": "Courcel",
+         "slug": "courcel"
+        }
+       ]
+      },
+      {
+       "id": 10,
+       "name": "Classification",
+       "taxonomy": "pa_classification",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3538,
+         "name": "Premier Cru",
+         "slug": "premier-cru"
+        }
+       ]
+      },
+      {
+       "id": 4,
+       "name": "Bottle Size",
+       "taxonomy": "pa_bottle-size",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2859,
+         "name": "75cl",
+         "slug": "75cl"
+        }
+       ]
+      },
+      {
+       "id": 5,
+       "name": "Pack Size",
+       "taxonomy": "pa_pack-size",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2900,
+         "name": "12x75cl",
+         "slug": "12x75cl"
+        }
+       ]
+      },
+      {
+       "id": 14,
+       "name": "Alcohol Percentage",
+       "taxonomy": "pa_alcohol-percentage",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 6031,
+         "name": "13.50",
+         "slug": "1350"
+        }
+       ]
+      },
+      {
+       "id": 23,
+       "name": "Duty Status",
+       "taxonomy": "pa_duty-status",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2475,
+         "name": "In Bond",
+         "slug": "in-bond"
+        }
+       ]
+      },
+      {
+       "id": 17,
+       "name": "Availability",
+       "taxonomy": "pa_availability",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 420,
+         "name": "Future Arrival",
+         "slug": "future-arrival"
+        }
+       ]
+      }
+     ],
+     "variations": [],
+     "has_options": false,
+     "is_purchasable": true,
+     "is_in_stock": true,
+     "is_on_backorder": false,
+     "low_stock_remaining": 1,
+     "stock_availability": {
+      "text": "1 Available",
+      "class": "in-stock wd-style-default"
+     },
+     "sold_individually": false,
+     "weight": "",
+     "dimensions": {
+      "length": "",
+      "width": "",
+      "height": ""
+     },
+     "formatted_weight": "N/A",
+     "formatted_dimensions": "N/A",
+     "is_password_protected": false
+    },
+    {
+     "id": 299705,
+     "name": "2012 Domaine de Courcel, Pommard Premier Cru, Les Croix Noires 12x75cl",
+     "slug": "2012-domaine-de-courcel-pommard-premier-cru-les-croix-noires-12x75cl-102758920121200750",
+     "parent": 0,
+     "type": "simple",
+     "variation": "",
+     "permalink": "https://laywheelertrading.com/product/2012-domaine-de-courcel-pommard-premier-cru-les-croix-noires-12x75cl-102758920121200750/",
+     "sku": "LXSIB102758920121200750",
+     "on_sale": false,
+     "prices": {
+      "price": "114000",
+      "regular_price": "114000",
+      "sale_price": "114000",
+      "price_range": null,
+      "currency_code": "GBP",
+      "currency_symbol": "£",
+      "currency_minor_unit": 2,
+      "currency_decimal_separator": ".",
+      "currency_thousand_separator": ",",
+      "currency_prefix": "£",
+      "currency_suffix": ""
+     },
+     "price_html": "<div class=\"hub-price\"><span class=\"hub-price-in-bond\"><span class=\"woocommerce-Price-amount amount\"><span class=\"woocommerce-Price-currencySymbol\">&pound;</span>1,140</span>/Case <span class=\"hub-price-postfix\">(Excl. UK Duty &amp; VAT)</span></span><span class=\"hub-price-retail\"><span class=\"woocommerce-Price-amount amount\"><span class=\"woocommerce-Price-currencySymbol\">£</span>1,412.64</span>/Case <span class=\"hub-price-postfix\">(Incl. UK Duty &amp; VAT)</span></span><span class=\"hub-duty-status\">Duty Status: <strong>In Bond</strong></span><span class=\"hub-availability\">Availability: <strong>Future Arrival</strong></span></div><span class=\"hub-exp-arrival\">ETA to UK address: <strong>8-10 weeks</strong></span>",
+     "average_rating": "0",
+     "review_count": 0,
+     "tags": [],
+     "attributes": [
+      {
+       "id": 6,
+       "name": "Wine Type",
+       "taxonomy": "pa_wine-type",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 1544,
+         "name": "Red",
+         "slug": "red"
+        }
+       ]
+      },
+      {
+       "id": 1,
+       "name": "Country",
+       "taxonomy": "pa_country",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2861,
+         "name": "France",
+         "slug": "france"
+        }
+       ]
+      },
+      {
+       "id": 2,
+       "name": "Region",
+       "taxonomy": "pa_region",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3535,
+         "name": "Burgundy",
+         "slug": "burgundy"
+        }
+       ]
+      },
+      {
+       "id": 3,
+       "name": "Subregion",
+       "taxonomy": "pa_subregion",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3922,
+         "name": "Pommard",
+         "slug": "pommard"
+        }
+       ]
+      },
+      {
+       "id": 7,
+       "name": "Vintage",
+       "taxonomy": "pa_vintage",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 93,
+         "name": "2012",
+         "slug": "2012"
+        }
+       ]
+      },
+      {
+       "id": 8,
+       "name": "Producer",
+       "taxonomy": "pa_producer",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 25876,
+         "name": "Courcel",
+         "slug": "courcel"
+        }
+       ]
+      },
+      {
+       "id": 10,
+       "name": "Classification",
+       "taxonomy": "pa_classification",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3538,
+         "name": "Premier Cru",
+         "slug": "premier-cru"
+        }
+       ]
+      },
+      {
+       "id": 4,
+       "name": "Bottle Size",
+       "taxonomy": "pa_bottle-size",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2859,
+         "name": "75cl",
+         "slug": "75cl"
+        }
+       ]
+      },
+      {
+       "id": 5,
+       "name": "Pack Size",
+       "taxonomy": "pa_pack-size",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2900,
+         "name": "12x75cl",
+         "slug": "12x75cl"
+        }
+       ]
+      },
+      {
+       "id": 14,
+       "name": "Alcohol Percentage",
+       "taxonomy": "pa_alcohol-percentage",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 6031,
+         "name": "13.50",
+         "slug": "1350"
+        }
+       ]
+      },
+      {
+       "id": 23,
+       "name": "Duty Status",
+       "taxonomy": "pa_duty-status",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2475,
+         "name": "In Bond",
+         "slug": "in-bond"
+        }
+       ]
+      },
+      {
+       "id": 17,
+       "name": "Availability",
+       "taxonomy": "pa_availability",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 420,
+         "name": "Future Arrival",
+         "slug": "future-arrival"
+        }
+       ]
+      }
+     ],
+     "variations": [],
+     "has_options": false,
+     "is_purchasable": true,
+     "is_in_stock": true,
+     "is_on_backorder": false,
+     "low_stock_remaining": 2,
+     "stock_availability": {
+      "text": "2 Available",
+      "class": "in-stock wd-style-default"
+     },
+     "sold_individually": false,
+     "weight": "",
+     "dimensions": {
+      "length": "",
+      "width": "",
+      "height": ""
+     },
+     "formatted_weight": "N/A",
+     "formatted_dimensions": "N/A",
+     "is_password_protected": false
+    },
+    {
+     "id": 261433,
+     "name": "2012 Domaine de Courcel, Pommard Premier Cru, Les Grands Epenots 6x75cl",
+     "slug": "2012-domaine-de-courcel-pommard-premier-cru-les-grands-epenots-6x75cl-102760620120600750",
+     "parent": 0,
+     "type": "simple",
+     "variation": "",
+     "permalink": "https://laywheelertrading.com/product/2012-domaine-de-courcel-pommard-premier-cru-les-grands-epenots-6x75cl-102760620120600750/",
+     "sku": "LXSIB102760620120600750",
+     "on_sale": false,
+     "prices": {
+      "price": "64000",
+      "regular_price": "64000",
+      "sale_price": "64000",
+      "price_range": null,
+      "currency_code": "GBP",
+      "currency_symbol": "£",
+      "currency_minor_unit": 2,
+      "currency_decimal_separator": ".",
+      "currency_thousand_separator": ",",
+      "currency_prefix": "£",
+      "currency_suffix": ""
+     },
+     "price_html": "<div class=\"hub-price\"><span class=\"hub-price-in-bond\"><span class=\"woocommerce-Price-amount amount\"><span class=\"woocommerce-Price-currencySymbol\">&pound;</span>640</span>/Case <span class=\"hub-price-postfix\">(Excl. UK Duty &amp; VAT)</span></span><span class=\"hub-price-retail\"><span class=\"woocommerce-Price-amount amount\"><span class=\"woocommerce-Price-currencySymbol\">£</span>790.32</span>/Case <span class=\"hub-price-postfix\">(Incl. UK Duty &amp; VAT)</span></span><span class=\"hub-duty-status\">Duty Status: <strong>In Bond</strong></span><span class=\"hub-availability\">Availability: <strong>Future Arrival</strong></span></div><span class=\"hub-exp-arrival\">ETA to UK address: <strong>8-10 weeks</strong></span>",
+     "average_rating": "0",
+     "review_count": 0,
+     "tags": [],
+     "attributes": [
+      {
+       "id": 6,
+       "name": "Wine Type",
+       "taxonomy": "pa_wine-type",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 1544,
+         "name": "Red",
+         "slug": "red"
+        }
+       ]
+      },
+      {
+       "id": 1,
+       "name": "Country",
+       "taxonomy": "pa_country",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2861,
+         "name": "France",
+         "slug": "france"
+        }
+       ]
+      },
+      {
+       "id": 2,
+       "name": "Region",
+       "taxonomy": "pa_region",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3535,
+         "name": "Burgundy",
+         "slug": "burgundy"
+        }
+       ]
+      },
+      {
+       "id": 3,
+       "name": "Subregion",
+       "taxonomy": "pa_subregion",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3922,
+         "name": "Pommard",
+         "slug": "pommard"
+        }
+       ]
+      },
+      {
+       "id": 7,
+       "name": "Vintage",
+       "taxonomy": "pa_vintage",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 93,
+         "name": "2012",
+         "slug": "2012"
+        }
+       ]
+      },
+      {
+       "id": 8,
+       "name": "Producer",
+       "taxonomy": "pa_producer",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 23974,
+         "name": "Domaine de Courcel",
+         "slug": "domaine-de-courcel"
+        }
+       ]
+      },
+      {
+       "id": 10,
+       "name": "Classification",
+       "taxonomy": "pa_classification",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3538,
+         "name": "Premier Cru",
+         "slug": "premier-cru"
+        }
+       ]
+      },
+      {
+       "id": 4,
+       "name": "Bottle Size",
+       "taxonomy": "pa_bottle-size",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2859,
+         "name": "75cl",
+         "slug": "75cl"
+        }
+       ]
+      },
+      {
+       "id": 5,
+       "name": "Pack Size",
+       "taxonomy": "pa_pack-size",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2863,
+         "name": "6x75cl",
+         "slug": "6x75cl"
+        }
+       ]
+      },
+      {
+       "id": 14,
+       "name": "Alcohol Percentage",
+       "taxonomy": "pa_alcohol-percentage",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 6031,
+         "name": "13.50",
+         "slug": "1350"
+        }
+       ]
+      },
+      {
+       "id": 23,
+       "name": "Duty Status",
+       "taxonomy": "pa_duty-status",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2475,
+         "name": "In Bond",
+         "slug": "in-bond"
+        }
+       ]
+      },
+      {
+       "id": 17,
+       "name": "Availability",
+       "taxonomy": "pa_availability",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 420,
+         "name": "Future Arrival",
+         "slug": "future-arrival"
+        }
+       ]
+      }
+     ],
+     "variations": [],
+     "has_options": false,
+     "is_purchasable": true,
+     "is_in_stock": true,
+     "is_on_backorder": false,
+     "low_stock_remaining": 1,
+     "stock_availability": {
+      "text": "1 Available",
+      "class": "in-stock wd-style-default"
+     },
+     "sold_individually": false,
+     "weight": "",
+     "dimensions": {
+      "length": "",
+      "width": "",
+      "height": ""
+     },
+     "formatted_weight": "N/A",
+     "formatted_dimensions": "N/A",
+     "is_password_protected": false
+    },
+    {
+     "id": 287543,
+     "name": "2019 Domaine de Courcel, Pommard Premier Cru, Les Grands Epenots 6x75cl",
+     "slug": "2019-domaine-de-courcel-pommard-premier-cru-les-grands-epenots-6x75cl-102760620190600750",
+     "parent": 0,
+     "type": "simple",
+     "variation": "",
+     "permalink": "https://laywheelertrading.com/product/2019-domaine-de-courcel-pommard-premier-cru-les-grands-epenots-6x75cl-102760620190600750/",
+     "sku": "LXSIB102760620190600750",
+     "on_sale": false,
+     "prices": {
+      "price": "76500",
+      "regular_price": "76500",
+      "sale_price": "76500",
+      "price_range": null,
+      "currency_code": "GBP",
+      "currency_symbol": "£",
+      "currency_minor_unit": 2,
+      "currency_decimal_separator": ".",
+      "currency_thousand_separator": ",",
+      "currency_prefix": "£",
+      "currency_suffix": ""
+     },
+     "price_html": "<div class=\"hub-price\"><span class=\"hub-price-in-bond\"><span class=\"woocommerce-Price-amount amount\"><span class=\"woocommerce-Price-currencySymbol\">&pound;</span>765</span>/Case <span class=\"hub-price-postfix\">(Excl. UK Duty &amp; VAT)</span></span><span class=\"hub-price-retail\"><span class=\"woocommerce-Price-amount amount\"><span class=\"woocommerce-Price-currencySymbol\">£</span>940.32</span>/Case <span class=\"hub-price-postfix\">(Incl. UK Duty &amp; VAT)</span></span><span class=\"hub-duty-status\">Duty Status: <strong>In Bond</strong></span><span class=\"hub-availability\">Availability: <strong>Future Arrival</strong></span></div><span class=\"hub-exp-arrival\">ETA to UK address: <strong>8-10 weeks</strong></span>",
+     "average_rating": "0",
+     "review_count": 0,
+     "tags": [],
+     "attributes": [
+      {
+       "id": 6,
+       "name": "Wine Type",
+       "taxonomy": "pa_wine-type",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 1544,
+         "name": "Red",
+         "slug": "red"
+        }
+       ]
+      },
+      {
+       "id": 1,
+       "name": "Country",
+       "taxonomy": "pa_country",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2861,
+         "name": "France",
+         "slug": "france"
+        }
+       ]
+      },
+      {
+       "id": 2,
+       "name": "Region",
+       "taxonomy": "pa_region",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3535,
+         "name": "Burgundy",
+         "slug": "burgundy"
+        }
+       ]
+      },
+      {
+       "id": 3,
+       "name": "Subregion",
+       "taxonomy": "pa_subregion",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3922,
+         "name": "Pommard",
+         "slug": "pommard"
+        }
+       ]
+      },
+      {
+       "id": 7,
+       "name": "Vintage",
+       "taxonomy": "pa_vintage",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 208,
+         "name": "2019",
+         "slug": "2019"
+        }
+       ]
+      },
+      {
+       "id": 8,
+       "name": "Producer",
+       "taxonomy": "pa_producer",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 23974,
+         "name": "Domaine de Courcel",
+         "slug": "domaine-de-courcel"
+        }
+       ]
+      },
+      {
+       "id": 10,
+       "name": "Classification",
+       "taxonomy": "pa_classification",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3538,
+         "name": "Premier Cru",
+         "slug": "premier-cru"
+        }
+       ]
+      },
+      {
+       "id": 4,
+       "name": "Bottle Size",
+       "taxonomy": "pa_bottle-size",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2859,
+         "name": "75cl",
+         "slug": "75cl"
+        }
+       ]
+      },
+      {
+       "id": 5,
+       "name": "Pack Size",
+       "taxonomy": "pa_pack-size",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2863,
+         "name": "6x75cl",
+         "slug": "6x75cl"
+        }
+       ]
+      },
+      {
+       "id": 14,
+       "name": "Alcohol Percentage",
+       "taxonomy": "pa_alcohol-percentage",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 6031,
+         "name": "13.50",
+         "slug": "1350"
+        }
+       ]
+      },
+      {
+       "id": 23,
+       "name": "Duty Status",
+       "taxonomy": "pa_duty-status",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2475,
+         "name": "In Bond",
+         "slug": "in-bond"
+        }
+       ]
+      },
+      {
+       "id": 17,
+       "name": "Availability",
+       "taxonomy": "pa_availability",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 420,
+         "name": "Future Arrival",
+         "slug": "future-arrival"
+        }
+       ]
+      }
+     ],
+     "variations": [],
+     "has_options": false,
+     "is_purchasable": true,
+     "is_in_stock": true,
+     "is_on_backorder": false,
+     "low_stock_remaining": 1,
+     "stock_availability": {
+      "text": "1 Available",
+      "class": "in-stock wd-style-default"
+     },
+     "sold_individually": false,
+     "weight": "",
+     "dimensions": {
+      "length": "",
+      "width": "",
+      "height": ""
+     },
+     "formatted_weight": "N/A",
+     "formatted_dimensions": "N/A",
+     "is_password_protected": false
+    },
+    {
+     "id": 289502,
+     "name": "2017 Domaine de Courcel, Pommard Premier Cru, Les Grands Epenots 6x75cl",
+     "slug": "2017-domaine-de-courcel-pommard-premier-cru-les-grands-epenots-6x75cl-102760620170600750",
+     "parent": 0,
+     "type": "simple",
+     "variation": "",
+     "permalink": "https://laywheelertrading.com/product/2017-domaine-de-courcel-pommard-premier-cru-les-grands-epenots-6x75cl-102760620170600750/",
+     "sku": "LXSIB102760620170600750",
+     "on_sale": false,
+     "prices": {
+      "price": "65500",
+      "regular_price": "65500",
+      "sale_price": "65500",
+      "price_range": null,
+      "currency_code": "GBP",
+      "currency_symbol": "£",
+      "currency_minor_unit": 2,
+      "currency_decimal_separator": ".",
+      "currency_thousand_separator": ",",
+      "currency_prefix": "£",
+      "currency_suffix": ""
+     },
+     "price_html": "<div class=\"hub-price\"><span class=\"hub-price-in-bond\"><span class=\"woocommerce-Price-amount amount\"><span class=\"woocommerce-Price-currencySymbol\">&pound;</span>655</span>/Case <span class=\"hub-price-postfix\">(Excl. UK Duty &amp; VAT)</span></span><span class=\"hub-price-retail\"><span class=\"woocommerce-Price-amount amount\"><span class=\"woocommerce-Price-currencySymbol\">£</span>808.32</span>/Case <span class=\"hub-price-postfix\">(Incl. UK Duty &amp; VAT)</span></span><span class=\"hub-duty-status\">Duty Status: <strong>In Bond</strong></span><span class=\"hub-availability\">Availability: <strong>Future Arrival</strong></span></div><span class=\"hub-exp-arrival\">ETA to UK address: <strong>8-10 weeks</strong></span>",
+     "average_rating": "0",
+     "review_count": 0,
+     "tags": [],
+     "attributes": [
+      {
+       "id": 6,
+       "name": "Wine Type",
+       "taxonomy": "pa_wine-type",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 1544,
+         "name": "Red",
+         "slug": "red"
+        }
+       ]
+      },
+      {
+       "id": 1,
+       "name": "Country",
+       "taxonomy": "pa_country",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2861,
+         "name": "France",
+         "slug": "france"
+        }
+       ]
+      },
+      {
+       "id": 2,
+       "name": "Region",
+       "taxonomy": "pa_region",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3535,
+         "name": "Burgundy",
+         "slug": "burgundy"
+        }
+       ]
+      },
+      {
+       "id": 3,
+       "name": "Subregion",
+       "taxonomy": "pa_subregion",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3922,
+         "name": "Pommard",
+         "slug": "pommard"
+        }
+       ]
+      },
+      {
+       "id": 7,
+       "name": "Vintage",
+       "taxonomy": "pa_vintage",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 88,
+         "name": "2017",
+         "slug": "2017"
+        }
+       ]
+      },
+      {
+       "id": 8,
+       "name": "Producer",
+       "taxonomy": "pa_producer",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 23974,
+         "name": "Domaine de Courcel",
+         "slug": "domaine-de-courcel"
+        }
+       ]
+      },
+      {
+       "id": 10,
+       "name": "Classification",
+       "taxonomy": "pa_classification",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3538,
+         "name": "Premier Cru",
+         "slug": "premier-cru"
+        }
+       ]
+      },
+      {
+       "id": 4,
+       "name": "Bottle Size",
+       "taxonomy": "pa_bottle-size",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2859,
+         "name": "75cl",
+         "slug": "75cl"
+        }
+       ]
+      },
+      {
+       "id": 5,
+       "name": "Pack Size",
+       "taxonomy": "pa_pack-size",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2863,
+         "name": "6x75cl",
+         "slug": "6x75cl"
+        }
+       ]
+      },
+      {
+       "id": 14,
+       "name": "Alcohol Percentage",
+       "taxonomy": "pa_alcohol-percentage",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 6031,
+         "name": "13.50",
+         "slug": "1350"
+        }
+       ]
+      },
+      {
+       "id": 23,
+       "name": "Duty Status",
+       "taxonomy": "pa_duty-status",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2475,
+         "name": "In Bond",
+         "slug": "in-bond"
+        }
+       ]
+      },
+      {
+       "id": 17,
+       "name": "Availability",
+       "taxonomy": "pa_availability",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 420,
+         "name": "Future Arrival",
+         "slug": "future-arrival"
+        }
+       ]
+      }
+     ],
+     "variations": [],
+     "has_options": false,
+     "is_purchasable": true,
+     "is_in_stock": true,
+     "is_on_backorder": false,
+     "low_stock_remaining": 1,
+     "stock_availability": {
+      "text": "1 Available",
+      "class": "in-stock wd-style-default"
+     },
+     "sold_individually": false,
+     "weight": "",
+     "dimensions": {
+      "length": "",
+      "width": "",
+      "height": ""
+     },
+     "formatted_weight": "N/A",
+     "formatted_dimensions": "N/A",
+     "is_password_protected": false
+    },
+    {
+     "id": 289748,
+     "name": "2010 Domaine de Courcel, Pommard Premier Cru, Les Grands Epenots 6x75cl",
+     "slug": "2010-domaine-de-courcel-pommard-premier-cru-les-grands-epenots-6x75cl-102760620100600750",
+     "parent": 0,
+     "type": "simple",
+     "variation": "",
+     "permalink": "https://laywheelertrading.com/product/2010-domaine-de-courcel-pommard-premier-cru-les-grands-epenots-6x75cl-102760620100600750/",
+     "sku": "LXSIB102760620100600750",
+     "on_sale": false,
+     "prices": {
+      "price": "73500",
+      "regular_price": "73500",
+      "sale_price": "73500",
+      "price_range": null,
+      "currency_code": "GBP",
+      "currency_symbol": "£",
+      "currency_minor_unit": 2,
+      "currency_decimal_separator": ".",
+      "currency_thousand_separator": ",",
+      "currency_prefix": "£",
+      "currency_suffix": ""
+     },
+     "price_html": "<div class=\"hub-price\"><span class=\"hub-price-in-bond\"><span class=\"woocommerce-Price-amount amount\"><span class=\"woocommerce-Price-currencySymbol\">&pound;</span>735</span>/Case <span class=\"hub-price-postfix\">(Excl. UK Duty &amp; VAT)</span></span><span class=\"hub-price-retail\"><span class=\"woocommerce-Price-amount amount\"><span class=\"woocommerce-Price-currencySymbol\">£</span>904.32</span>/Case <span class=\"hub-price-postfix\">(Incl. UK Duty &amp; VAT)</span></span><span class=\"hub-duty-status\">Duty Status: <strong>In Bond</strong></span><span class=\"hub-availability\">Availability: <strong>Future Arrival</strong></span></div><span class=\"hub-exp-arrival\">ETA to UK address: <strong>8-10 weeks</strong></span>",
+     "average_rating": "0",
+     "review_count": 0,
+     "tags": [],
+     "attributes": [
+      {
+       "id": 6,
+       "name": "Wine Type",
+       "taxonomy": "pa_wine-type",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 1544,
+         "name": "Red",
+         "slug": "red"
+        }
+       ]
+      },
+      {
+       "id": 1,
+       "name": "Country",
+       "taxonomy": "pa_country",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2861,
+         "name": "France",
+         "slug": "france"
+        }
+       ]
+      },
+      {
+       "id": 2,
+       "name": "Region",
+       "taxonomy": "pa_region",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3535,
+         "name": "Burgundy",
+         "slug": "burgundy"
+        }
+       ]
+      },
+      {
+       "id": 3,
+       "name": "Subregion",
+       "taxonomy": "pa_subregion",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3922,
+         "name": "Pommard",
+         "slug": "pommard"
+        }
+       ]
+      },
+      {
+       "id": 7,
+       "name": "Vintage",
+       "taxonomy": "pa_vintage",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 74,
+         "name": "2010",
+         "slug": "2010"
+        }
+       ]
+      },
+      {
+       "id": 8,
+       "name": "Producer",
+       "taxonomy": "pa_producer",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 23974,
+         "name": "Domaine de Courcel",
+         "slug": "domaine-de-courcel"
+        }
+       ]
+      },
+      {
+       "id": 10,
+       "name": "Classification",
+       "taxonomy": "pa_classification",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3538,
+         "name": "Premier Cru",
+         "slug": "premier-cru"
+        }
+       ]
+      },
+      {
+       "id": 4,
+       "name": "Bottle Size",
+       "taxonomy": "pa_bottle-size",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2859,
+         "name": "75cl",
+         "slug": "75cl"
+        }
+       ]
+      },
+      {
+       "id": 5,
+       "name": "Pack Size",
+       "taxonomy": "pa_pack-size",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2863,
+         "name": "6x75cl",
+         "slug": "6x75cl"
+        }
+       ]
+      },
+      {
+       "id": 14,
+       "name": "Alcohol Percentage",
+       "taxonomy": "pa_alcohol-percentage",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 6031,
+         "name": "13.50",
+         "slug": "1350"
+        }
+       ]
+      },
+      {
+       "id": 23,
+       "name": "Duty Status",
+       "taxonomy": "pa_duty-status",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2475,
+         "name": "In Bond",
+         "slug": "in-bond"
+        }
+       ]
+      },
+      {
+       "id": 17,
+       "name": "Availability",
+       "taxonomy": "pa_availability",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 420,
+         "name": "Future Arrival",
+         "slug": "future-arrival"
+        }
+       ]
+      }
+     ],
+     "variations": [],
+     "has_options": false,
+     "is_purchasable": true,
+     "is_in_stock": true,
+     "is_on_backorder": false,
+     "low_stock_remaining": 1,
+     "stock_availability": {
+      "text": "1 Available",
+      "class": "in-stock wd-style-default"
+     },
+     "sold_individually": false,
+     "weight": "",
+     "dimensions": {
+      "length": "",
+      "width": "",
+      "height": ""
+     },
+     "formatted_weight": "N/A",
+     "formatted_dimensions": "N/A",
+     "is_password_protected": false
+    },
+    {
+     "id": 295744,
+     "name": "2011 Domaine de Courcel, Pommard Premier Cru, Les Grands Epenots 12x75cl",
+     "slug": "2011-domaine-de-courcel-pommard-premier-cru-les-grands-epenots-12x75cl-102760620111200750",
+     "parent": 0,
+     "type": "simple",
+     "variation": "",
+     "permalink": "https://laywheelertrading.com/product/2011-domaine-de-courcel-pommard-premier-cru-les-grands-epenots-12x75cl-102760620111200750/",
+     "sku": "LXSIB102760620111200750",
+     "on_sale": false,
+     "prices": {
+      "price": "96000",
+      "regular_price": "96000",
+      "sale_price": "96000",
+      "price_range": null,
+      "currency_code": "GBP",
+      "currency_symbol": "£",
+      "currency_minor_unit": 2,
+      "currency_decimal_separator": ".",
+      "currency_thousand_separator": ",",
+      "currency_prefix": "£",
+      "currency_suffix": ""
+     },
+     "price_html": "<div class=\"hub-price\"><span class=\"hub-price-in-bond\"><span class=\"woocommerce-Price-amount amount\"><span class=\"woocommerce-Price-currencySymbol\">&pound;</span>960</span>/Case <span class=\"hub-price-postfix\">(Excl. UK Duty &amp; VAT)</span></span><span class=\"hub-price-retail\"><span class=\"woocommerce-Price-amount amount\"><span class=\"woocommerce-Price-currencySymbol\">£</span>1,196.64</span>/Case <span class=\"hub-price-postfix\">(Incl. UK Duty &amp; VAT)</span></span><span class=\"hub-duty-status\">Duty Status: <strong>In Bond</strong></span><span class=\"hub-availability\">Availability: <strong>Future Arrival</strong></span></div><span class=\"hub-exp-arrival\">ETA to UK address: <strong>8-10 weeks</strong></span>",
+     "average_rating": "0",
+     "review_count": 0,
+     "tags": [],
+     "attributes": [
+      {
+       "id": 6,
+       "name": "Wine Type",
+       "taxonomy": "pa_wine-type",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 1544,
+         "name": "Red",
+         "slug": "red"
+        }
+       ]
+      },
+      {
+       "id": 1,
+       "name": "Country",
+       "taxonomy": "pa_country",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2861,
+         "name": "France",
+         "slug": "france"
+        }
+       ]
+      },
+      {
+       "id": 2,
+       "name": "Region",
+       "taxonomy": "pa_region",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3535,
+         "name": "Burgundy",
+         "slug": "burgundy"
+        }
+       ]
+      },
+      {
+       "id": 3,
+       "name": "Subregion",
+       "taxonomy": "pa_subregion",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3922,
+         "name": "Pommard",
+         "slug": "pommard"
+        }
+       ]
+      },
+      {
+       "id": 7,
+       "name": "Vintage",
+       "taxonomy": "pa_vintage",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 75,
+         "name": "2011",
+         "slug": "2011"
+        }
+       ]
+      },
+      {
+       "id": 8,
+       "name": "Producer",
+       "taxonomy": "pa_producer",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 23974,
+         "name": "Domaine de Courcel",
+         "slug": "domaine-de-courcel"
+        }
+       ]
+      },
+      {
+       "id": 10,
+       "name": "Classification",
+       "taxonomy": "pa_classification",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3538,
+         "name": "Premier Cru",
+         "slug": "premier-cru"
+        }
+       ]
+      },
+      {
+       "id": 4,
+       "name": "Bottle Size",
+       "taxonomy": "pa_bottle-size",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2859,
+         "name": "75cl",
+         "slug": "75cl"
+        }
+       ]
+      },
+      {
+       "id": 5,
+       "name": "Pack Size",
+       "taxonomy": "pa_pack-size",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2900,
+         "name": "12x75cl",
+         "slug": "12x75cl"
+        }
+       ]
+      },
+      {
+       "id": 14,
+       "name": "Alcohol Percentage",
+       "taxonomy": "pa_alcohol-percentage",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 6031,
+         "name": "13.50",
+         "slug": "1350"
+        }
+       ]
+      },
+      {
+       "id": 23,
+       "name": "Duty Status",
+       "taxonomy": "pa_duty-status",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2475,
+         "name": "In Bond",
+         "slug": "in-bond"
+        }
+       ]
+      },
+      {
+       "id": 17,
+       "name": "Availability",
+       "taxonomy": "pa_availability",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 420,
+         "name": "Future Arrival",
+         "slug": "future-arrival"
+        }
+       ]
+      }
+     ],
+     "variations": [],
+     "has_options": false,
+     "is_purchasable": true,
+     "is_in_stock": true,
+     "is_on_backorder": false,
+     "low_stock_remaining": 1,
+     "stock_availability": {
+      "text": "1 Available",
+      "class": "in-stock wd-style-default"
+     },
+     "sold_individually": false,
+     "weight": "",
+     "dimensions": {
+      "length": "",
+      "width": "",
+      "height": ""
+     },
+     "formatted_weight": "N/A",
+     "formatted_dimensions": "N/A",
+     "is_password_protected": false
+    }
+   ]
+  },
+  {
+   "query": {
+    "search": "Dugat-Py",
+    "per_page": 100,
+    "page": 1
+   },
+   "headers": {
+    "x-wp-total": "34",
+    "x-wp-totalpages": "1"
+   },
+   "products": [
+    {
+     "id": 292471,
+     "name": "2004 Bernard Dugat-Py, Gevrey-Chambertin, Coeur de Roy Tres Vieilles Vignes 6x75cl",
+     "slug": "2004-bernard-dugat-py-gevrey-chambertin-coeur-de-roy-tres-vieilles-vignes-6x75cl-124781720040600750",
+     "parent": 0,
+     "type": "simple",
+     "variation": "",
+     "permalink": "https://laywheelertrading.com/product/2004-bernard-dugat-py-gevrey-chambertin-coeur-de-roy-tres-vieilles-vignes-6x75cl-124781720040600750/",
+     "sku": "LXSIB124781720040600750",
+     "on_sale": false,
+     "prices": {
+      "price": "107800",
+      "regular_price": "107800",
+      "sale_price": "107800",
+      "price_range": null,
+      "currency_code": "GBP",
+      "currency_symbol": "£",
+      "currency_minor_unit": 2,
+      "currency_decimal_separator": ".",
+      "currency_thousand_separator": ",",
+      "currency_prefix": "£",
+      "currency_suffix": ""
+     },
+     "price_html": "<div class=\"hub-price\"><span class=\"hub-price-in-bond\"><span class=\"woocommerce-Price-amount amount\"><span class=\"woocommerce-Price-currencySymbol\">&pound;</span>1,078</span>/Case <span class=\"hub-price-postfix\">(Excl. UK Duty &amp; VAT)</span></span><span class=\"hub-price-retail\"><span class=\"woocommerce-Price-amount amount\"><span class=\"woocommerce-Price-currencySymbol\">£</span>1,315.92</span>/Case <span class=\"hub-price-postfix\">(Incl. UK Duty &amp; VAT)</span></span><span class=\"hub-duty-status\">Duty Status: <strong>In Bond</strong></span><span class=\"hub-availability\">Availability: <strong>Future Arrival</strong></span></div><span class=\"hub-exp-arrival\">ETA to UK address: <strong>8-10 weeks</strong></span>",
+     "average_rating": "0",
+     "review_count": 0,
+     "tags": [],
+     "attributes": [
+      {
+       "id": 6,
+       "name": "Wine Type",
+       "taxonomy": "pa_wine-type",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 1544,
+         "name": "Red",
+         "slug": "red"
+        }
+       ]
+      },
+      {
+       "id": 1,
+       "name": "Country",
+       "taxonomy": "pa_country",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2861,
+         "name": "France",
+         "slug": "france"
+        }
+       ]
+      },
+      {
+       "id": 2,
+       "name": "Region",
+       "taxonomy": "pa_region",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3535,
+         "name": "Burgundy",
+         "slug": "burgundy"
+        }
+       ]
+      },
+      {
+       "id": 3,
+       "name": "Subregion",
+       "taxonomy": "pa_subregion",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3594,
+         "name": "Gevrey-Chambertin",
+         "slug": "gevrey-chambertin"
+        }
+       ]
+      },
+      {
+       "id": 7,
+       "name": "Vintage",
+       "taxonomy": "pa_vintage",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 71,
+         "name": "2004",
+         "slug": "2004"
+        }
+       ]
+      },
+      {
+       "id": 8,
+       "name": "Producer",
+       "taxonomy": "pa_producer",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 6502,
+         "name": "Bernard Dugat-py",
+         "slug": "bernard-dugat-py"
+        }
+       ]
+      },
+      {
+       "id": 4,
+       "name": "Bottle Size",
+       "taxonomy": "pa_bottle-size",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2859,
+         "name": "75cl",
+         "slug": "75cl"
+        }
+       ]
+      },
+      {
+       "id": 5,
+       "name": "Pack Size",
+       "taxonomy": "pa_pack-size",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2863,
+         "name": "6x75cl",
+         "slug": "6x75cl"
+        }
+       ]
+      },
+      {
+       "id": 14,
+       "name": "Alcohol Percentage",
+       "taxonomy": "pa_alcohol-percentage",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 6031,
+         "name": "13.50",
+         "slug": "1350"
+        }
+       ]
+      },
+      {
+       "id": 23,
+       "name": "Duty Status",
+       "taxonomy": "pa_duty-status",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2475,
+         "name": "In Bond",
+         "slug": "in-bond"
+        }
+       ]
+      },
+      {
+       "id": 17,
+       "name": "Availability",
+       "taxonomy": "pa_availability",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 420,
+         "name": "Future Arrival",
+         "slug": "future-arrival"
+        }
+       ]
+      }
+     ],
+     "variations": [],
+     "has_options": false,
+     "is_purchasable": true,
+     "is_in_stock": true,
+     "is_on_backorder": false,
+     "low_stock_remaining": 1,
+     "stock_availability": {
+      "text": "1 Available",
+      "class": "in-stock wd-style-default"
+     },
+     "sold_individually": false,
+     "weight": "",
+     "dimensions": {
+      "length": "",
+      "width": "",
+      "height": ""
+     },
+     "formatted_weight": "N/A",
+     "formatted_dimensions": "N/A",
+     "is_password_protected": false
+    },
+    {
+     "id": 301422,
+     "name": "2022 Dugat-Py, Gevrey-Chambertin, Cuvee Coeur de Roy Tres Vieilles Vignes 6x75cl",
+     "slug": "2022-dugat-py-gevrey-chambertin-cuvee-coeur-de-roy-tres-vieilles-vignes-6x75cl-124781720220600750",
+     "parent": 0,
+     "type": "simple",
+     "variation": "",
+     "permalink": "https://laywheelertrading.com/product/2022-dugat-py-gevrey-chambertin-cuvee-coeur-de-roy-tres-vieilles-vignes-6x75cl-124781720220600750/",
+     "sku": "LXSIB124781720220600750",
+     "on_sale": false,
+     "prices": {
+      "price": "70300",
+      "regular_price": "70300",
+      "sale_price": "70300",
+      "price_range": null,
+      "currency_code": "GBP",
+      "currency_symbol": "£",
+      "currency_minor_unit": 2,
+      "currency_decimal_separator": ".",
+      "currency_thousand_separator": ",",
+      "currency_prefix": "£",
+      "currency_suffix": ""
+     },
+     "price_html": "<div class=\"hub-price\"><span class=\"hub-price-in-bond\"><span class=\"woocommerce-Price-amount amount\"><span class=\"woocommerce-Price-currencySymbol\">&pound;</span>703</span>/Case <span class=\"hub-price-postfix\">(Excl. UK Duty &amp; VAT)</span></span><span class=\"hub-price-retail\"><span class=\"woocommerce-Price-amount amount\"><span class=\"woocommerce-Price-currencySymbol\">£</span>865.92</span>/Case <span class=\"hub-price-postfix\">(Incl. UK Duty &amp; VAT)</span></span><span class=\"hub-duty-status\">Duty Status: <strong>In Bond</strong></span><span class=\"hub-availability\">Availability: <strong>Future Arrival</strong></span></div><span class=\"hub-exp-arrival\">ETA to UK address: <strong>8-10 weeks</strong></span>",
+     "average_rating": "0",
+     "review_count": 0,
+     "tags": [],
+     "attributes": [
+      {
+       "id": 6,
+       "name": "Wine Type",
+       "taxonomy": "pa_wine-type",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 1544,
+         "name": "Red",
+         "slug": "red"
+        }
+       ]
+      },
+      {
+       "id": 1,
+       "name": "Country",
+       "taxonomy": "pa_country",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2861,
+         "name": "France",
+         "slug": "france"
+        }
+       ]
+      },
+      {
+       "id": 2,
+       "name": "Region",
+       "taxonomy": "pa_region",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3535,
+         "name": "Burgundy",
+         "slug": "burgundy"
+        }
+       ]
+      },
+      {
+       "id": 3,
+       "name": "Subregion",
+       "taxonomy": "pa_subregion",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3594,
+         "name": "Gevrey-Chambertin",
+         "slug": "gevrey-chambertin"
+        }
+       ]
+      },
+      {
+       "id": 7,
+       "name": "Vintage",
+       "taxonomy": "pa_vintage",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3991,
+         "name": "2022",
+         "slug": "2022"
+        }
+       ]
+      },
+      {
+       "id": 8,
+       "name": "Producer",
+       "taxonomy": "pa_producer",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 6502,
+         "name": "Bernard Dugat-py",
+         "slug": "bernard-dugat-py"
+        }
+       ]
+      },
+      {
+       "id": 4,
+       "name": "Bottle Size",
+       "taxonomy": "pa_bottle-size",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2859,
+         "name": "75cl",
+         "slug": "75cl"
+        }
+       ]
+      },
+      {
+       "id": 5,
+       "name": "Pack Size",
+       "taxonomy": "pa_pack-size",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2863,
+         "name": "6x75cl",
+         "slug": "6x75cl"
+        }
+       ]
+      },
+      {
+       "id": 14,
+       "name": "Alcohol Percentage",
+       "taxonomy": "pa_alcohol-percentage",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 6031,
+         "name": "13.50",
+         "slug": "1350"
+        }
+       ]
+      },
+      {
+       "id": 23,
+       "name": "Duty Status",
+       "taxonomy": "pa_duty-status",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2475,
+         "name": "In Bond",
+         "slug": "in-bond"
+        }
+       ]
+      },
+      {
+       "id": 17,
+       "name": "Availability",
+       "taxonomy": "pa_availability",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 420,
+         "name": "Future Arrival",
+         "slug": "future-arrival"
+        }
+       ]
+      }
+     ],
+     "variations": [],
+     "has_options": false,
+     "is_purchasable": true,
+     "is_in_stock": true,
+     "is_on_backorder": false,
+     "low_stock_remaining": 1,
+     "stock_availability": {
+      "text": "1 Available",
+      "class": "in-stock wd-style-default"
+     },
+     "sold_individually": false,
+     "weight": "",
+     "dimensions": {
+      "length": "",
+      "width": "",
+      "height": ""
+     },
+     "formatted_weight": "N/A",
+     "formatted_dimensions": "N/A",
+     "is_password_protected": false
+    },
+    {
+     "id": 235187,
+     "name": "2020 Bernard Dugat-Py, Gevrey-Chambertin, Coeur du Roy Tres Vieilles Vignes 6x75cl",
+     "slug": "2020-bernard-dugat-py-gevrey-chambertin-coeur-du-roy-tres-vieilles-vignes-6x75cl-1013558913287647",
+     "parent": 0,
+     "type": "simple",
+     "variation": "",
+     "permalink": "https://laywheelertrading.com/product/2020-bernard-dugat-py-gevrey-chambertin-coeur-du-roy-tres-vieilles-vignes-6x75cl-1013558913287647/",
+     "sku": "hub-VS10135589-6-IB-13287647",
+     "on_sale": false,
+     "prices": {
+      "price": "76500",
+      "regular_price": "76500",
+      "sale_price": "76500",
+      "price_range": null,
+      "currency_code": "GBP",
+      "currency_symbol": "£",
+      "currency_minor_unit": 2,
+      "currency_decimal_separator": ".",
+      "currency_thousand_separator": ",",
+      "currency_prefix": "£",
+      "currency_suffix": ""
+     },
+     "price_html": "<div class=\"hub-price\"><span class=\"hub-price-in-bond\"><span class=\"woocommerce-Price-amount amount\"><span class=\"woocommerce-Price-currencySymbol\">&pound;</span>765</span>/Case <span class=\"hub-price-postfix\">(Excl. UK Duty &amp; VAT)</span></span><span class=\"hub-price-retail\"><span class=\"woocommerce-Price-amount amount\"><span class=\"woocommerce-Price-currencySymbol\">£</span>939.46</span>/Case <span class=\"hub-price-postfix\">(Incl. UK Duty &amp; VAT)</span></span><span class=\"hub-duty-status\">Duty Status: <strong>In Bond</strong></span><span class=\"hub-availability\">Availability: <strong>Immediate</strong></span></div>",
+     "average_rating": "0",
+     "review_count": 0,
+     "tags": [],
+     "attributes": [
+      {
+       "id": 6,
+       "name": "Wine Type",
+       "taxonomy": "pa_wine-type",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 1544,
+         "name": "Red",
+         "slug": "red"
+        }
+       ]
+      },
+      {
+       "id": 1,
+       "name": "Country",
+       "taxonomy": "pa_country",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2861,
+         "name": "France",
+         "slug": "france"
+        }
+       ]
+      },
+      {
+       "id": 2,
+       "name": "Region",
+       "taxonomy": "pa_region",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3535,
+         "name": "Burgundy",
+         "slug": "burgundy"
+        }
+       ]
+      },
+      {
+       "id": 3,
+       "name": "Subregion",
+       "taxonomy": "pa_subregion",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3594,
+         "name": "Gevrey-Chambertin",
+         "slug": "gevrey-chambertin"
+        }
+       ]
+      },
+      {
+       "id": 7,
+       "name": "Vintage",
+       "taxonomy": "pa_vintage",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 731,
+         "name": "2020",
+         "slug": "2020"
+        }
+       ]
+      },
+      {
+       "id": 8,
+       "name": "Producer",
+       "taxonomy": "pa_producer",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 6502,
+         "name": "Bernard Dugat-py",
+         "slug": "bernard-dugat-py"
+        }
+       ]
+      },
+      {
+       "id": 9,
+       "name": "Designation",
+       "taxonomy": "pa_designation",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 6172,
+         "name": "AOP",
+         "slug": "aop"
+        }
+       ]
+      },
+      {
+       "id": 4,
+       "name": "Bottle Size",
+       "taxonomy": "pa_bottle-size",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2859,
+         "name": "75cl",
+         "slug": "75cl"
+        }
+       ]
+      },
+      {
+       "id": 5,
+       "name": "Pack Size",
+       "taxonomy": "pa_pack-size",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2863,
+         "name": "6x75cl",
+         "slug": "6x75cl"
+        }
+       ]
+      },
+      {
+       "id": 20,
+       "name": "Pack Type",
+       "taxonomy": "pa_pack-type",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 4353,
+         "name": "Original Cardboard Case",
+         "slug": "original-cardboard-case"
+        }
+       ]
+      },
+      {
+       "id": 14,
+       "name": "Alcohol Percentage",
+       "taxonomy": "pa_alcohol-percentage",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 6034,
+         "name": "13.00",
+         "slug": "1300"
+        }
+       ]
+      },
+      {
+       "id": 23,
+       "name": "Duty Status",
+       "taxonomy": "pa_duty-status",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2475,
+         "name": "In Bond",
+         "slug": "in-bond"
+        }
+       ]
+      },
+      {
+       "id": 17,
+       "name": "Availability",
+       "taxonomy": "pa_availability",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 419,
+         "name": "Immediate",
+         "slug": "immediate"
+        }
+       ]
+      }
+     ],
+     "variations": [],
+     "has_options": false,
+     "is_purchasable": true,
+     "is_in_stock": true,
+     "is_on_backorder": false,
+     "low_stock_remaining": 1,
+     "stock_availability": {
+      "text": "1 Available",
+      "class": "in-stock wd-style-default"
+     },
+     "sold_individually": false,
+     "weight": "",
+     "dimensions": {
+      "length": "",
+      "width": "",
+      "height": ""
+     },
+     "formatted_weight": "N/A",
+     "formatted_dimensions": "N/A",
+     "is_password_protected": false
+    },
+    {
+     "id": 238154,
+     "name": "2018 Dugat-Py, Gevrey-Chambertin, Cuvee Coeur de Roy Tres Vieilles Vignes 12x75cl",
+     "slug": "2018-dugat-py-gevrey-chambertin-cuvee-coeur-de-roy-tres-vieilles-vignes-12x75cl-124781720181200750",
+     "parent": 0,
+     "type": "simple",
+     "variation": "",
+     "permalink": "https://laywheelertrading.com/product/2018-dugat-py-gevrey-chambertin-cuvee-coeur-de-roy-tres-vieilles-vignes-12x75cl-124781720181200750/",
+     "sku": "LXSIB124781720181200750",
+     "on_sale": false,
+     "prices": {
+      "price": "129300",
+      "regular_price": "129300",
+      "sale_price": "129300",
+      "price_range": null,
+      "currency_code": "GBP",
+      "currency_symbol": "£",
+      "currency_minor_unit": 2,
+      "currency_decimal_separator": ".",
+      "currency_thousand_separator": ",",
+      "currency_prefix": "£",
+      "currency_suffix": ""
+     },
+     "price_html": "<div class=\"hub-price\"><span class=\"hub-price-in-bond\"><span class=\"woocommerce-Price-amount amount\"><span class=\"woocommerce-Price-currencySymbol\">&pound;</span>1,293</span>/Case <span class=\"hub-price-postfix\">(Excl. UK Duty &amp; VAT)</span></span><span class=\"hub-price-retail\"><span class=\"woocommerce-Price-amount amount\"><span class=\"woocommerce-Price-currencySymbol\">£</span>1,596.24</span>/Case <span class=\"hub-price-postfix\">(Incl. UK Duty &amp; VAT)</span></span><span class=\"hub-duty-status\">Duty Status: <strong>In Bond</strong></span><span class=\"hub-availability\">Availability: <strong>Future Arrival</strong></span></div><span class=\"hub-exp-arrival\">ETA to UK address: <strong>8-10 weeks</strong></span>",
+     "average_rating": "0",
+     "review_count": 0,
+     "tags": [],
+     "attributes": [
+      {
+       "id": 6,
+       "name": "Wine Type",
+       "taxonomy": "pa_wine-type",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 1544,
+         "name": "Red",
+         "slug": "red"
+        }
+       ]
+      },
+      {
+       "id": 1,
+       "name": "Country",
+       "taxonomy": "pa_country",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2861,
+         "name": "France",
+         "slug": "france"
+        }
+       ]
+      },
+      {
+       "id": 2,
+       "name": "Region",
+       "taxonomy": "pa_region",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3535,
+         "name": "Burgundy",
+         "slug": "burgundy"
+        }
+       ]
+      },
+      {
+       "id": 3,
+       "name": "Subregion",
+       "taxonomy": "pa_subregion",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3594,
+         "name": "Gevrey-Chambertin",
+         "slug": "gevrey-chambertin"
+        }
+       ]
+      },
+      {
+       "id": 7,
+       "name": "Vintage",
+       "taxonomy": "pa_vintage",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 167,
+         "name": "2018",
+         "slug": "2018"
+        }
+       ]
+      },
+      {
+       "id": 8,
+       "name": "Producer",
+       "taxonomy": "pa_producer",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 6502,
+         "name": "Bernard Dugat-py",
+         "slug": "bernard-dugat-py"
+        }
+       ]
+      },
+      {
+       "id": 4,
+       "name": "Bottle Size",
+       "taxonomy": "pa_bottle-size",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2859,
+         "name": "75cl",
+         "slug": "75cl"
+        }
+       ]
+      },
+      {
+       "id": 5,
+       "name": "Pack Size",
+       "taxonomy": "pa_pack-size",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2900,
+         "name": "12x75cl",
+         "slug": "12x75cl"
+        }
+       ]
+      },
+      {
+       "id": 14,
+       "name": "Alcohol Percentage",
+       "taxonomy": "pa_alcohol-percentage",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 6031,
+         "name": "13.50",
+         "slug": "1350"
+        }
+       ]
+      },
+      {
+       "id": 23,
+       "name": "Duty Status",
+       "taxonomy": "pa_duty-status",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2475,
+         "name": "In Bond",
+         "slug": "in-bond"
+        }
+       ]
+      },
+      {
+       "id": 17,
+       "name": "Availability",
+       "taxonomy": "pa_availability",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 420,
+         "name": "Future Arrival",
+         "slug": "future-arrival"
+        }
+       ]
+      }
+     ],
+     "variations": [],
+     "has_options": false,
+     "is_purchasable": true,
+     "is_in_stock": true,
+     "is_on_backorder": false,
+     "low_stock_remaining": 2,
+     "stock_availability": {
+      "text": "2 Available",
+      "class": "in-stock wd-style-default"
+     },
+     "sold_individually": false,
+     "weight": "",
+     "dimensions": {
+      "length": "",
+      "width": "",
+      "height": ""
+     },
+     "formatted_weight": "N/A",
+     "formatted_dimensions": "N/A",
+     "is_password_protected": false
+    },
+    {
+     "id": 265369,
+     "name": "2017 Dugat-Py, Gevrey-Chambertin, Cuvee Coeur de Roy Tres Vieilles Vignes 12x75cl",
+     "slug": "2017-dugat-py-gevrey-chambertin-cuvee-coeur-de-roy-tres-vieilles-vignes-12x75cl-124781720171200750",
+     "parent": 0,
+     "type": "simple",
+     "variation": "",
+     "permalink": "https://laywheelertrading.com/product/2017-dugat-py-gevrey-chambertin-cuvee-coeur-de-roy-tres-vieilles-vignes-12x75cl-124781720171200750/",
+     "sku": "LXSIB124781720171200750",
+     "on_sale": false,
+     "prices": {
+      "price": "147300",
+      "regular_price": "147300",
+      "sale_price": "147300",
+      "price_range": null,
+      "currency_code": "GBP",
+      "currency_symbol": "£",
+      "currency_minor_unit": 2,
+      "currency_decimal_separator": ".",
+      "currency_thousand_separator": ",",
+      "currency_prefix": "£",
+      "currency_suffix": ""
+     },
+     "price_html": "<div class=\"hub-price\"><span class=\"hub-price-in-bond\"><span class=\"woocommerce-Price-amount amount\"><span class=\"woocommerce-Price-currencySymbol\">&pound;</span>1,473</span>/Case <span class=\"hub-price-postfix\">(Excl. UK Duty &amp; VAT)</span></span><span class=\"hub-price-retail\"><span class=\"woocommerce-Price-amount amount\"><span class=\"woocommerce-Price-currencySymbol\">£</span>1,812.24</span>/Case <span class=\"hub-price-postfix\">(Incl. UK Duty &amp; VAT)</span></span><span class=\"hub-duty-status\">Duty Status: <strong>In Bond</strong></span><span class=\"hub-availability\">Availability: <strong>Future Arrival</strong></span></div><span class=\"hub-exp-arrival\">ETA to UK address: <strong>8-10 weeks</strong></span>",
+     "average_rating": "0",
+     "review_count": 0,
+     "tags": [],
+     "attributes": [
+      {
+       "id": 6,
+       "name": "Wine Type",
+       "taxonomy": "pa_wine-type",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 1544,
+         "name": "Red",
+         "slug": "red"
+        }
+       ]
+      },
+      {
+       "id": 1,
+       "name": "Country",
+       "taxonomy": "pa_country",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2861,
+         "name": "France",
+         "slug": "france"
+        }
+       ]
+      },
+      {
+       "id": 2,
+       "name": "Region",
+       "taxonomy": "pa_region",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3535,
+         "name": "Burgundy",
+         "slug": "burgundy"
+        }
+       ]
+      },
+      {
+       "id": 3,
+       "name": "Subregion",
+       "taxonomy": "pa_subregion",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 3594,
+         "name": "Gevrey-Chambertin",
+         "slug": "gevrey-chambertin"
+        }
+       ]
+      },
+      {
+       "id": 7,
+       "name": "Vintage",
+       "taxonomy": "pa_vintage",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 88,
+         "name": "2017",
+         "slug": "2017"
+        }
+       ]
+      },
+      {
+       "id": 8,
+       "name": "Producer",
+       "taxonomy": "pa_producer",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 6502,
+         "name": "Bernard Dugat-py",
+         "slug": "bernard-dugat-py"
+        }
+       ]
+      },
+      {
+       "id": 4,
+       "name": "Bottle Size",
+       "taxonomy": "pa_bottle-size",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2859,
+         "name": "75cl",
+         "slug": "75cl"
+        }
+       ]
+      },
+      {
+       "id": 5,
+       "name": "Pack Size",
+       "taxonomy": "pa_pack-size",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2900,
+         "name": "12x75cl",
+         "slug": "12x75cl"
+        }
+       ]
+      },
+      {
+       "id": 14,
+       "name": "Alcohol Percentage",
+       "taxonomy": "pa_alcohol-percentage",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 6031,
+         "name": "13.50",
+         "slug": "1350"
+        }
+       ]
+      },
+      {
+       "id": 23,
+       "name": "Duty Status",
+       "taxonomy": "pa_duty-status",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 2475,
+         "name": "In Bond",
+         "slug": "in-bond"
+        }
+       ]
+      },
+      {
+       "id": 17,
+       "name": "Availability",
+       "taxonomy": "pa_availability",
+       "has_variations": false,
+       "terms": [
+        {
+         "id": 420,
+         "name": "Future Arrival",
+         "slug": "future-arrival"
+        }
+       ]
+      }
+     ],
+     "variations": [],
+     "has_options": false,
+     "is_purchasable": true,
+     "is_in_stock": true,
+     "is_on_backorder": false,
+     "low_stock_remaining": 1,
+     "stock_availability": {
+      "text": "1 Available",
+      "class": "in-stock wd-style-default"
+     },
+     "sold_individually": false,
+     "weight": "",
+     "dimensions": {
+      "length": "",
+      "width": "",
+      "height": ""
+     },
+     "formatted_weight": "N/A",
+     "formatted_dimensions": "N/A",
+     "is_password_protected": false
+    }
+   ]
+  }
+ ]
+}

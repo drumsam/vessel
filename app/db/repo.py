@@ -25,6 +25,7 @@ from app.identity.resolver import (
     CanonicalWine,
     Registry,
     norm,
+    producers_excluded,
     wine_key,
 )
 
@@ -141,6 +142,12 @@ def create_alias(conn: psycopg.Connection, *, wine_id: str, producer_text: str,
     for a, b in STRUCTURAL_EXCLUSIONS:
         if {key, target["wine_key"]} == {a, b}:
             raise Conflict(f"{a!r} and {b!r} are a structural exclusion")
+
+    # The same guard rail one level up: two growers whose names read alike are
+    # not one grower, whatever cuvée the alias names.
+    if producer_text and producers_excluded(producer_text, target["producer"]):
+        raise Conflict(f"{producer_text!r} and {target['producer']!r} are different "
+                       "producers that have been confused on live merchant data")
 
     if owner:
         excluded = conn.execute(

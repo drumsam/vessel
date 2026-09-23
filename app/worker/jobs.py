@@ -26,6 +26,8 @@ from app.adapters.farr import FEED_URL as FARR_URL, FarrAdapter
 from app.adapters.fine_and_rare import (
     PRODUCER_INDEX_URL as FRW_URL, FineAndRareAdapter)
 from app.adapters.goedhuis import PRODUCTS_URL as GOEDHUIS_URL, GoedhuisAdapter
+from app.adapters.lea_sandeman import LIST_URL as LS_URL, LeaSandemanAdapter
+from app.adapters.lw_trading import API_URL as LW_URL, LayWheelerTradingAdapter
 from app.core.benchmark import benchmark
 from app.core.enums import Reject
 from app.db import repo
@@ -53,12 +55,16 @@ class WholeBook:
 @dataclass(frozen=True)
 class Targeted:
     """A merchant that can only be searched by producer and vintage.
+
     `params` names the merchant-specific search terms, one of which the caller
     must supply: a producer may be listed under more than one slug, and those
-    are searched together."""
+    are searched together. `call` turns those terms into that merchant's own
+    fetch, because each merchant asks the question its own way.
+    """
     adapter: Callable[[], Adapter]
     robots_url: str
     params: tuple[str, ...]
+    call: Callable[[Adapter, dict, int], Sequence[dict]]
 
 
 WHOLE_BOOK: dict[str, WholeBook] = {
@@ -68,10 +74,25 @@ WHOLE_BOOK: dict[str, WholeBook] = {
 
 SLUG_PARAMS = ("producer_slug", "producer_slugs")
 
+
+def _by_slug(adapter: Adapter, params: dict, vintage: int) -> Sequence[dict]:
+    return adapter.fetch(params.get("producer_slug"), vintage,
+                         producer_slugs=params.get("producer_slugs"))
+
+
+def _by_search(adapter: Adapter, params: dict, vintage: int) -> Sequence[dict]:
+    return adapter.fetch(params.get("search") or params.get("producer_slug"), vintage)
+
+
+WHOLE_BOOK["lea-sandeman"] = WholeBook(LeaSandemanAdapter, LS_URL)
+
 TARGETED: dict[str, Targeted] = {
-    "bordeaux-index": Targeted(BordeauxIndexAdapter, BI_URL, SLUG_PARAMS),
+    "bordeaux-index": Targeted(BordeauxIndexAdapter, BI_URL, SLUG_PARAMS, _by_slug),
     # A brokerage: what it publishes is an indication, not stock (decision 0013).
-    "fine-rare": Targeted(FineAndRareAdapter, FRW_URL, SLUG_PARAMS),
+    "fine-rare": Targeted(FineAndRareAdapter, FRW_URL, SLUG_PARAMS, _by_slug),
+    # Searched by producer term; robots asks for ten seconds between requests.
+    "lw-trading": Targeted(LayWheelerTradingAdapter, LW_URL,
+                           ("search",) + SLUG_PARAMS, _by_search),
 }
 
 
@@ -237,8 +258,7 @@ def collect_targeted(merchant_id: str, wine_id: str, vintage: int, params: dict,
         raise ValueError(f"{merchant_id!r} has no targeted search")
     if not any(params.get(k) for k in spec.params):
         raise ValueError(f"{merchant_id} search needs one of {list(spec.params)}")
-    fetch = fetch or (lambda a, p, v: a.fetch(p.get("producer_slug"), v,
-                                              producer_slugs=p.get("producer_slugs")))
+    fetch = fetch or (lambda a, p, v: spec.call(a, p, v))
 
     with transaction() as conn:
         wine = repo.get_wine(conn, wine_id)

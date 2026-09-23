@@ -21,12 +21,18 @@ from app.adapters.farr import FarrAdapter, parse_size, split_wine_field
 from app.adapters.fine_and_rare import (
     FineAndRareAdapter, parse_producer_index, parse_unit, product_urls)
 from app.adapters.goedhuis import GoedhuisAdapter, is_eligible_variant, parse_sku
+from app.adapters.lea_sandeman import (
+    LeaSandemanAdapter, dedupe_rows, parse_pack, parse_rows)
+from app.adapters.lw_trading import (
+    PER_PAGE, LayWheelerTradingAdapter, attributes, lwin_from_sku, parse_price)
 from app.core.benchmark import benchmark as _benchmark
 from app.core.enums import ConditionFlag, DutyStatus, PriceKind, Reject, State, StockType
 from app.core.flags import MAX_OFFER_AGE_DAYS, REVIEW_FLAGS, Flag
 from app.core.models import Offer, SellerLine
+from app.worker.politeness import allowed, crawl_delay
 from app.identity.resolver import (
-    STRUCTURAL_EXCLUSIONS, CanonicalWine, Registry, collided_lwins, norm_producer, wine_key)
+    PRODUCER_EXCLUSIONS, STRUCTURAL_EXCLUSIONS, CanonicalWine, Registry, collided_lwins,
+    norm_producer, producers_excluded, wine_key)
 
 WINE = "w-rousseau-chambertin"
 
@@ -953,3 +959,333 @@ def test_bordeaux_index_unions_a_producers_slugs_and_keeps_each_wine_once():
             vintage=2011, client=client)
     assert len(rows) == 2
     assert sorted(r["code"] for r in rows) == ["rouc-2011", "roush-2011"]
+
+
+# ------------------------------------- Lea & Sandeman: the live In Bond list
+#
+# Spec: docs/research/adapter-spec-pack.md §1. Fixture captured 23 September
+# 2026 from /fine-wine.html?resultsPerPage=192 — 174 rows, one request.
+
+LS_LIST = (Path(__file__).parent / "fixtures/lea-sandeman-list-2026-09-23.html").read_text()
+LS_PRODUCT = (Path(__file__).parent / "fixtures/lea-sandeman-product-2026-09-23.html").read_text()
+LS_ROWS = dedupe_rows(parse_rows(LS_LIST))
+
+
+def ls_row(needle: str, cells_equal: dict | None = None) -> dict:
+    """A live row by wine wording, narrowed by cell position where needed."""
+    for row in LS_ROWS:
+        cells = row["cells"]
+        if needle.lower() in cells[3].lower() and all(
+                cells[i] == v for i, v in (cells_equal or {}).items()):
+            return row
+    raise AssertionError(f"no live row for {needle!r} {cells_equal}")
+
+
+def ls_offer(needle: str, cells_equal: dict | None = None) -> Offer:
+    out = LeaSandemanAdapter().normalise(ls_row(needle, cells_equal), captured_at=AS_OF)
+    assert isinstance(out, Candidate), out
+    return out.offer
+
+
+def test_lea_sandeman_maps_price_by_row_position_not_header():
+    """Thirteen cells, twelve headers: the stock code is unlabelled, so mapping
+    by header name reads `inc VAT` as the price. 2021 Henri Germain Morgeot
+    6x75 IB (stock 44599) is £435.00 ex VAT; the header-shifted read gives
+    £542.74, 24.8% over."""
+    offer = ls_offer("Morgeot Domaine Henri Germain")
+    assert offer.price == Decimal("435.00")
+    assert offer.price != Decimal("542.74")
+    assert offer.raw["inc_vat"] == "542.74"        # kept, never priced from
+    assert (offer.pack_size, offer.bottle_ml) == (6, 750)
+    assert offer.raw["stock_code"] == "44599"
+
+
+def test_lea_sandeman_duty_status_is_per_row():
+    """2020 Volnay 1er Roncerets 6x75 appears under one stock code (41846) as
+    DP £502.91 and IB £485.00. The DP row is not a cheaper version of the IB
+    one, and only the IB row may become an In Bond offer."""
+    in_bond = ls_offer("Roncerets", {2: "2020", 9: "IB"})
+    duty_paid = ls_offer("Roncerets", {2: "2020", 9: "DP"})
+    assert (in_bond.price, in_bond.duty_status) == (Decimal("485.00"), DutyStatus.IN_BOND)
+    assert (duty_paid.price, duty_paid.duty_status) == (Decimal("502.91"), DutyStatus.DUTY_PAID)
+    assert in_bond.raw["stock_code"] == duty_paid.raw["stock_code"] == "41846"
+    assert in_bond.offer_id != duty_paid.offer_id
+
+
+@pytest.mark.parametrize("pack,region,expected", [
+    ("1 x Jero", "Burgundy", (1, 3000)),
+    ("1 x Jero", "Champagne", (1, 3000)),
+    ("1 x Jero", "Bordeaux", (1, 4500)),
+    ("1 x Jero", "", None),                        # no region, no answer
+    ("1 x Jero", "Tuscany", None),
+    ("1 x Neb", "Bordeaux", None),                 # unconfirmed until a live row says
+    ("6 x 75cl", "Burgundy", (6, 750)),
+    ("1 x Mags", "Tuscany", (1, 1500)),
+    ("1 x DM", "Tuscany", (1, 3000)),
+])
+def test_lea_sandeman_jeroboam_depends_on_region(pack, region, expected):
+    """L&S writes `N x Jero` for a 3000ml Burgundy jeroboam and a 4500ml
+    Bordeaux one. A 50% size error either way; with no region there is no
+    answer, so the row is rejected rather than assumed."""
+    assert parse_pack(pack, region) == expected
+
+
+def test_lea_sandeman_product_page_is_never_collected():
+    """Product pages quote duty-paid retail per bottle, not the In Bond trade
+    price: £68.95 a bottle against £675.00 for 6x75cl on the list. The page
+    yields no list rows, and a record that is not a list row is refused."""
+    assert parse_rows(LS_PRODUCT) == []
+    out = LeaSandemanAdapter().normalise({"source_url": "https://www.leaandsandeman.co.uk/wine/x"},
+                                         captured_at=AS_OF)
+    assert out.reason is Reject.ROW_UNREADABLE and "not a list row" in out.detail
+
+
+def test_lea_sandeman_duplicate_rows_are_one_listing():
+    """2021 Germain Morgeot appears twice, identical, under stock code 44599.
+    One listing — but the Roncerets pair above differs in duty status and is
+    two."""
+    raw = parse_rows(LS_LIST)
+    morgeot = [r for r in raw if "44599" == r["cells"][4]]
+    assert len(morgeot) == 2 and morgeot[0]["cells"] == morgeot[1]["cells"]
+    assert len([r for r in LS_ROWS if r["cells"][4] == "44599"]) == 1
+    assert len([r for r in LS_ROWS if r["cells"][4] == "41846"]) == 2   # IB and DP both kept
+
+
+def test_lea_sandeman_mazoyeres_labelled_as_charmes_goes_to_review():
+    """"CHARMES CHAMBERTIN 'Aux Mazoyeres' Grand Cru Virgile Lignier-Michelot"
+    is a real L&S row. Mazoyeres may be sold as Charmes but they are not the
+    same wine, and this title must not auto-resolve to either: no match, so the
+    line waits for a person."""
+    offer_row = ls_row("Mazoy")
+    out = LeaSandemanAdapter().normalise(offer_row, captured_at=AS_OF)
+    registry = Registry([
+        CanonicalWine("charmes", "Virgile Lignier-Michelot", "Charmes-Chambertin Grand Cru"),
+        CanonicalWine("mazoyeres", "Virgile Lignier-Michelot", "Mazoyeres-Chambertin Grand Cru"),
+    ])
+    assert registry.resolve_candidate(out.producer_text, out.cuvee_text) is None
+
+
+def test_lea_sandeman_courcel_grand_clos_is_not_les_grands_epenots():
+    """Courcel's Grand Clos des Epenots is a monopole; Les Grands Epenots is a
+    different parcel. Both answer to [courcel, epenots], and L&S lists the
+    Grand Clos while Lay & Wheeler Trading had Les Grands Epenots for 2019."""
+    grand_clos = "domaine de courcel|pommard 1er cru grand clos des epenots"
+    les_grands = "domaine de courcel|pommard 1er cru les grands epenots"
+    assert (grand_clos, les_grands) in STRUCTURAL_EXCLUSIONS
+    registry = Registry([
+        CanonicalWine("grand-clos", "Domaine de Courcel", "Pommard 1er Cru Grand Clos des Epenots"),
+        CanonicalWine("les-grands", "Domaine de Courcel", "Pommard 1er Cru Les Grands Epenots"),
+    ])
+    assert registry.resolve("Domaine de Courcel", "Pommard 1er Cru Grand Clos des Epenots") \
+        == "grand-clos"
+    assert registry.resolve("Domaine de Courcel", "Pommard 1er Cru Les Grands Epenots") \
+        == "les-grands"
+    # And the live L&S row is the Grand Clos, not the other.
+    assert "Grand Clos des Épenots" in ls_row("Grand Clos des Épenots")["cells"][3]
+
+
+# --------------------- producers that must never be read as one another
+#
+# Every pair was seen on live merchant data in the control-set sweep
+# (docs/research/burgundy-control-set-report.md, 21 and 23 September 2026).
+
+@pytest.mark.parametrize("one,other", PRODUCER_EXCLUSIONS,
+                         ids=lambda p: p.replace("domaine ", "").replace(" ", "-"))
+def test_confusable_producers_never_collapse(one, other):
+    """One grower's wine priced off another's is the catastrophic case, and
+    these names are close enough that a merchant sweep put them side by side."""
+    assert one != other
+    assert producers_excluded(one, other) and producers_excluded(other, one)
+    registry = Registry([CanonicalWine("a", one, "Bourgogne Rouge"),
+                         CanonicalWine("b", other, "Bourgogne Rouge")])
+    assert registry.resolve(one, "Bourgogne Rouge") == "a"
+    assert registry.resolve(other, "Bourgogne Rouge") == "b"
+
+
+def test_the_same_climat_from_two_growers_is_two_wines():
+    """Combe d'Orveau is made by Anne Gros and by Faiveley. The cuvee alone
+    names neither: identity is producer and cuvee together."""
+    registry = Registry([
+        CanonicalWine("gros", "Domaine Anne Gros", "Chambolle-Musigny 1er Cru La Combe d'Orveau"),
+        CanonicalWine("faiveley", "Domaine Faiveley",
+                      "Chambolle-Musigny 1er Cru La Combe d'Orveau"),
+    ])
+    assert registry.resolve("Domaine Anne Gros", "Chambolle-Musigny 1er Cru La Combe d'Orveau") \
+        == "gros"
+    assert registry.resolve("Domaine Faiveley", "Chambolle-Musigny 1er Cru La Combe d'Orveau") \
+        == "faiveley"
+    assert registry.resolve_candidate("", "Chambolle-Musigny 1er Cru La Combe d'Orveau") is None
+
+
+# ------------------------------ Lay & Wheeler Trading: the Store API
+#
+# Spec: docs/research/adapter-spec-pack.md §2. Fixture captured 23 September
+# 2026 from the WooCommerce Store API, Crawl-delay 10 honoured.
+
+LW = json.loads((Path(__file__).parent / "fixtures/lay-wheeler-trading-2026-09-23.json").read_text())
+LW_PRODUCTS = [p for r in LW["responses"] for p in r["products"]]
+
+
+def lw_product(needle: str) -> dict:
+    for product in LW_PRODUCTS:
+        if needle.lower() in product["name"].lower():
+            return product
+    raise AssertionError(f"no live product for {needle!r}")
+
+
+def lw_offer(needle: str) -> Candidate:
+    out = LayWheelerTradingAdapter().normalise(lw_product(needle), captured_at=AS_OF)
+    assert isinstance(out, Candidate), out
+    return out
+
+
+def test_lw_trading_price_is_minor_units():
+    """`prices.price` is "80000" with currency_minor_unit 2 — £800.00. Read as
+    pounds it is a 100x error, and one such row is the Floor for every line it
+    touches."""
+    offer = lw_offer("2009 Domaine Faiveley, Gevrey-Chambertin Premier Cru, Combe au Moine").offer
+    assert offer.price == Decimal("800.00")
+    assert lw_product("Combe au Moine")["prices"]["price"] == "80000"
+    assert parse_price({"price": "141400", "currency_minor_unit": 2}) == Decimal("1414.00")
+    assert parse_price({"price": "141400", "currency_minor_unit": 0}) == Decimal("141400")
+
+
+def test_lw_trading_paginates_past_100():
+    """Faiveley returns exactly 100 of 185 on page 1 (X-WP-TotalPages: 2). A
+    single page looks like a whole answer and the missing half is silent."""
+    import httpx
+
+    pages = {1: [{"name": f"2019 Domaine Faiveley, wine {i} 6x75cl"} for i in range(PER_PAGE)],
+             2: [{"name": "2019 Domaine Faiveley, the hundred-and-first 6x75cl"}]}
+    asked = []
+
+    def handler(request):
+        page = int(dict(request.url.params)["page"])
+        asked.append(page)
+        return httpx.Response(200, json=pages[page],
+                              headers={"X-WP-Total": "101", "X-WP-TotalPages": "2"})
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        rows = LayWheelerTradingAdapter().fetch("Faiveley", client=client, sleep=lambda s: None)
+    assert asked == [1, 2]
+    assert len(rows) == PER_PAGE + 1
+    assert LW["responses"][0]["headers"]["x-wp-totalpages"] == "2"
+
+
+def test_lw_trading_two_sku_schemes_identity_from_attributes():
+    """Both schemes are live. Identity and format come from the attributes; the
+    SKU is never parsed for a price, a duty status or a size, and the LWIN in
+    one of them is a proposal the resolver must see the name agree with."""
+    lwin_sku = lw_offer("2019 Domaine de Courcel, Pommard Premier Cru, Les Grands Epenots")
+    hub_sku = lw_offer("2020 Bernard Dugat-Py, Gevrey-Chambertin, Coeur du Roy")
+    assert lwin_sku.offer.raw["sku"].startswith("LXSIB") and lwin_sku.lwin7 == "1027606"
+    assert lwin_from_sku("LXSIB102760620190600750") == "1027606"
+    assert lwin_from_sku("hub-VS10135589-6-IB-13287647") is None
+    assert hub_sku.offer.raw["sku"].startswith("hub-") and hub_sku.lwin7 is None
+    # "IB" inside the hub SKU is not where the duty status comes from.
+    assert "-IB-" in hub_sku.offer.raw["sku"]
+    assert hub_sku.offer.duty_status is DutyStatus.IN_BOND
+    assert attributes(lw_product("Coeur du Roy"))["Duty Status"] == "In Bond"
+    # And a LWIN out of a SKU never resolves on its own (decision 0006).
+    registry = Registry([CanonicalWine("grands-epenots", "Domaine de Courcel",
+                                       "Pommard 1er Cru Les Grands Epenots", "1027606")])
+    assert registry.resolve_candidate("Someone Else", "A Different Wine", lwin_sku.lwin7) is None
+
+
+def test_lw_trading_courcel_les_grands_epenots_rejected_for_grand_clos():
+    """L&W has Les Grands Epenots for 2019; Lea & Sandeman lists the Grand Clos
+    des Epenots monopole. Both answer to [courcel, epenots] and they are two
+    parcels: a false comp in either direction."""
+    candidate = lw_offer("2019 Domaine de Courcel, Pommard Premier Cru, Les Grands Epenots")
+    registry = Registry([
+        CanonicalWine("grand-clos", "Domaine de Courcel", "Pommard 1er Cru Grand Clos des Epenots"),
+    ])
+    assert registry.resolve_candidate(candidate.producer_text, candidate.cuvee_text) is None
+    assert ("domaine de courcel|pommard 1er cru grand clos des epenots",
+            "domaine de courcel|pommard 1er cru les grands epenots") in STRUCTURAL_EXCLUSIONS
+
+
+def test_lw_trading_coeur_du_roy_tres_vieilles_vignes_goes_to_review():
+    """L&W lists Dugat-Py "Coeur du Roy Tres Vieilles Vignes" 2020 at £765 and
+    a seller writes "Coeur de Roy". Dugat-Py bottles both, and L&W itself
+    spells the same cuvee both ways across vintages, so the du/de difference
+    settles nothing: no automatic match, the line waits for a person."""
+    candidate = lw_offer("2020 Bernard Dugat-Py, Gevrey-Chambertin, Coeur du Roy")
+    assert candidate.offer.price == Decimal("765.00")
+    registry = Registry([
+        CanonicalWine("coeur-de-roy", "Bernard Dugat-Py", "Gevrey-Chambertin Coeur de Roy"),
+    ])
+    assert registry.resolve_candidate(candidate.producer_text, candidate.cuvee_text) is None
+    spellings = {p["name"].split(", ")[-1].replace(" 6x75cl", "").replace(" 12x75cl", "")
+                 for p in LW_PRODUCTS if "coeur" in p["name"].lower()}
+    assert any("Coeur du Roy" in s for s in spellings)
+    assert any("Coeur de Roy" in s for s in spellings)
+
+
+# ------------------------------------- robots.txt as merchants actually write it
+
+UA = "UKFineWinePricer/1.0 (+https://example.invalid/contact)"
+
+LEA_SANDEMAN_ROBOTS = """User-agent: *
+Disallow: /details.html
+Disallow: /search.html?*
+Disallow: /*page=*
+Disallow: /*term=*
+Disallow: /*producer=*
+"""
+
+LW_TRADING_ROBOTS = """User-agent: *
+Disallow: /cart/
+Disallow: /*?wc-ajax
+Disallow: /*blackhole
+Crawl-delay: 10
+
+User-agent: Scrapy
+User-agent: node-fetch
+User-agent: FirecrawlAgent
+Disallow: /
+"""
+
+
+@pytest.mark.parametrize("url,is_allowed", [
+    ("https://www.leaandsandeman.co.uk/fine-wine.html?resultsPerPage=192", True),
+    ("https://www.leaandsandeman.co.uk/fine-wine.html?page=2", False),
+    ("https://www.leaandsandeman.co.uk/fine-wine.html?category=burgundy&page=3", False),
+    ("https://www.leaandsandeman.co.uk/search.html?term=rousseau", False),
+    ("https://www.leaandsandeman.co.uk/details.html", False),
+    ("https://www.leaandsandeman.co.uk/wine/2013-CHAMBERTIN.html", True),
+])
+def test_robots_wildcards_are_honoured(url, is_allowed):
+    """urllib.robotparser has no wildcard support: it reads `Disallow: /*page=*`
+    as a literal prefix, matches nothing, and reports every paginated URL as
+    allowed. Under-blocking means fetching what a merchant asked us not to."""
+    assert allowed(LEA_SANDEMAN_ROBOTS, url, UA) is is_allowed
+
+
+def test_robots_crawl_delay_is_read():
+    """Lay & Wheeler Trading asks for ten seconds. Ignoring it is not politeness
+    with a user-agent attached."""
+    assert crawl_delay(LW_TRADING_ROBOTS, UA) == 10.0
+    assert crawl_delay(LEA_SANDEMAN_ROBOTS, UA) == 0.0
+
+
+def test_robots_blocklists_apply_to_the_crawler_they_name():
+    """The blocked group names Scrapy, node-fetch and FirecrawlAgent. We are
+    none of them, and we do not borrow their names to find out."""
+    assert allowed(LW_TRADING_ROBOTS, "https://laywheelertrading.com/wp-json/wc/store/v1/products",
+                   UA) is True
+    for blocked in ("Scrapy/2.11", "node-fetch/1.0", "FirecrawlAgent"):
+        assert allowed(LW_TRADING_ROBOTS, "https://laywheelertrading.com/", blocked) is False
+
+
+def test_robots_blackhole_traps_are_never_followed():
+    assert allowed(LW_TRADING_ROBOTS, "https://laywheelertrading.com/blackhole/abc", UA) is False
+    assert allowed(LW_TRADING_ROBOTS, "https://laywheelertrading.com/cart/", UA) is False
+
+
+def test_robots_allow_beats_a_shorter_disallow():
+    """Longest match wins, Allow wins a tie: the rule merchants rely on when
+    they carve one path out of a blocked tree."""
+    text = "User-agent: *\nDisallow: /wp-admin/\nAllow: /wp-admin/admin-ajax.php\n"
+    assert allowed(text, "https://x/wp-admin/", UA) is False
+    assert allowed(text, "https://x/wp-admin/admin-ajax.php", UA) is True

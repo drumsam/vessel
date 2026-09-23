@@ -169,15 +169,17 @@ network, no clock, no randomness.
 ## Collector politeness
 
 Honest identifiable User-Agent with a contact URL. Never impersonate a browser.
-Parse `robots.txt` per host at runtime. Respect `Crawl-delay`. Cache aggressively.
+Parse `robots.txt` per host at runtime — with `app/worker/politeness.py`, not
+`urllib.robotparser`, which has no wildcard support and under-blocks
+`Disallow: /*page=*`. Respect `Crawl-delay`. Cache aggressively.
 Never follow blackhole trap paths. Where a merchant states an anti-automation
 position, ask for a trade feed rather than scraping.
 
 ## Current state
 
-Done: deterministic core, identity resolver, four verified adapters — Farr and
-Goedhuis Waddesdon (sweep), Bordeaux Index and FINE+RARE (search) — Postgres
-schema, AI provider interface,
+Done: deterministic core, identity resolver, six verified adapters — Farr,
+Goedhuis Waddesdon and Lea & Sandeman (sweep), Bordeaux Index, FINE+RARE and
+Lay & Wheeler Trading (search) — Postgres schema, AI provider interface,
 FastAPI service (`app/api/`), Alembic migrations (`migrations/`), RQ worker
 (`app/worker/`) for snapshot collection and deterministic benchmark.
 
@@ -199,8 +201,11 @@ which the API requires and refuses empty.
 DEEP MERCHANT SEARCH is built (`deep_search`, `merchant_search_key`), and a
 Playwright smoke test drives the whole operator flow.
 
-Not built yet: the LWIN import (decision 0012 — waiting on the file), the
-remaining nine merchant adapters, AI provider implementations, a rendered buyer
+Merchant specs and the control-set evidence are in `docs/research/`.
+
+Not built yet: the LWIN import (decision 0012 — waiting on the file), Albany and
+Vinum, the vintage-neighbour check (spec not received), the remaining merchant
+adapters, AI provider implementations, a rendered buyer
 document (PDF), the auction layer.
 
 Known open questions are in `docs/decisions/` and in the Burgundy proof report.

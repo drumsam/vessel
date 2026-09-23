@@ -70,7 +70,12 @@ STRUCTURAL_EXCLUSIONS: list[tuple[str, str]] = [
     ("chateau mouton rothschild|grand vin", "chateau mouton rothschild|petit mouton"),
     ("chateau latour|grand vin", "chateau latour|les forts de latour"),
     ("chateau margaux|grand vin", "chateau margaux|pavillon rouge"),
-    # Burgundy adjacent climats and lieux-dits
+    # Burgundy adjacent climats and lieux-dits, and one domaine's two Épenots:
+    # Courcel holds the Grand Clos des Épenots monopole and Les Grands Épenots
+    # is a different parcel. Both answer to [courcel, epenots]
+    # (control-set report, 21 September 2026).
+    ("domaine de courcel|pommard 1er cru grand clos des epenots",
+     "domaine de courcel|pommard 1er cru les grands epenots"),
     ("domaine armand rousseau|chambertin grand cru",
      "domaine armand rousseau|chambertin clos de beze grand cru"),
     ("domaine armand rousseau|charmes chambertin grand cru",
@@ -86,6 +91,37 @@ STRUCTURAL_EXCLUSIONS: list[tuple[str, str]] = [
     ("jacques frederic mugnier|musigny grand cru",
      "jacques frederic mugnier|bonnes mares grand cru"),
 ]
+
+
+#: Producers that must never be read as one another, whatever the cuvée.
+#: A wine_key pair cannot express these: the confusion is in the name of the
+#: domaine itself, so it would need one pair per cuvée they both make. Every
+#: one of these was seen in a live merchant sweep (control-set report,
+#: 21 and 23 September 2026), and each would price one grower's wine off
+#: another's.
+PRODUCER_EXCLUSIONS: list[tuple[str, str]] = [
+    ("domaine rossignol trapet", "domaine nicolas rossignol"),
+    ("domaine y clerget", "domaine christian clerget"),
+    ("domaine comte liger belair", "domaine thibault liger belair"),
+    ("domaine claude dugat", "domaine dugat py"),
+    ("domaine remi jobard", "domaine antoine jobard"),
+    ("domaine remi jobard", "domaine francois jobard"),
+    ("domaine stephane magnien", "domaine michel magnien"),
+    ("domaine stephane magnien", "domaine frederic magnien"),
+    ("domaine stephane magnien", "domaine henri magnien"),
+    ("domaine jean marc boillot", "domaine henri boillot"),
+    ("domaine joseph colin", "domaine philippe colin"),
+    ("domaine joseph colin", "domaine pierre yves colin morey"),
+    ("domaine anne gros", "domaine anne francoise gros"),
+]
+
+
+def producers_excluded(one: str, other: str) -> bool:
+    """True when these two producers are a recorded confusion. Compared on the
+    normalised producer, so "Dom. Dugat-Py" and "Domaine Dugat Py" are one."""
+    a, b = norm_producer(one), norm_producer(other)
+    return any({a, b} == {norm_producer(x), norm_producer(y)}
+               for x, y in PRODUCER_EXCLUSIONS)
 
 
 @dataclass(frozen=True)
