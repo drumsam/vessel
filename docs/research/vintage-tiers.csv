@@ -1,0 +1,59 @@
+region,vintage,tier,tier_label,sources,note
+BURGUNDY_RED,1995,3,solid,"WS-CdN;WS-CdB",structured classic
+BURGUNDY_RED,1996,2,excellent,"WS-CdN;WS-CdB",high acid long haul
+BURGUNDY_RED,1997,4,ordinary,"WS-CdN;WS-CdB",soft early drinking
+BURGUNDY_RED,1998,3,solid,"WS-CdN;WS-CdB",variable
+BURGUNDY_RED,1999,2,excellent,"WS-CdN;WS-CdB",large and generous
+BURGUNDY_RED,2000,4,ordinary,"WS-CdN;WS-CdB;BR",light
+BURGUNDY_RED,2001,3,solid,"WS-CdN;WS-CdB;BR",underrated
+BURGUNDY_RED,2002,2,excellent,"WS-CdN;WS-CdB;BR",balanced
+BURGUNDY_RED,2003,4,ordinary,"WS-CdN;WS-CdB;BR",heatwave atypical
+BURGUNDY_RED,2004,5,weak,"WS-CdN;WS-CdB;BR",green character
+BURGUNDY_RED,2005,1,great,"WS-CdN;WS-CdB;BR",benchmark
+BURGUNDY_RED,2006,3,solid,"WS-CdN;WS-CdB;BR",
+BURGUNDY_RED,2007,4,ordinary,"WS-CdN;WS-CdB;BR",early drinking
+BURGUNDY_RED,2008,3,solid,"WS-CdN;WS-CdB;BR",late rescue
+BURGUNDY_RED,2009,2,excellent,"WS-CdN;WS-CdB;BR",ripe
+BURGUNDY_RED,2010,2,excellent,"WS-CdN;WS-CdB;BR",classical small crop
+BURGUNDY_RED,2011,4,ordinary,"WS-CdN;WS-CdB;BR",
+BURGUNDY_RED,2012,2,excellent,"WS-CdN;WS-CdB;BR",tiny crop
+BURGUNDY_RED,2013,3,solid,"WS-CdN;WS-CdB;BR",
+BURGUNDY_RED,2014,3,solid,"WS-CdN;WS-CdB;BR",better for whites
+BURGUNDY_RED,2015,1,great,"WS-CdN;WS-CdB;BR",
+BURGUNDY_RED,2016,2,excellent,"WS-CdN;WS-CdB;BR",frost-reduced crop
+BURGUNDY_RED,2017,3,solid,"WS-CdN;WS-CdB;BR",generous crop
+BURGUNDY_RED,2018,3,solid,"WS-CdN;WS-CdB;BR",ripe variable
+BURGUNDY_RED,2019,1,great,"WS-CdN;WS-CdB;BR",
+BURGUNDY_RED,2020,2,excellent,"WS-CdN;WS-CdB;BR",
+BURGUNDY_RED,2021,4,ordinary,"WS-CdN;WS-CdB",frost tiny crop lighter wines
+BURGUNDY_RED,2022,1,great,"WS-CdN;WS-CdB",
+BURGUNDY_RED,2023,2,excellent,"WS-CdN;WS-CdB",large crop
+BURGUNDY_WHITE,1995,2,excellent,"WS-W",
+BURGUNDY_WHITE,1996,1,great,"WS-W",high acid
+BURGUNDY_WHITE,1997,4,ordinary,"WS-W",
+BURGUNDY_WHITE,1998,4,ordinary,"WS-W",
+BURGUNDY_WHITE,1999,4,ordinary,"WS-W",
+BURGUNDY_WHITE,2000,3,solid,"WS-W;BR-W",
+BURGUNDY_WHITE,2001,4,ordinary,"WS-W;BR-W",
+BURGUNDY_WHITE,2002,1,great,"WS-W;BR-W",
+BURGUNDY_WHITE,2003,5,weak,"WS-W;BR-W",heatwave low acid
+BURGUNDY_WHITE,2004,3,solid,"WS-W;BR-W",
+BURGUNDY_WHITE,2005,2,excellent,"WS-W;BR-W",rich
+BURGUNDY_WHITE,2006,3,solid,"WS-W;BR-W",
+BURGUNDY_WHITE,2007,3,solid,"WS-W;BR-W",
+BURGUNDY_WHITE,2008,2,excellent,"WS-W;BR-W",tense
+BURGUNDY_WHITE,2009,4,ordinary,"WS-W;BR-W",low acid
+BURGUNDY_WHITE,2010,2,excellent,"WS-W;BR-W",
+BURGUNDY_WHITE,2011,3,solid,"WS-W;BR-W",
+BURGUNDY_WHITE,2012,3,solid,"WS-W;BR-W",tiny crop
+BURGUNDY_WHITE,2013,3,solid,"WS-W;BR-W",
+BURGUNDY_WHITE,2014,1,great,"WS-W;BR-W",benchmark
+BURGUNDY_WHITE,2015,2,excellent,"WS-W;BR-W",rich low acid
+BURGUNDY_WHITE,2016,3,solid,"WS-W;BR-W",frost
+BURGUNDY_WHITE,2017,2,excellent,"WS-W;BR-W",
+BURGUNDY_WHITE,2018,3,solid,"WS-W;BR-W",ripe
+BURGUNDY_WHITE,2019,2,excellent,"WS-W;BR-W",concentrated
+BURGUNDY_WHITE,2020,2,excellent,"WS-W;BR-W",
+BURGUNDY_WHITE,2021,3,solid,"WS-W",frost tiny crop
+BURGUNDY_WHITE,2022,1,great,"WS-W",
+BURGUNDY_WHITE,2023,2,excellent,"WS-W",large crop

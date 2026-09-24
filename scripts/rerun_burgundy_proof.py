@@ -6,6 +6,7 @@ corrected states.
 """
 from __future__ import annotations
 
+import csv
 import json
 import sys
 from datetime import datetime
@@ -14,13 +15,24 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from dataclasses import replace
+
 from app.core.benchmark import benchmark
 from app.core.enums import DutyStatus, PriceKind, StockType
 from app.core.models import Offer, SellerLine
 from app.adapters.condition import normalise_condition
 from app.identity.resolver import CanonicalWine, Registry, wine_key
+from app.market.vintage_band import band_flags, check_vintage_band, without_high_outliers
 
-EV = json.load(open(Path(__file__).parent.parent / "tests/fixtures/evidence-2026-09-19.json"))
+ROOT = Path(__file__).resolve().parents[1]
+EV = json.load(open(ROOT / "tests/fixtures/evidence-2026-09-19.json"))
+
+#: Every wine in this proof is red Burgundy (Rousseau, de Vogüé's Musigny VV,
+#: Mugnier's Musigny), so one register key covers the set. Read from the shipped
+#: file, not hard-coded here.
+with (ROOT / "docs/research/vintage-tiers.csv").open(newline="", encoding="utf-8") as fh:
+    TIERS = {int(r["vintage"]): int(r["tier"])
+             for r in csv.DictReader(fh) if r["region"] == "BURGUNDY_RED"}
 
 # The proof is a replay: every offer carries the evidence file's capture time and
 # every benchmark is taken as of that same moment, so freshness (decision 0003)
@@ -112,22 +124,57 @@ print()
 
 hdr = "{:<4} {:<34} {:>5} {:>9} {:>9} {:>9}  {:<10} {:<28} {}"
 print(hdr.format("ID", "WINE (loose 75cl bottle)", "COMPS", "FLOOR", "REF", "MEDIAN",
-                 "STATE", "FLAGS", "X-UNIT"))
-print("-" * 140)
+                 "STATE", "FLAGS", "VINTAGE BAND"))
+print("-" * 150)
 ready = review = nomkt = 0
+moved = []
 for i, (raw, wid, vintage, qty) in enumerate(SET, 1):
     ln = SellerLine(f"L{i}", raw, wid, vintage, 750, 1, qty)
     r = benchmark(ln, offers, as_of=AS_OF)
+
+    # The sanity check, exactly as the pipeline runs it (decision 0015): on the
+    # comps the benchmark accepted, then a re-benchmark without any comp the
+    # band found too dear, with the band's review flags inherited in.
+    check = check_vintage_band(ln, r.comparables, neighbour_offers=offers,
+                               other_format_offers=offers, as_of=AS_OF, tiers=TIERS)
+    before = (r.state.value, r.uk_reference)
+    flags = band_flags(check)
+    if flags or check.high_outliers:
+        ln = replace(ln, inherited_flags=flags)
+        kept = without_high_outliers(offers, check) if check.high_outliers else offers
+        r = benchmark(ln, kept, as_of=AS_OF)
+    if (r.state.value, r.uk_reference) != before:
+        moved.append((ln.line_id, raw, before, (r.state.value, r.uk_reference), check))
+
     f = lambda x: "-" if x is None else f"£{x:,.0f}"
-    xs = ", ".join(f"{c.offer.pack_size}x@£{c.per_bottle:,.0f}/btl" for c in r.cross_unit) or "-"
+    if check.ran:
+        band = (f"{f(check.band_low)}-{f(check.band_high)} from "
+                f"{','.join(str(n.vintage) for n in check.neighbours)}")
+        if check.high_outliers:
+            band += f" · {len(check.high_outliers)} excluded"
+        if check.low_outliers:
+            band += f" · {len(check.low_outliers)} low"
+    else:
+        band = (check.note or "-")[:44]
     print(hdr.format(ln.line_id, raw[:34], r.comp_count, f(r.uk_floor), f(r.uk_reference),
                      f(r.uk_median), r.state.value,
-                     ",".join(sorted(x.value for x in r.flags))[:28], xs[:40]))
+                     ",".join(sorted(x.value for x in r.flags))[:28], band))
     ready += r.state.value == "READY"
     review += r.state.value == "REVIEW"
     nomkt += r.state.value == "NO_MARKET"
 
 print(f"\nREADY {ready}   REVIEW {review}   NO_MARKET {nomkt}")
+if moved:
+    print("\nThe band moved these lines:")
+    for lid, raw, was, now, check in moved:
+        print(f"  {lid} {raw}: {was[0]} ref {was[1]} -> {now[0]} ref {now[1]}")
+        for ref in check.high_outliers:
+            print(f"       excluded {ref.merchant} £{ref.price:,.2f} "
+                  f"({ref.multiple:.2f}x the £{ref.edge:,.2f} edge)")
+        for ref in check.low_outliers:
+            print(f"       flagged low {ref.merchant} £{ref.price:,.2f} (kept)")
+else:
+    print("\nThe band moved no line in this set.")
 
 # --- sensitivity: what if the seller's parcel were 6-packs rather than loose? ---
 print("\nIf the same wines were offered as 6x75cl cases instead of loose bottles:")

@@ -494,8 +494,10 @@ def bi_card(price: str, vintage: int = 2011, cuvee: str = "Charmes-Chambertin Gr
                        f"You buy £{price} 2 Bottle(s) Available"]}
 
 
-def _seed_wine(client, producer=R, cuvee="Charmes-Chambertin", lwin7=None) -> str:
-    r = client.post("/wines", json={"producer": producer, "cuvee": cuvee, "lwin7": lwin7})
+def _seed_wine(client, producer=R, cuvee="Charmes-Chambertin", lwin7=None,
+               region=None, colour=None) -> str:
+    r = client.post("/wines", json={"producer": producer, "cuvee": cuvee, "lwin7": lwin7,
+                                    "region": region, "colour": colour})
     assert r.status_code == 201, r.text
     return r.json()["wine_id"]
 
@@ -2094,11 +2096,22 @@ def _collect_mg(client, wine_id, cards, vintage=2020) -> str:
     ))["result"]
 
 
+def _load_tiers() -> int:
+    """The shipped register, loaded exactly as an operator would load it."""
+    from scripts.load_vintage_tiers import DEFAULT_CSV, load, read_rows
+    rows = read_rows(DEFAULT_CSV)
+    load(rows, "tests")
+    return len(rows)
+
+
 def _mugneret_line(client):
     """The live L21 case: BI £2,070 and L&S £1,200 for the 2020 6x75 In Bond,
-    with BI's own 2017 and 2018 as the neighbouring vintages."""
-    wid = _seed_wine(client, producer=f"Domaine {MG}", cuvee=MG_CUVEE)
+    with BI's own 2016, 2017 and 2018 as the quality-matched neighbours."""
+    _load_tiers()
+    wid = _seed_wine(client, producer=f"Domaine {MG}", cuvee=MG_CUVEE,
+                     region="Burgundy", colour="Red")
     _collect_mg(client, wid, [mg_card(2020, "2070.00", "2074.00"),
+                              mg_card(2016, "1489.00", "1543.00"),
                               mg_card(2017, "1489.00", "1520.00"),
                               mg_card(2018, "1223.00")])
     _collect_ls(client, [ls_row("1200.00")])
@@ -2129,9 +2142,11 @@ def test_mugneret_gibourg_2020_is_excluded_by_the_band_in_the_pipeline(client):
 
     band = run["vintage_band"]
     assert (band["band_low"], band["band_high"]) == ("1223.00", "1489.00")
-    assert [(n["vintage"], n["median"]) for n in band["neighbours"]] == [
-        (2017, "1489.00"), (2018, "1223.00")]
-    assert band["tiers_available"] is False and "no vintage tiers recorded" in band["note"]
+    assert [(n["vintage"], n["median"], n["tier"]) for n in band["neighbours"]] == [
+        (2016, "1489.00", 2), (2017, "1489.00", 3), (2018, "1223.00", 3)]
+    assert band["tiers_available"] is True and "tier 2±1 was used" in band["note"]
+    # And the line reaches a person because the band acted, not by luck.
+    assert "COMP_EXCLUDED_VINTAGE_BAND" in run["flags"]
 
     # BOTH of Bordeaux Index's listings go, not just its best. Excluding only
     # the cheaper of them would promote the other and the Reference would fall

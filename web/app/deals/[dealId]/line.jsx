@@ -235,10 +235,12 @@ function VintageBand({ band, onReinstate, busy }) {
       <h3 style={{ marginBottom: 6 }}>Neighbouring vintages</h3>
       {band.band_low ? (
         <p className="muted" style={{ fontSize: 13 }}>
-          {band.unit.replace("x", "×")}: this wine&apos;s {band.neighbours.map((n) => n.vintage).join(", ")}{" "}
+          {band.unit.replace("x", "×")}: this wine&apos;s{" "}
+          {band.neighbours.map((n) => `${n.vintage}${n.tier ? ` (tier ${n.tier})` : ""}`).join(", ")}{" "}
           sit between {money(band.band_low)} and {money(band.band_high)}
           {band.neighbours.some((n) => n.stale) ? " (some of it older than the comp window)" : ""}.
           {band.note ? ` ${band.note}.` : ""}
+          {" "}Vintages are matched by quality, not by how near they are.
         </p>
       ) : (
         <p className="muted" style={{ fontSize: 13 }}>{band.note || "No band."}</p>

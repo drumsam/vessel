@@ -12,7 +12,7 @@ Two views:
 import json, sys, re
 from decimal import Decimal
 from datetime import datetime, timezone
-sys.path.insert(0, "/home/claude/repo")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[3]))
 from app.core.benchmark import benchmark
 from app.core.models import Offer, SellerLine
 from app.core.enums import DutyStatus, PriceKind, StockType

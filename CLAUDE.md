@@ -86,9 +86,20 @@ The invariants, in short:
     rewrites nothing, and access is revoked with `operator.active`. See
     `docs/decisions/0009`.
 
+18. Neighbouring vintages are chosen by **quality, not by proximity in years**:
+    same wine and unit, within ±8 years, same tier from the register, widened
+    once to tier ±1 and never further. A region absent from `vintage_tier` gets
+    no band and no flag. The register is keyed by region AND colour (2014
+    Burgundy is tier 3 red and tier 1 white) and is maintained as
+    `docs/research/vintage-tiers.csv`, loaded by `scripts/load_vintage_tiers.py`
+    — a pull request, not a screen. A tier never scales a price. See 0015.
+
 `REVIEW_FLAGS` in `app/core/flags.py` is the single definition of what forces
 operator *review*: it is about evidence quality and commercial flags never go in
-it. The buyer *export* is a separate gate; see invariant 12 and decision 0008.
+it. `COMP_EXCLUDED_VINTAGE_BAND` and `LOW_COMP_OUT_OF_BAND` are in it (0015):
+they reach a run through `inherited_flags`, so the band can hold a line in
+review and can never release one. The buyer *export* is a separate gate; see
+invariant 12 and decision 0008.
 
 A benchmark run is self-contained: it records every contributing capture and
 every offer exactly as used, so snapshots can be pruned without touching history.
@@ -124,11 +135,13 @@ INGEST → IDENTITY PROPOSAL → IDENTITY VERIFICATION → SNAPSHOT LOOKUP
 ## Testing
 
 ```bash
-python -m pytest -q                      # 260 pass, 105 skip; no network, no services
+python -m pytest -q                      # 264 pass, 105 skip; no network, no services
 docker compose up -d                     # Postgres + Redis, then:
 TEST_DATABASE_URL=postgresql://pricer:pricer@localhost:5432/pricer_test \
-TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q   # 365 pass
+TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q   # 369 pass
 python scripts/rerun_burgundy_proof.py   # expect READY 0  REVIEW 5  NO_MARKET 15
+python scripts/load_vintage_tiers.py    # the vintage register, from its CSV
+(cd docs/research/control-set && python run_band.py)   # the band over 70 lines
 cd web && npm test                       # 5 tests: the browser-side parsing rules
 cd web && npm run e2e                    # the whole operator flow in a browser;
                                          # needs the stack up, see web/e2e/README.md
@@ -191,8 +204,9 @@ the identity trail are built.
 
 `app/market/` holds the checks that are *about* the comps rather than part of
 the arithmetic, and nothing in it may change a figure the core produced:
-`vintage_band.py` (decision 0015 — a comp far above its own wine's neighbouring
-vintages is excluded and recorded, a comp far below is flagged and kept) and
+`vintage_band.py` (decision 0015 — a comp far above its own wine's
+quality-matched neighbouring vintages is excluded and recorded, a comp far below
+is flagged and kept; both put the line in review) and
 `parcel.py` (decision 0014 — two merchants at one price to the penny is an
 operator note, never a gate).
 
@@ -211,8 +225,10 @@ Playwright smoke test drives the whole operator flow.
 Merchant specs and the control-set evidence are in `docs/research/`.
 
 Not built yet: the LWIN import (decision 0012 — waiting on the file), Albany and
-Vinum, the vintage-neighbour check (spec not received), the remaining merchant
-adapters, AI provider implementations, a rendered buyer
-document (PDF), the auction layer.
+Vinum, the remaining merchant adapters, the auction evidence form (spec in
+`docs/research/`), AI provider implementations, a rendered buyer document (PDF),
+the auction layer. The vintage register covers Burgundy only: Bordeaux,
+Champagne, the Rhône, Piedmont and Tuscany are missing, and the band stays quiet
+for them until they are added.
 
 Known open questions are in `docs/decisions/` and in the Burgundy proof report.

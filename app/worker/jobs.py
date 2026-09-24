@@ -34,7 +34,8 @@ from app.core.enums import Reject
 from app.db import repo
 from app.db.connection import transaction
 from app.identity.resolver import collided_lwins, norm_producer
-from app.market.vintage_band import check_vintage_band, without_high_outliers
+from app.market.vintage_band import (
+    band_flags, check_vintage_band, without_high_outliers)
 from app.pricing.pricer import DEEP_DISCOUNT_THRESHOLD, CannotPrice, price_line
 from app.worker.politeness import check_robots
 
@@ -330,7 +331,8 @@ def _benchmark_with_band(conn: psycopg.Connection, line, res: repo.Resolution,
     used. Nothing extra is fetched, and nothing here is ever a price.
     """
     result = benchmark(line, res.offers, as_of=when)
-    region = wine_region if wine_region is not None else repo.wine_region(conn, line.wine_id)
+    region = (wine_region if wine_region is not None
+              else repo.wine_register_key(conn, line.wine_id))
     # Every comparable, not just the merchant-bests: Bordeaux Index lists the
     # 2020 Mugneret-Gibourg six-pack at £2,070 AND £2,074, and excluding only
     # the best of them promotes the other. The Reference would fall from £2,070
@@ -342,8 +344,17 @@ def _benchmark_with_band(conn: psycopg.Connection, line, res: repo.Resolution,
     if reinstated:
         check = replace(check, high_outliers=[ref for ref in check.high_outliers
                                               if ref.offer_id not in set(reinstated)])
-    if check.high_outliers:
-        result = benchmark(line, without_high_outliers(res.offers, check), as_of=when)
+
+    # Both band flags are review flags (decision 0015), carried into the run
+    # through inherited_flags — the mechanism decision 0005 built for this. They
+    # can hold a line in review and can never release one, so a line where a
+    # dear comp was thrown out, or a cheap one looks wrong, always reaches a
+    # person rather than depending on ONE_COMP to catch it.
+    flags = band_flags(check)
+    if flags or check.high_outliers:
+        line = replace(line, inherited_flags=frozenset(line.inherited_flags) | flags)
+        offers = without_high_outliers(res.offers, check) if check.high_outliers else res.offers
+        result = benchmark(line, offers, as_of=when)
 
     run_id = str(repo.save_benchmark(conn, result, res))
     repo.save_vintage_band(conn, run_id, check, res)

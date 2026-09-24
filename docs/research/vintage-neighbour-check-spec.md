@@ -65,15 +65,20 @@ Hard rules:
 For a comp on line L (approved `wine_id`, vintage V, `bottle_ml`, `pack_size`):
 
 1. Gather every stored offer for the **same `wine_id`**, **same `bottle_ml`**,
-   **same `pack_size`**, In Bond, ASK, GBP, buyable, from vintages V±1 … V±3,
-   excluding V itself.
+   **same `pack_size`**, In Bond, ASK, GBP, buyable, from **vintages of comparable
+   quality** — see §4, which replaces the old ±3-year window. Exclude V itself.
 2. Require **at least two distinct neighbour vintages**, each with at least one
    merchant. Fewer than two → `band = None`, no flag, and the operator sees
    "not enough neighbouring vintages to check". Silence, not a guess.
 3. Per neighbour vintage take the **median of merchant-bests** (the same depth
    discipline as the benchmark). `band_low` = lowest of those, `band_high` =
    highest.
-4. Widen for vintage tier (§4): `band_high × tier_up`, `band_low ÷ tier_down`.
+   The band is then tested against **every comparable**, not against
+   merchant-bests: BI listed the 2020 Mugneret six-pack at £2,070 *and* £2,074,
+   so excluding only the merchant-best promotes the next listing and achieves
+   nothing. Found by Claude Code while wiring it; permanent regression test.
+4. No tier widening and no quality adjustment: the neighbours are already
+   quality-matched by §4, so the band is used as it stands.
 5. A comp is a **high outlier** if `price > band_high × HIGH_MULTIPLE` (default
    1.35), a **low outlier** if `price < band_low × LOW_MULTIPLE` (default 0.65).
    Both constants live beside `WIDE_SPREAD_THRESHOLD`, both documented.
@@ -93,28 +98,64 @@ The implied per-bottle figures exist **only inside this check's output**. They a
 not stored on an offer, not exported, and not shown as a price — they are shown
 as "BI: £197/btl loose vs £345/btl in six" so the operator can see the disagreement.
 
-## 4. Vintage tiers
+## 4. Quality-matched neighbours (replaces the ±3-year window)
 
-An operator-maintained table, not a critic feed:
+Doug's rule, and it is the right one: **an ordinary vintage prices near another
+ordinary vintage even five years away; a great vintage never prices like an
+ordinary one.** Proximity in years is a poor proxy for comparability. Quality is
+the proxy, and years only break ties.
+
+Selection, in order:
+
+1. Candidate vintages: same `wine_id`, same unit, within **±8 years** of V
+   (drift beyond that is real), excluding V.
+2. Look up the tier of V and of each candidate in `vintage_tier`, keyed by the
+   wine's region and colour (`BURGUNDY_RED`, `BURGUNDY_WHITE`, …).
+3. Keep candidates of the **same tier**. If that leaves fewer than two vintages,
+   widen once to **tier ±1**. Never wider: a tier-1 vintage is never compared
+   with tier 3 or worse.
+4. If the register has no tier for V or for every candidate, **no band, no flag**,
+   and the operator sees "no vintage quality data for this wine's region". Silence,
+   never a guess.
+5. Prefer the nearest years when more than six candidates qualify, keeping the
+   six closest. Years break ties; they do not decide membership.
+
+### The register
+
+`docs/research/vintage-tiers.csv` ships with the repo: 58 rows covering Burgundy
+red and white, 1995–2023, on a 1–5 scale (1 = great, 5 = weak). Table shape:
 
 ```sql
 CREATE TABLE vintage_tier (
-    region      text    NOT NULL,          -- 'BURGUNDY_RED', 'BURGUNDY_WHITE', ...
-    vintage     integer NOT NULL,
-    tier        smallint NOT NULL CHECK (tier BETWEEN 1 AND 5),  -- 1 = greatest
-    source      text    NOT NULL,          -- who says so, in words
-    set_by      text    NOT NULL,
+    region      text     NOT NULL,          -- 'BURGUNDY_RED', 'BURGUNDY_WHITE', ...
+    vintage     integer  NOT NULL,
+    tier        smallint NOT NULL CHECK (tier BETWEEN 1 AND 5),
+    tier_label  text     NOT NULL,          -- great | excellent | solid | ordinary | weak
+    sources     text     NOT NULL,          -- which published charts were consulted
+    note        text     NULL,
+    set_by      text     NOT NULL,
     set_at      timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (region, vintage)
 );
 ```
 
-Use: `tier_up = 1 + 0.15 × max(0, neighbour_tier − target_tier)` and the mirror
-for `tier_down`, capped at 1.6. A great vintage next to an ordinary one widens
-the band so the check stays quiet; it never multiplies a price into an estimate.
+Loaded by `scripts/load_vintage_tiers.py` from the CSV — Doug's call: maintained
+as a file in the repo, reviewed together, not a console screen. Changing a tier
+is a pull request, which is the right amount of friction for something that moves
+prices.
 
-Rows missing → tier treated as equal, band unwidened, and the operator sees
-"no vintage tiers recorded for Burgundy red".
+**How the tiers were derived, and why we store our own number.** Three published
+charts were read for red (Wine Spectator Côte de Nuits, Wine Spectator Côte de
+Beaune, Burgundy Report's 20-point chart) and two for white (Wine Spectator
+Burgundy whites, Burgundy Report). Each source was ranked within itself, and our
+tier is the consensus of those rankings — **our own derived rating**, not a copy
+of anyone's chart. The source names are recorded per row; their scores are not
+reproduced. That keeps us clear of republishing someone else's vintage database
+and it makes disagreement visible: where sources diverge, the note says so.
+
+Coverage gap to close next: Bordeaux (left and right bank), Champagne, Rhône
+north and south, Piedmont and Tuscany. Until a region is in the register, the
+band check simply stays quiet for it.
 
 ## 5. What happens to an outlier — the asymmetry that matters
 
@@ -173,20 +214,33 @@ Attached to the run, not to the benchmark result. The buyer export never contain
    contribute to a 6×75 band.
 6. `test_format_incoherence_is_evidence_not_a_comp` — BI 2020 loose £197 vs six
    at £345/btl: flag raised, no offer created, benchmark arithmetic unchanged.
-7. `test_tier_widens_never_scales` — same comp, tier table present and absent;
-   the band moves, the comp's price never does.
+7. `test_neighbours_are_quality_matched_not_just_near` — a 2004 Burgundy red
+   line (tier 5) does not take 2005 (tier 1) as a neighbour even though it is one
+   year away; a 2000 line (tier 4) does take 2011 and 2021 (tier 4) eight and
+   nine years away — the nine-year one is out of window, so it is excluded and
+   the test says why.
+7b. `test_no_tier_means_no_band` — a region absent from `vintage_tier` produces
+   no band, no flag, and a stated reason.
+7c. `test_tier_widening_stops_at_one_step` — with fewer than two same-tier
+   neighbours the band may use tier ±1 and never tier ±2.
+7d. `test_band_runs_over_every_comparable_not_merchant_bests` — BI's 2020
+   Mugneret pair (£2,070 and £2,074): both are excluded, and the Reference falls
+   to £1,200 rather than to £2,074.
 8. `test_excluded_comp_is_reinstatable_with_provenance`.
 9. `test_export_contains_no_band_fields`.
 10. `test_stale_neighbours_are_labelled` — neighbours older than 90 days → band
     still computed, `note` says so, flag still raised.
 
-## 8. How this interacts with the open WIDE_SPREAD question
+## 8. WIDE_SPREAD — decided
 
-This check is the better answer to the same problem, and the two work together:
-the band explains *why* a spread is wide, where WIDE_SPREAD only says *that* it
-is. With the band running, the depth-2 gating question matters less, because the
-common case (one dear comp) now resolves itself and lands in review with the
-reason attached.
+No separate depth-2 gating rule. Doug's decision, 24 September: a wide gap is
+answered by comparing against quality-matched vintages, not by a second flag
+that says only that the gap exists. `WIDE_SPREAD` stays as it is — informational,
+non-gating — and the band check carries the weight.
 
-Suggested order: build this first, run it over the 70-line control set, then
-decide the WIDE_SPREAD rule on the evidence of how many lines it still catches.
+Both band flags **do** gate (Doug, 24 September): `COMP_EXCLUDED_VINTAGE_BAND`
+and `LOW_COMP_OUT_OF_BAND` go into `REVIEW_FLAGS` in `app/core/flags.py`, and the
+three constants sit beside `WIDE_SPREAD_THRESHOLD`. This is the one approved
+change to the locked core, and it only ever tightens: a line where a dear comp
+was thrown out, or a cheap one looks wrong, always reaches a human — not only
+when `ONE_COMP` happens to catch it.

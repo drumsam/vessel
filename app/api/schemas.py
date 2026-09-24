@@ -589,7 +589,10 @@ class NeighbourOut(_Out):
     median: Money
     merchants: int
     stale: bool
-    newest_captured_at: Optional[datetime]
+    #: 1 = great, 5 = weak, from the shipped register. Absent on runs computed
+    #: before the register existed.
+    tier: Optional[int] = None
+    newest_captured_at: Optional[datetime] = None
 
 
 class BandOfferOut(_Out):

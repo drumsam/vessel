@@ -397,14 +397,26 @@ CREATE TABLE benchmark_comp (
 -- by pricing, and nothing in them reaches a client document.
 
 -- Operator-maintained, not a critic feed. One tier per region and vintage,
--- 1 = greatest. Rows missing means the band is not widened, which is the
--- conservative direction: the check speaks more often, not less.
+-- 1 = great, 5 = weak. A region absent from this table has no band at all:
+-- the check stays quiet rather than comparing a great vintage with a weak one.
+--
+-- `region` carries the colour, because they diverge: 2014 Burgundy is tier 3
+-- red and tier 1 white, 2009 is tier 2 red and tier 4 white. A colour-blind
+-- register would produce nonsense bands.
+--
+-- Maintained as docs/research/vintage-tiers.csv and loaded by
+-- scripts/load_vintage_tiers.py: changing a tier is a pull request, which is
+-- the right amount of friction for something that decides which prices are
+-- treated as outliers. Hence set_by is text (the file and its revision), not an
+-- operator_id — no person types into this table.
 CREATE TABLE vintage_tier (
     region      text     NOT NULL,              -- 'BURGUNDY_RED', 'BURGUNDY_WHITE', ...
     vintage     integer  NOT NULL,
     tier        smallint NOT NULL CHECK (tier BETWEEN 1 AND 5),
-    source      text     NOT NULL,              -- who says so, in words
-    set_by      uuid     NOT NULL REFERENCES operator(operator_id),
+    tier_label  text     NOT NULL,              -- great | excellent | solid | ordinary | weak
+    sources     text     NOT NULL,              -- which charts were consulted; not their scores
+    note        text,
+    set_by      text     NOT NULL,
     set_at      timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (region, vintage)
 );

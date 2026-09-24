@@ -975,28 +975,45 @@ def thin_targets(conn: psycopg.Connection, deal_id: str, min_comps: int = 2) -> 
 # by nothing else: no function below is called from pricing or from an export.
 
 
-def wine_region(conn: psycopg.Connection, wine_id: str) -> Optional[str]:
-    """The region a wine's vintage tiers are keyed by, or None when nobody has
-    recorded one. None widens nothing, which makes the check speak more often."""
-    row = conn.execute("SELECT region FROM wine WHERE wine_id = %s", (wine_id,)).fetchone()
-    return row["region"] if row else None
+def register_key(region: Optional[str], colour: Optional[str]) -> Optional[str]:
+    """The `vintage_tier.region` a wine is rated under: 'BURGUNDY_RED'.
+
+    Colour is part of the key because the tiers diverge — 2014 Burgundy is tier
+    3 red and tier 1 white, 2009 is tier 2 red and tier 4 white. A colour-blind
+    register would produce nonsense bands. A wine missing either is unrated,
+    and an unrated wine gets no band at all rather than a guessed one.
+    """
+    if not region or not colour:
+        return None
+    return f"{norm(region).replace(' ', '_')}_{norm(colour).replace(' ', '_')}".upper()
+
+
+def wine_register_key(conn: psycopg.Connection, wine_id: str) -> Optional[str]:
+    row = conn.execute("SELECT region, colour FROM wine WHERE wine_id = %s",
+                       (wine_id,)).fetchone()
+    return register_key(row["region"], row["colour"]) if row else None
 
 
 def vintage_tiers(conn: psycopg.Connection, region: Optional[str]) -> dict[int, int]:
-    """{vintage: tier} for one region, or {} when nobody has recorded any.
-
-    An empty table means the band is not widened, which makes the check speak
-    more often rather than less — the conservative direction.
-    """
+    """{vintage: tier} for one region-and-colour, or {} when it is not in the
+    register. Empty means no band and no flag — silence, never a guess."""
     if not region:
         return {}
     return {r["vintage"]: r["tier"] for r in conn.execute(
         "SELECT vintage, tier FROM vintage_tier WHERE region = %s", (region,))}
 
 
+def vintage_tier_rows(conn: psycopg.Connection, region: str) -> list[dict]:
+    """The register as an operator sees it: the tier, its label and what was
+    consulted. Read-only — the register is maintained as a file."""
+    return conn.execute(
+        """SELECT vintage, tier, tier_label, sources, note, set_by, set_at
+             FROM vintage_tier WHERE region = %s ORDER BY vintage""", (region,)).fetchall()
+
+
 def _neighbour_json(n: NeighbourVintage) -> dict:
     return {"vintage": n.vintage, "median": str(exact_money(n.median)),
-            "merchants": n.merchants, "stale": n.stale,
+            "merchants": n.merchants, "stale": n.stale, "tier": n.tier,
             "newest_captured_at": (n.newest_captured_at.isoformat()
                                    if n.newest_captured_at else None)}
 
