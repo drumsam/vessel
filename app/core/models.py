@@ -87,6 +87,13 @@ class SellerLine:
     #: docs/decisions/0005-inherited-line-flags.md.
     inherited_flags: FrozenSet[Flag] = frozenset()
 
+    #: Whether a comparable may be derived across case sizes for this line
+    #: (decision 0016: Burgundy only, 750ml only, 5% case premium). The CALLER
+    #: sets it, from the wine's region. The pricing core does not know what a
+    #: region is and never will — invariant 1 — so it is told, not asked.
+    #: False everywhere it is not set, which is the exact-unit rule of 0001.
+    derive_units: bool = False
+
     @property
     def unit(self) -> CommercialUnit:
         return unit_for(self.pack_size)

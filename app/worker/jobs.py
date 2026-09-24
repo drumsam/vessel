@@ -34,6 +34,7 @@ from app.core.enums import Reject
 from app.db import repo
 from app.db.connection import transaction
 from app.identity.resolver import collided_lwins, norm_producer
+from app.market.units import derivation_allowed
 from app.market.vintage_band import (
     band_flags, check_vintage_band, without_high_outliers)
 from app.pricing.pricer import DEEP_DISCOUNT_THRESHOLD, CannotPrice, price_line
@@ -330,9 +331,13 @@ def _benchmark_with_band(conn: psycopg.Connection, line, res: repo.Resolution,
     Neighbours and other formats come out of the same resolution the benchmark
     used. Nothing extra is fetched, and nothing here is ever a price.
     """
-    result = benchmark(line, res.offers, as_of=when)
     region = (wine_region if wine_region is not None
               else repo.wine_register_key(conn, line.wine_id))
+    # Whether this line may derive a comparable across case sizes is a fact
+    # about the wine's region, which the core does not know (decision 0016).
+    # It is decided here, once, before any benchmark runs.
+    line = replace(line, derive_units=derivation_allowed(region))
+    result = benchmark(line, res.offers, as_of=when)
     # Every comparable, not just the merchant-bests: Bordeaux Index lists the
     # 2020 Mugneret-Gibourg six-pack at £2,070 AND £2,074, and excluding only
     # the best of them promotes the other. The Reference would fall from £2,070

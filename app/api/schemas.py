@@ -488,6 +488,19 @@ class JobOut(BaseModel):
 # --------------------------------------------------------------- benchmark
 
 
+class DerivedFromOut(_Out):
+    """What a derived comparable was derived from. Never a price of its own:
+    the operator always sees what the merchant actually offered."""
+    merchant_id: str
+    merchant: str
+    price: Money
+    pack_size: int
+    bottle_ml: int
+    basis: str                       # the arithmetic, in words
+    premium_applied: bool
+    note: str                        # the sentence shown beside the figure
+
+
 class CompOut(_Out):
     """One offer as the benchmark saw it, read from the run itself. offer_pk is
     null once the snapshot it came from has been pruned; nothing else changes."""
@@ -508,6 +521,10 @@ class CompOut(_Out):
     #: how many merchants it says it aggregated. Context, never a price.
     variance_vs_reference: Optional[Decimal] = None
     merchant_count: Optional[int] = None
+    #: Set when `price` above was DERIVED across case sizes (decision 0016).
+    #: The real offer is here: its unit, its price and the arithmetic in words,
+    #: including that the 5% case premium is an assumption.
+    derived_from: Optional[DerivedFromOut] = None
     currency: str
     duty_status: str
     price_kind: str

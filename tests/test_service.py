@@ -2220,3 +2220,98 @@ def test_export_contains_no_band_fields(client):
     [claim] = _sql("SELECT * FROM buyer_offer_market_claim")
     assert set(claim) == {"buyer_offer_id", "line_no", "run_id", "as_of",
                           "uk_reference", "comp_count", "below_reference"}
+
+
+# --- cross-case-size comparables (decision 0016) ------------------------------
+
+
+@pg
+def test_a_burgundy_line_prices_from_a_derived_comp_and_goes_to_review(client):
+    """Bordeaux Index holds the 2020 Mugneret-Gibourg as a 3x75 at £600 and
+    nothing at 6x75. Before decision 0016 that was a near-miss and the line read
+    ONE_COMP off Lea & Sandeman alone; now it is a second merchant at £1,200 —
+    and because the 5% is an assumption, the line reaches a person either way."""
+    _load_tiers()
+    wid = _seed_wine(client, producer=f"Domaine {MG}", cuvee=MG_CUVEE,
+                     region="Burgundy", colour="Red")
+    _collect_mg(client, wid, [{"title": f"2020 Domaine {MG}, {MG_CUVEE}",
+                               "code": "mugneret-2020-3pk",
+                               "url": "https://bordeauxindex.com/livetrade/mugneret-2020",
+                               "offers": ["Case (3 x 75cl) CONDITION Original Case STATUS "
+                                          "In-Bond ETA In Stock You buy £600.00 1 Case(s) "
+                                          "Available"]}])
+    _collect_ls(client, [ls_row("1200.00")])
+    r = client.post("/deals", json={
+        "name": "Vosne parcel", "currency": "GBP", "target_margin": 0.2,
+        "lines": [{"row_index": 0, "raw_description": "Mugneret-Gibourg Vosne 2020 6x75 IB",
+                   "raw_row": {"A": "Mugneret-Gibourg Vosne 2020"}, "quantity": 6,
+                   "cost": "900.00", "cost_currency": "GBP"}]})
+    deal = r.json()
+    line_id = deal["lines"][0]["line_id"]
+    assert client.put(f"/lines/{line_id}/identity", json={
+        "wine_id": wid, "vintage": 2020, "bottle_ml": 750, "pack_size": 6,
+        "source": "operator", "flags": []}).status_code == 200
+    _benchmark(client, deal["deal_id"])
+
+    run = client.get(f"/lines/{line_id}/benchmark").json()
+    assert run["comp_count"] == 2
+    assert (run["uk_floor"], run["uk_reference"]) == ("1200.00", "1200.00")
+    assert "DERIVED_FROM_CASE" in run["flags"] and run["state"] == "REVIEW"
+
+    [derived] = [c for c in run["comps"]
+                 if c["role"] == "merchant_best" and c["derived_from"]]
+    assert derived["price"] == "1200.00" and derived["pack_size"] == 6
+    # The real offer is never replaced by the figure computed from it.
+    assert (derived["derived_from"]["price"], derived["derived_from"]["pack_size"]) \
+        == ("600.00", 3)
+    assert derived["derived_from"]["premium_applied"] is False
+    assert "No premium applied: case to case." in derived["derived_from"]["note"]
+    # And it is stored against the offer it came from, not against a fiction.
+    [row] = _sql("""SELECT offer_snapshot FROM benchmark_comp
+                     WHERE run_id = %s AND role = 'merchant_best'
+                       AND offer_snapshot->>'merchant_id' = 'bordeaux-index'""",
+                 (run["run_id"],))
+    assert row["offer_snapshot"]["derived_from"]["basis"].startswith("3x750ml")
+
+
+@pg
+def test_a_derived_comp_cannot_reach_a_client_without_a_person(client):
+    """The 5% is an assumption, so a buyer offer built on one is refused until a
+    named operator accepts it — the existing review path, not a new one."""
+    _load_tiers()
+    wid = _seed_wine(client, producer=f"Domaine {MG}", cuvee=MG_CUVEE,
+                     region="Burgundy", colour="Red")
+    _collect_mg(client, wid, [{"title": f"2020 Domaine {MG}, {MG_CUVEE}",
+                               "code": "mugneret-2020-3pk",
+                               "url": "https://bordeauxindex.com/livetrade/mugneret-2020",
+                               "offers": ["Case (3 x 75cl) CONDITION Original Case STATUS "
+                                          "In-Bond ETA In Stock You buy £600.00 1 Case(s) "
+                                          "Available"]}])
+    r = client.post("/deals", json={
+        "name": "Vosne parcel", "currency": "GBP", "target_margin": 0.2,
+        "lines": [{"row_index": 0, "raw_description": "Mugneret-Gibourg Vosne 2020 6x75 IB",
+                   "raw_row": {"A": "Mugneret-Gibourg Vosne 2020"}, "quantity": 6,
+                   "cost": "900.00", "cost_currency": "GBP"}]})
+    deal_id = r.json()["deal_id"]
+    line_id = r.json()["lines"][0]["line_id"]
+    client.put(f"/lines/{line_id}/identity", json={
+        "wine_id": wid, "vintage": 2020, "bottle_ml": 750, "pack_size": 6,
+        "source": "operator", "flags": []})
+    _benchmark(client, deal_id)
+    run = client.get(f"/lines/{line_id}/benchmark").json()
+    assert "DERIVED_FROM_CASE" in run["flags"] and run["state"] == "REVIEW"
+
+    _price(client, deal_id)
+    refused = client.post(f"/deals/{deal_id}/buyer-offers", json={
+        "client": "A Merchant Ltd", "lines": [{"line_id": line_id}]})
+    assert refused.status_code == 409, refused.text
+
+    client.post(f"/lines/{line_id}/pricing/acknowledge",
+                json={"note": "derived from BI's 3-pack, 5% assumed; accepted"})
+    issued = client.post(f"/deals/{deal_id}/buyer-offers", json={
+        "client": "A Merchant Ltd", "lines": [{"line_id": line_id}]})
+    assert issued.status_code == 201, issued.text
+    # Nothing about the derivation reaches the document itself.
+    printed = json.dumps(issued.json())
+    for banned in ("derived", "premium", "assumption", "600.00"):
+        assert banned not in printed, banned

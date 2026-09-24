@@ -37,7 +37,15 @@ The invariants, in short:
 
 1. Identity is compared by approved `wine_id` only. The pricing core does not
    know what a producer or a cuvée is. No name matching lives here.
-2. Commercial unit equality is exact. No division, no multiplication, ever.
+2. Commercial unit equality is exact, with ONE exception the caller must ask
+   for: `SellerLine.derive_units` permits a comparable to be DERIVED from
+   another case size of the same 750ml wine, with a 5% case premium that is an
+   assumption and is labelled one everywhere. Burgundy only. Derived comps rank
+   behind every exact-unit comp, are used only when fewer than two merchants
+   hold the seller's own unit, and always flag the line `DERIVED_FROM_CASE`, so
+   a person sees them. Magnums and half bottles never convert, either way. The
+   core is told which lines qualify; it does not know what a region is. See
+   `docs/decisions/0016`.
 3. Depth counts merchants, not listings.
 4. Floor = lowest merchant-best · Reference = second-lowest (or the only one,
    flagged `ONE_COMP`) · Median = median of merchant-bests.
@@ -47,10 +55,11 @@ The invariants, in short:
    beside cross-unit evidence, with its variance from the Reference. See 0013.
 6. Zero comparables ⇒ `NO_MARKET`.
 7. Money is `Decimal` in Python and `numeric(14,2)` in Postgres. No float ever
-   touches a price. Exactly three places round, all ROUND_HALF_EVEN to pence:
-   the Median (`benchmark.py`), FX conversion of a non-GBP cost and the sell
-   price (`app/pricing/pricer.py`). A price that is not whole pence is refused
-   as `NOT_WHOLE_PENCE`, never rounded. See `docs/decisions/0007`.
+   touches a price. Exactly four places round, all ROUND_HALF_EVEN to pence:
+   the Median and a comparable derived across case sizes (`benchmark.py`), FX
+   conversion of a non-GBP cost and the sell price (`app/pricing/pricer.py`).
+   A price that is not whole pence is refused as `NOT_WHOLE_PENCE`, never
+   rounded. See `docs/decisions/0007`.
 8. Freshness: an offer is comparable only if captured within
    `MAX_OFFER_AGE_DAYS` (14) before `as_of`, and not after it. Undated ⇒ `STALE`.
    `as_of` is an argument, never the clock. See `docs/decisions/0003`.
@@ -135,11 +144,11 @@ INGEST → IDENTITY PROPOSAL → IDENTITY VERIFICATION → SNAPSHOT LOOKUP
 ## Testing
 
 ```bash
-python -m pytest -q                      # 264 pass, 105 skip; no network, no services
+python -m pytest -q                      # 275 pass, 107 skip; no network, no services
 docker compose up -d                     # Postgres + Redis, then:
 TEST_DATABASE_URL=postgresql://pricer:pricer@localhost:5432/pricer_test \
-TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q   # 369 pass
-python scripts/rerun_burgundy_proof.py   # expect READY 0  REVIEW 5  NO_MARKET 15
+TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q   # 382 pass
+python scripts/rerun_burgundy_proof.py   # expect READY 0  REVIEW 15  NO_MARKET 5
 python scripts/load_vintage_tiers.py    # the vintage register, from its CSV
 (cd docs/research/control-set && python run_band.py)   # the band over 70 lines
 cd web && npm test                       # 5 tests: the browser-side parsing rules
@@ -206,7 +215,9 @@ the identity trail are built.
 the arithmetic, and nothing in it may change a figure the core produced:
 `vintage_band.py` (decision 0015 — a comp far above its own wine's
 quality-matched neighbouring vintages is excluded and recorded, a comp far below
-is flagged and kept; both put the line in review) and
+is flagged and kept; both put the line in review), `units.py` (decision 0016 —
+which regions may derive a comparable across case sizes, and the words the
+operator reads: the 5% case premium is an assumption, never a measurement) and
 `parcel.py` (decision 0014 — two merchants at one price to the penny is an
 operator note, never a gate).
 

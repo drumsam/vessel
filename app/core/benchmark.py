@@ -11,8 +11,14 @@ added. The adapter contract may evolve; this must not.
   2. Identity is compared by approved canonical `wine_id` only. This module does
      not know what a producer or a cuvee is.
   3. Commercial unit equality is exact: 1x75cl matches 1x75cl, 6x75cl matches
-     6x75cl. No division, no multiplication, ever. Cross-unit evidence is
-     returned separately as excluded evidence for the operator to see.
+     6x75cl. Cross-unit evidence is returned separately as excluded evidence for
+     the operator to see. ONE exception, and only when the caller sets
+     `SellerLine.derive_units` (decision 0016, Burgundy only, 750ml only): a
+     comparable may be DERIVED from another case size, with a 5% case premium
+     that is an assumption and not a measurement. Such a comp ranks behind every
+     exact-unit comp, is used only when fewer than two merchants hold the
+     seller's own unit, and always flags the line DERIVED_FROM_CASE. Magnums and
+     half bottles never convert, in either direction.
      A brokerage INDICATION is excluded by the KIND screen in the same way and
      returned as corroboration: a price nobody has offered stock at cannot be a
      Floor, a Reference or a Median. See docs/decisions/0013.
@@ -44,12 +50,16 @@ become either. Farr's feed publishes float32 artefacts such as 308.329986; that
 is not a price anyone printed, and rounding it would be an estimate. The same
 refusal is applied again when a figure is stored.
 
+One other figure is rounded here: a comparable DERIVED across case sizes, at
+the point of derivation (decision 0016). It is not an observed price, which is
+why it may be rounded at all — and why it always carries DERIVED_FROM_CASE.
+
 The system's other two rounding points are outside this module and are named in
 docs/decisions/0007: FX conversion of a non-GBP cost, and the final sell price.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 from decimal import ROUND_HALF_EVEN, Decimal
 from statistics import median
@@ -57,7 +67,9 @@ from typing import Iterable, Optional
 
 from .enums import DutyStatus, PriceKind, Reject, State
 from .flags import (
+    CASE_PREMIUM,
     CONDITION_REVIEW_FLAGS,
+    DERIVABLE_BOTTLE_ML,
     MAX_OFFER_AGE_DAYS,
     REQUIRE_QUANTITY_COVER,
     REVIEW_FLAGS,
@@ -67,6 +79,11 @@ from .flags import (
 from .models import GBP, Offer, SellerLine
 
 CENT = Decimal("0.01")
+
+#: A derived comparable is a figure, not something a merchant published, so it
+#: gets an id of its own built from the offer it came from. `source_offer_id`
+#: is how everything downstream gets back to the real offer.
+DERIVED_SUFFIX = "#derived"
 
 #: The one rounding mode in the pricing core. Applied to the Median only.
 MEDIAN_ROUNDING = ROUND_HALF_EVEN
@@ -104,6 +121,69 @@ class CrossUnitEvidence:
     per_bottle: Decimal            # offer.price / pack_size, for display only
 
 
+def source_offer_id(offer_id: str) -> str:
+    """The real offer behind an id, derived or not."""
+    return offer_id.split(DERIVED_SUFFIX, 1)[0]
+
+
+@dataclass(frozen=True)
+class DerivedComp:
+    """A comparable derived from an offer in a DIFFERENT case size of the same
+    750ml wine (decision 0016, Burgundy only).
+
+    `source` is the real offer, untouched, at its real unit and its real price.
+    `offer` carries the derived figure at the seller's unit. Both are kept and
+    both are shown: the operator sees what was actually offered beside what was
+    computed from it, and `raw` is the merchant's original record either way.
+
+    `basis` spells the arithmetic out in words, including whether the 5% case
+    premium was applied — and that premium is an assumption, not a measurement.
+    """
+    source: Offer
+    offer: Offer
+    basis: str
+    premium_applied: bool
+
+
+def derive_price(source: Offer, pack_size: int) -> Optional[tuple[Decimal, str, bool]]:
+    """(price at `pack_size`, the arithmetic in words, premium applied?).
+
+    None when the shapes do not permit it. 750ml only, both sides — a magnum
+    never converts to or from a bottle, in either direction, because a large
+    format carries a scarcity premium that has nothing to do with the wine.
+
+      loose -> case    price x N x 1.05      the premium, an ASSUMPTION
+      case  -> case    price / M x N         no premium: both sides are cases
+      case  -> loose   price / M / 1.05      the premium, in reverse
+
+    The one rounding point in this module besides the Median, and the fourth in
+    the system (decision 0007): the derived figure is quantised to whole pence,
+    ROUND_HALF_EVEN, here and nowhere else.
+    """
+    if source.bottle_ml != DERIVABLE_BOTTLE_ML or pack_size < 1:
+        return None
+    if source.pack_size < 1 or source.pack_size == pack_size or source.price is None:
+        return None
+
+    per_bottle = source.price / source.pack_size
+    if source.pack_size == 1:
+        price, premium = source.price * pack_size * CASE_PREMIUM, True
+        words = (f"{source.price} loose x {pack_size}, plus a 5% case premium "
+                 f"(an assumption, not a measurement)")
+    elif pack_size == 1:
+        price, premium = per_bottle / CASE_PREMIUM, True
+        words = (f"{source.price} for {source.pack_size} = {per_bottle} a bottle, "
+                 f"less a 5% case premium (an assumption, not a measurement)")
+    else:
+        price, premium = per_bottle * pack_size, False
+        words = (f"{source.price} for {source.pack_size} = {per_bottle} a bottle, "
+                 f"x {pack_size}; no premium, case to case")
+    price = price.quantize(CENT, rounding=MEDIAN_ROUNDING)
+    if price <= Decimal("0"):
+        return None
+    return price, f"{source.pack_size}x{source.bottle_ml}ml: {words}", premium
+
+
 @dataclass
 class BenchmarkResult:
     line: SellerLine
@@ -112,6 +192,9 @@ class BenchmarkResult:
     rejections: list[Rejection] = field(default_factory=list)
     cross_unit: list[CrossUnitEvidence] = field(default_factory=list)
     indications: list[IndicationEvidence] = field(default_factory=list)
+    #: Comparables derived across case sizes, and used: empty unless the exact
+    #: unit had fewer than two merchants (decision 0016).
+    derived: list[DerivedComp] = field(default_factory=list)
 
     merchant_bests: list[Offer] = field(default_factory=list)
     duplicate_listings: int = 0
@@ -234,6 +317,7 @@ def benchmark(line: SellerLine, offers: Iterable[Offer], *, as_of: datetime) -> 
     result.flags |= line.inherited_flags
 
     indications: list[Offer] = []
+    derivable: list[Offer] = []
     for o in offers:
         reason = _screen(line, o, as_of)
         if reason is None:
@@ -241,9 +325,13 @@ def benchmark(line: SellerLine, offers: Iterable[Offer], *, as_of: datetime) -> 
             continue
         result.rejections.append(Rejection(offer=o, reason=reason))
         if reason is Reject.UNIT and _is_cross_unit(line, o, as_of):
+            # The offer itself is not comparable and the rejection stands. What
+            # may be comparable is a figure derived from it, and only if this
+            # line permits derivation at all (decision 0016).
             result.cross_unit.append(
                 CrossUnitEvidence(offer=o, per_bottle=o.price / o.pack_size)
             )
+            derivable.append(o)
         elif _is_indication(line, o, as_of):
             # Not tied to which screen fired: KIND excludes an indication from
             # pricing, but one with an unknown duty status is rejected by DUTY
@@ -257,8 +345,45 @@ def benchmark(line: SellerLine, offers: Iterable[Offer], *, as_of: datetime) -> 
         cur = best.get(o.merchant_id)
         if cur is None or o.price < cur.price:
             best[o.merchant_id] = o
+
+    # --- derived comparables, and only as a fill-in ----------------------
+    #
+    # Exact-unit comps rank first (decision 0016). Derivation runs only when
+    # fewer than two merchants hold the seller's own unit, and it never
+    # displaces a merchant that does: with exact-unit depth, the other case
+    # sizes stay what they always were — cross-unit evidence, shown and not
+    # priced from. The 5% premium is an assumption, so a line that rests on one
+    # of these carries DERIVED_FROM_CASE and goes to a person.
+    if (line.derive_units and derivable and len(best) < 2
+            and line.bottle_ml == DERIVABLE_BOTTLE_ML):
+        for source in derivable:
+            if source.merchant_id in best:
+                continue                    # this merchant holds the exact unit
+            made = derive_price(source, line.pack_size)
+            if made is None:
+                continue
+            price, basis, premium = made
+            derived = replace(source, offer_id=source.offer_id + DERIVED_SUFFIX,
+                              pack_size=line.pack_size, price=price,
+                              offered_units=None)
+            current = next((d for d in result.derived
+                            if d.offer.merchant_id == source.merchant_id), None)
+            if current is not None and current.offer.price <= price:
+                continue
+            if current is not None:
+                result.derived.remove(current)
+            result.derived.append(DerivedComp(source=source, offer=derived,
+                                              basis=basis, premium_applied=premium))
+        for d in result.derived:
+            best[d.offer.merchant_id] = d.offer
+            result.comparables.append(d.offer)
+
     result.merchant_bests = sorted(best.values(), key=lambda x: x.price)
     result.duplicate_listings = len(result.comparables) - len(result.merchant_bests)
+
+    derived_ids = {d.offer.offer_id for d in result.derived}
+    if any(o.offer_id in derived_ids for o in result.merchant_bests):
+        result.flags.add(Flag.DERIVED_FROM_CASE)
 
     def with_variance(reference: Optional[Decimal]) -> list[IndicationEvidence]:
         return [IndicationEvidence(offer=o,

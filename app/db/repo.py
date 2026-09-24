@@ -14,10 +14,11 @@ import psycopg
 from psycopg.types.json import Jsonb
 
 from app.adapters.base import Candidate
-from app.core.benchmark import BenchmarkResult
+from app.core.benchmark import BenchmarkResult, DerivedComp, source_offer_id
 from app.core.enums import ConditionFlag, DutyStatus, PriceKind, StockType
 from app.core.flags import Flag
 from app.core.models import Offer, SellerLine
+from app.market.units import derivation_note
 from app.market.vintage_band import FormatDisagreement, NeighbourVintage, VintageBandCheck
 from app.pricing.pricer import PricedLine
 from app.identity.resolver import (
@@ -533,9 +534,19 @@ def resolve_offers(conn: psycopg.Connection, *, wine_id: str, vintage: int,
                       merchant_offer_ids={str(r["offer_pk"]): r["merchant_offer_id"] for r in rows})
 
 
+def derived_from_json(d: DerivedComp) -> dict:
+    """What a derived comparable was derived from. Never a price of its own."""
+    return {"offer_id": None, "merchant_id": d.source.merchant_id,
+            "merchant": d.source.merchant, "price": str(exact_money(d.source.price)),
+            "pack_size": d.source.pack_size, "bottle_ml": d.source.bottle_ml,
+            "basis": d.basis, "premium_applied": d.premium_applied,
+            "note": derivation_note(d)}
+
+
 def offer_snapshot(o: Offer, merchant_offer_id: str,
                    per_bottle: Optional[Decimal] = None,
-                   variance_vs_reference: Optional[Decimal] = None) -> dict:
+                   variance_vs_reference: Optional[Decimal] = None,
+                   derived_from: Optional[dict] = None) -> dict:
     """The offer exactly as the benchmark used it. Money is a string, so it
     survives JSON without passing through a float. Migration 0003 builds the
     same document in SQL for runs that predate it."""
@@ -557,6 +568,11 @@ def offer_snapshot(o: Offer, merchant_offer_id: str,
         "variance_vs_reference": (str(variance_vs_reference.quantize(RATE))
                                   if variance_vs_reference is not None else None),
         "merchant_count": (o.raw or {}).get("market", {}).get("merchantCount"),
+        # Set only on a comparable DERIVED across case sizes (decision 0016).
+        # The offer above carries the derived figure at the seller's unit; this
+        # says what was really offered, at what unit, and by what arithmetic.
+        # The 5% case premium is an assumption and the wording says so.
+        "derived_from": derived_from,
     }
 
 
@@ -588,11 +604,23 @@ def save_benchmark(conn: psycopg.Connection, result: BenchmarkResult,
         rows += [(i.offer, "indication", None, None, i.variance_vs_reference)
                  for i in result.indications]
         rows += [(r.offer, "rejected", r.reason.value, None, None) for r in result.rejections]
+
+        # A derived comparable has no offer row of its own — it is a figure, not
+        # something a merchant published. It is stored against the offer it was
+        # derived FROM, so the provenance survives pruning like everything else.
+        derived = {d.offer.offer_id: d for d in result.derived}
+
+        def source_pk(offer_id: str) -> str:
+            d = derived.get(offer_id)
+            return d.source.offer_id if d else offer_id
+
         cur.executemany(
             """INSERT INTO benchmark_comp (run_id, offer_pk, role, reject_reason, offer_snapshot)
                VALUES (%s, %s, %s, %s, %s)""",
-            [(run_id, o.offer_id, role, reason,
-              Jsonb(offer_snapshot(o, resolution.merchant_offer_ids[o.offer_id], pb, variance)))
+            [(run_id, source_pk(o.offer_id), role, reason,
+              Jsonb(offer_snapshot(
+                  o, resolution.merchant_offer_ids[source_pk(o.offer_id)], pb, variance,
+                  derived_from_json(derived[o.offer_id]) if o.offer_id in derived else None)))
              for o, role, reason, pb, variance in rows])
     return run_id
 
@@ -1052,9 +1080,10 @@ def save_vintage_band(conn: psycopg.Connection, run_id: str, check: VintageBandC
             """INSERT INTO benchmark_comp_exclusion
                    (run_id, offer_pk, offer_snapshot, flag, band_edge, band_multiple)
                VALUES (%s, %s, %s, %s, %s, %s)""",
-            [(run_id, ref.offer_id,
-              Jsonb(offer_snapshot(resolution.offer_by_id[ref.offer_id],
-                                   resolution.merchant_offer_ids[ref.offer_id])),
+            [(run_id, source_offer_id(ref.offer_id),
+              Jsonb(offer_snapshot(
+                  resolution.offer_by_id[source_offer_id(ref.offer_id)],
+                  resolution.merchant_offer_ids[source_offer_id(ref.offer_id)])),
               ref.flag, exact_money(ref.edge), ref.multiple.quantize(RATE))
              for ref in check.high_outliers])
 

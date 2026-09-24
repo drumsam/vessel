@@ -128,8 +128,11 @@ print(hdr.format("ID", "WINE (loose 75cl bottle)", "COMPS", "FLOOR", "REF", "MED
 print("-" * 150)
 ready = review = nomkt = 0
 moved = []
+derived_used = []
 for i, (raw, wid, vintage, qty) in enumerate(SET, 1):
-    ln = SellerLine(f"L{i}", raw, wid, vintage, 750, 1, qty)
+    # Every wine here is red Burgundy, so derivation across case sizes is
+    # permitted (decision 0016). The caller decides that, never the core.
+    ln = SellerLine(f"L{i}", raw, wid, vintage, 750, 1, qty, derive_units=True)
     r = benchmark(ln, offers, as_of=AS_OF)
 
     # The sanity check, exactly as the pipeline runs it (decision 0015): on the
@@ -147,6 +150,9 @@ for i, (raw, wid, vintage, qty) in enumerate(SET, 1):
         moved.append((ln.line_id, raw, before, (r.state.value, r.uk_reference), check))
 
     f = lambda x: "-" if x is None else f"£{x:,.0f}"
+    if r.derived:
+        for d in r.derived:
+            derived_used.append((ln.line_id, raw, d))
     if check.ran:
         band = (f"{f(check.band_low)}-{f(check.band_high)} from "
                 f"{','.join(str(n.vintage) for n in check.neighbours)}")
@@ -164,6 +170,16 @@ for i, (raw, wid, vintage, qty) in enumerate(SET, 1):
     nomkt += r.state.value == "NO_MARKET"
 
 print(f"\nREADY {ready}   REVIEW {review}   NO_MARKET {nomkt}")
+if derived_used:
+    print(f"\nComparables derived across case sizes ({len(derived_used)}), "
+          "each one a 5% assumption and each one flagged DERIVED_FROM_CASE:")
+    for lid, raw, d in derived_used:
+        print(f"  {lid} {raw}: {d.source.merchant} {d.source.pack_size}x75 "
+              f"£{d.source.price:,.2f} -> £{d.offer.price:,.2f} "
+              f"({'premium applied' if d.premium_applied else 'case to case'})")
+else:
+    print("\nNo comparable was derived across case sizes in this set.")
+
 if moved:
     print("\nThe band moved these lines:")
     for lid, raw, was, now, check in moved:
@@ -183,8 +199,10 @@ print(hdr2.format("ID", "WINE", "BTL", "6PK", "FLOOR", "REF", "MERCHANTS"))
 print("-" * 120)
 d1 = d2 = 0
 for i, (raw, wid, vintage, qty) in enumerate(SET, 1):
-    b = benchmark(SellerLine(f"L{i}", raw, wid, vintage, 750, 1, qty), offers, as_of=AS_OF)
-    c = benchmark(SellerLine(f"L{i}", raw, wid, vintage, 750, 6, 1), offers, as_of=AS_OF)
+    b = benchmark(SellerLine(f"L{i}", raw, wid, vintage, 750, 1, qty, derive_units=True),
+                  offers, as_of=AS_OF)
+    c = benchmark(SellerLine(f"L{i}", raw, wid, vintage, 750, 6, 1, derive_units=True),
+                  offers, as_of=AS_OF)
     d1 += b.comp_count >= 2
     d2 += c.comp_count >= 2
     f = lambda x: "-" if x is None else f"£{x:,.0f}"

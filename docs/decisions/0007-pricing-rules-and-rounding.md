@@ -1,6 +1,8 @@
-# 0007 — Pricing rules, and the three places that round
+# 0007 — Pricing rules, and the four places that round
 
-**Status:** accepted, 20 September 2026. The deep-discount threshold is a default, not a measurement.
+**Status:** accepted, 20 September 2026. A fourth rounding point was added
+24 September by decision 0016. The deep-discount threshold is a default, not a
+measurement.
 
 ## The rules
 
@@ -30,19 +32,25 @@ Nothing is guessed. A margin with no cost, a discount with no Reference, a
 non-GBP cost with no FX rate, or a line with no rule at all is skipped with its
 reason, and no price is written.
 
-## The three rounding points
+## The four rounding points
 
 Every money figure is `numeric(14,2)`, so every division has to land somewhere.
-There are exactly three places where rounding happens, and no others:
+There are exactly four places where rounding happens, and no others:
 
 | # | Where | What |
 |---|---|---|
 | 1 | `app/core/benchmark.py` | the Median of an even number of merchant-bests |
 | 2 | `app/pricing/pricer.convert_cost` | a non-GBP cost converted to GBP |
 | 3 | `app/pricing/pricer.price_line` | the final sell price |
+| 4 | `app/core/benchmark.derive_price` | a comparable derived across case sizes (0016) |
 
-All three round to whole pence with `ROUND_HALF_EVEN`, so a run of half-penny
+All four round to whole pence with `ROUND_HALF_EVEN`, so a run of half-penny
 ties does not drift upwards. Each is tested in both directions.
+
+The fourth is different in kind and worth saying out loud: it rounds a figure
+**nobody offered**. That is allowed only because a derived comparable is never
+presented as an observed price — it carries `DERIVED_FROM_CASE`, so the line
+reaches a person, and the real offer it came from is shown beside it.
 
 Everything else is exact or refused:
 
@@ -61,4 +69,5 @@ Everything else is exact or refused:
 An earlier version of this working agreement said there was exactly one place
 that rounds. That was too tight: the FX conversion and the sell price are
 unavoidable, and pretending otherwise would have pushed rounding somewhere
-undocumented. Three named, tested places is the rule.
+undocumented. Named, tested places is the rule — three of them until decision
+0016 added derivation, which needed a fourth and got one, in the open.

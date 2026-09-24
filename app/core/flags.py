@@ -89,6 +89,25 @@ LOW_MULTIPLE = Decimal("0.65")
 #: bottle, is evidence about that comp. It never becomes a comp of its own.
 FORMAT_INCOHERENCE = Decimal("0.30")
 
+#: The case premium, per bottle, when a comparable is derived across case sizes
+#: (decision 0016). Doug's call, 24 September 2026.
+#:
+#: **This is a working assumption, not a measurement, and it is labelled as one
+#: everywhere it appears.** Decision 0001 measured the real basis across live
+#: merchant data: a case ran from 17.3% BELOW to 20.0% ABOVE the loose-bottle
+#: price of the same wine. A flat 5% sits inside that range and can still be
+#: wrong by about 15 points one way and 22 the other — roughly £200-£290 on a
+#: £1,300 six-pack.
+#:
+#: That is why a derived comparable always carries DERIVED_FROM_CASE, which is a
+#: review flag: the figure is useful, and nobody ships it without looking.
+CASE_PREMIUM = Decimal("1.05")
+
+#: Derivation is 750ml only. Magnums and above carry a scarcity premium that has
+#: nothing to do with the wine in the bottle, and half bottles the mirror of it,
+#: so neither converts in either direction (decision 0016).
+DERIVABLE_BOTTLE_ML = 750
+
 #: See docs/decisions/0002-quantity-sufficiency.md.
 #: False  -> offered quantity is ignored when deciding comparability; a shortfall
 #:           is surfaced as the informational flag QUANTITY_SHORTFALL only.

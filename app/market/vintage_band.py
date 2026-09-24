@@ -41,6 +41,7 @@ from decimal import Decimal
 from statistics import median
 from typing import Iterable, Optional
 
+from app.core.benchmark import source_offer_id
 from app.core.enums import DutyStatus, PriceKind
 from app.core.flags import (
     FORMAT_INCOHERENCE, HIGH_MULTIPLE, LOW_MULTIPLE, MAX_OFFER_AGE_DAYS, Flag)
@@ -311,9 +312,13 @@ def check_vintage_band(line: SellerLine, comps: Iterable[Offer], *,
 
 def without_high_outliers(offers: Iterable[Offer], check: VintageBandCheck) -> list[Offer]:
     """The offer list to re-benchmark with. Only high outliers are removed, and
-    only ever here: a low outlier is the operator's call (spec §5)."""
-    excluded = {ref.offer_id for ref in check.high_outliers}
-    return [o for o in offers if o.offer_id not in excluded]
+    only ever here: a low outlier is the operator's call (spec §5).
+
+    A DERIVED comparable (decision 0016) is excluded by removing the offer it
+    was derived from, or the next benchmark would simply derive it again.
+    """
+    excluded = {source_offer_id(ref.offer_id) for ref in check.high_outliers}
+    return [o for o in offers if source_offer_id(o.offer_id) not in excluded]
 
 
 def band_flags(check: VintageBandCheck) -> frozenset[Flag]:

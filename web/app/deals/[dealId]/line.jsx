@@ -192,11 +192,25 @@ export default function LineDetail({ lineId, line, onChange }) {
                     <td className="num">
                       {money(c.price, c.currency)}
                       {c.per_bottle && <div className="muted">{money(Number(c.per_bottle).toFixed(2))}/btl</div>}
+                      {c.derived_from && <div className="muted">derived</div>}
                     </td>
-                    <td className="muted">{c.pack_size}×{c.bottle_ml / 100}cl {c.vintage}</td>
+                    <td className="muted">
+                      {c.pack_size}×{c.bottle_ml / 100}cl {c.vintage}
+                      {c.derived_from && (
+                        <div className="muted">
+                          really {c.derived_from.pack_size}×{c.derived_from.bottle_ml / 100}cl
+                          {" "}at {money(c.derived_from.price)}
+                        </div>
+                      )}
+                    </td>
                     <td className="muted verbatim">{format(c.condition_notes)}</td>
                     <td>
-                      {c.role === "merchant_best" ? <span className="tag ready">priced</span>
+                      {c.role === "merchant_best" && c.derived_from ? (
+                        <>
+                          <span className="tag review">priced, derived</span>
+                          <div className="muted">{c.derived_from.note}</div>
+                        </>
+                      ) : c.role === "merchant_best" ? <span className="tag ready">priced</span>
                         : c.role === "cross_unit" ? <span className="tag">shown, not priced</span>
                         : c.role === "indication" ? (
                           <>
