@@ -90,18 +90,28 @@ LOW_MULTIPLE = Decimal("0.65")
 FORMAT_INCOHERENCE = Decimal("0.30")
 
 #: The case premium, per bottle, when a comparable is derived across case sizes
-#: (decision 0016). Doug's call, 24 September 2026.
+#: (decision 0016). **Measured**, 24 September 2026, not assumed: 27 paired
+#: same-day observations of the same wine, vintage and bottle size in loose and
+#: case form, Bordeaux Index, In Bond, 750ml.
 #:
-#: **This is a working assumption, not a measurement, and it is labelled as one
-#: everywhere it appears.** Decision 0001 measured the real basis across live
-#: merchant data: a case ran from 17.3% BELOW to 20.0% ABOVE the loose-bottle
-#: price of the same wine. A flat 5% sits inside that range and can still be
-#: wrong by about 15 points one way and 22 the other — roughly £200-£290 on a
-#: £1,300 six-pack.
+#:     median 1.0000 · mean 0.9737 · n = 27 · range 0.7038 to 1.1525
+#:     10 of 27 identical to the penny · 16 of 27 within 5% of parity
 #:
-#: That is why a derived comparable always carries DERIVED_FROM_CASE, which is a
-#: review flag: the figure is useful, and nobody ships it without looking.
-CASE_PREMIUM = Decimal("1.05")
+#: A case is priced at the same rate per bottle as a loose bottle more often
+#: than at any other rate, and when it differs it is slightly more often
+#: CHEAPER per bottle, not dearer. The 5% this started as was not far off the
+#: centre, but it was biased in the one direction that matters: a derived figure
+#: that is too high raises the UK Reference, which is how we overpay and how a
+#: client gets overpriced. Parity has no such bias.
+#:
+#: The SPREAD is the real finding, and it is why nothing else about 0016
+#: changed: a quarter of the pairs sit more than 5% from parity and the tails
+#: run to -30% and +15%. No constant can be right about an individual wine, so a
+#: derived comparable always carries DERIVED_FROM_CASE — a review flag — and
+#: always ranks behind a real offer at the seller's own unit.
+#:
+#: See docs/research/case-premium-measurement.md and decision 0016.
+CASE_PREMIUM = Decimal("1.00")
 
 #: Derivation is 750ml only. Magnums and above carry a scarcity premium that has
 #: nothing to do with the wine in the bottle, and half bottles the mirror of it,

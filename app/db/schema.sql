@@ -469,6 +469,44 @@ CREATE TABLE benchmark_comp_exclusion (
 CREATE INDEX comp_exclusion_open ON benchmark_comp_exclusion (run_id)
     WHERE reinstated_at IS NULL;
 
+-- One wine seen in two pack sizes by one merchant in one fetch: the paired
+-- observation that makes CASE_PREMIUM a measurement instead of a judgement
+-- call (decision 0016, docs/research/case-premium-measurement.md).
+--
+-- Same wine, vintage, bottle size AND duty status on both sides — a Duty Paid
+-- bottle against an In Bond case measures the duty, not the case. Each pack
+-- size is paired against the smallest one present, so three sizes give two
+-- rows, and where a loose bottle exists it is the baseline.
+--
+-- `ratio` is a ratio, not money: the larger pack's price per bottle over the
+-- smaller's. Above 1 means the bigger unit costs more per bottle.
+CREATE TABLE case_premium_pair (
+    pair_id        bigserial PRIMARY KEY,
+    snapshot_id    uuid NOT NULL REFERENCES snapshot(snapshot_id) ON DELETE CASCADE,
+    merchant_id    text NOT NULL REFERENCES merchant(merchant_id),
+    wine_id        uuid NOT NULL REFERENCES wine(wine_id) ON DELETE CASCADE,
+    vintage        integer NOT NULL,
+    bottle_ml      integer NOT NULL CHECK (bottle_ml > 0),
+    duty_status    text NOT NULL,
+    captured_at    timestamptz NOT NULL,
+
+    smaller_pack   integer NOT NULL CHECK (smaller_pack >= 1),
+    smaller_price  numeric(14,2) NOT NULL CHECK (smaller_price > 0),
+    larger_pack    integer NOT NULL CHECK (larger_pack > 1),
+    larger_price   numeric(14,2) NOT NULL CHECK (larger_price > 0),
+    ratio          numeric(10,6) NOT NULL CHECK (ratio > 0),
+
+    -- The pair the CASE_PREMIUM constant is about. A 3-pack against a 6-pack
+    -- measures something else, and case-to-case derivation applies no premium.
+    is_loose_pair  boolean NOT NULL GENERATED ALWAYS AS (smaller_pack = 1) STORED,
+
+    CONSTRAINT case_premium_pair_order CHECK (larger_pack > smaller_pack),
+    UNIQUE (snapshot_id, wine_id, vintage, bottle_ml, duty_status, smaller_pack, larger_pack)
+);
+
+CREATE INDEX case_premium_pair_measure ON case_premium_pair (bottle_ml, captured_at)
+    WHERE is_loose_pair;
+
 -- ================================================================ pricing
 
 -- The figures as they stood at the moment of pricing. Nothing here is

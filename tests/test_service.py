@@ -2315,3 +2315,52 @@ def test_a_derived_comp_cannot_reach_a_client_without_a_person(client):
     printed = json.dumps(issued.json())
     for banned in ("derived", "premium", "assumption", "600.00"):
         assert banned not in printed, banned
+
+
+@pg
+def test_a_capture_records_every_wine_it_meets_in_two_pack_sizes(client):
+    """Bordeaux Index publishes the loose bottle and the case on the same card,
+    in the same response. That is the paired same-day observation the case
+    premium needs, and the collection step now keeps it — 27 pairs from one
+    merchant is not enough to settle a constant that moves prices."""
+    wid = _seed_wine(client, producer=f"Domaine {MG}", cuvee=MG_CUVEE,
+                     region="Burgundy", colour="Red")
+    _collect_mg(client, wid, [{"title": f"2020 Domaine {MG}, {MG_CUVEE}",
+                               "code": "mugneret-2020",
+                               "url": "https://bordeauxindex.com/livetrade/mugneret-2020",
+                               "offers": [
+                                   "Bottle (75cl) CONDITION Original Case STATUS In-Bond "
+                                   "ETA In Stock You buy £197.00 2 Bottle(s) Available",
+                                   "Case (6 x 75cl) CONDITION Original Case STATUS In-Bond "
+                                   "ETA In Stock You buy £1182.00 1 Case(s) Available",
+                                   "Case (12 x 75cl) CONDITION Original Case STATUS In-Bond "
+                                   "ETA In Stock You buy £2400.00 1 Case(s) Available"]}])
+
+    rows = _sql("""SELECT smaller_pack, larger_pack, smaller_price, larger_price, ratio,
+                          is_loose_pair, merchant_id, duty_status
+                     FROM case_premium_pair ORDER BY larger_pack""")
+    assert [(r["smaller_pack"], r["larger_pack"]) for r in rows] == [(1, 6), (1, 12)]
+    assert all(r["is_loose_pair"] and r["merchant_id"] == "bordeaux-index"
+               and r["duty_status"] == "IB" for r in rows)
+    assert rows[0]["ratio"] == Decimal("1.000000")          # £197 loose, £197 a bottle in six
+    assert rows[1]["ratio"] == Decimal("1.015228")          # the twelve is 1.5% dearer
+
+    # It is an observation about pricing policy, not evidence about this wine:
+    # nothing in the pricing path reads it, and the benchmark is unchanged.
+    deal_id, line_id = _deal(client, wid, quantity=1)
+    _sql("UPDATE seller_line SET vintage = 2020, pack_size = 1", fetch=False)
+    _benchmark(client, deal_id)
+    run = client.get(f"/lines/{line_id}/benchmark").json()
+    assert run["uk_floor"] == "197.00" and run["comp_count"] == 1
+    assert "DERIVED_FROM_CASE" not in run["flags"]          # the exact unit was there
+
+    from app.db import connection, repo
+    with connection.connect(TEST_DB) as conn:
+        summary = {r["merchant_id"]: r for r in repo.case_premium_summary(conn)}
+    overall = summary[None]                                  # the ROLLUP row
+    assert overall["pairs"] == 2 and overall["beyond_5pct"] == 0
+    # An exact median of observed ratios: no float, and nothing averaged into a
+    # number nobody published.
+    assert overall["median"] == Decimal("1.000000")
+    assert isinstance(overall["mean"], Decimal)
+    assert (overall["low"], overall["high"]) == (Decimal("1.000000"), Decimal("1.015228"))

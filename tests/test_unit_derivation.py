@@ -17,7 +17,9 @@ from app.core.benchmark import benchmark, derive_price
 from app.core.enums import DutyStatus, PriceKind, Reject, State, StockType
 from app.core.flags import CASE_PREMIUM, REVIEW_FLAGS, Flag
 from app.core.models import Offer, SellerLine
-from app.market.units import DERIVABLE_REGIONS, derivation_allowed, derivation_note
+from app.market.units import (
+    DERIVABLE_REGIONS, PREMIUM_CAVEAT, PREMIUM_EVIDENCE, case_pairs, derivation_allowed,
+    derivation_note)
 
 AS_OF = datetime(2026, 9, 23, 12, 0, tzinfo=timezone.utc)
 MUGNERET = "w-mugneret-gibourg-vosne"
@@ -46,23 +48,49 @@ def line(pack_size: int = 6, bottle_ml: int = 750, *, derive: bool = True,
                       pack_size=pack_size, quantity=1, derive_units=derive)
 
 
-def test_burgundy_loose_bottle_derives_to_case_with_premium():
-    """Bordeaux Index's loose 2020 Mugneret-Gibourg Vosne-Romanée bottle is £197.
-    Multiplied flat it says £1,182 for six — but a case is not six loose bottles,
-    and the policy's 5% says £1,241.10. Taking the flat figure understates the
-    case by £59.10, and it would become the Floor of a line with no other
-    evidence."""
+def test_burgundy_loose_bottle_derives_to_case_at_the_measured_premium():
+    """Bordeaux Index's loose 2020 Mugneret-Gibourg Vosne-Romanée bottle is £197,
+    so six is £1,182.
+
+    The premium started as an assumed 5%, which would have said £1,241.10 —
+    £59.10 too much, and a figure too high raises the UK Reference, which is how
+    we overpay. Measured at Bordeaux Index the premium is parity: median 1.0000
+    across 27 same-day pairs, 10 of them identical to the penny. See
+    docs/research/case-premium-measurement.md.
+    """
     loose = offer("bordeaux-index", "197.00", pack_size=1, merchant="Bordeaux Index")
     price, basis, premium = derive_price(loose, 6)
-    assert price == Decimal("1241.10") == Decimal("197.00") * 6 * CASE_PREMIUM
-    assert price != Decimal("1182.00")
-    assert premium is True and "assumption, not a measurement" in basis
+    assert CASE_PREMIUM == Decimal("1.00")
+    assert price == Decimal("1182.00") == Decimal("197.00") * 6 * CASE_PREMIUM
+    assert price != Decimal("1241.10")                  # the assumed 5%, now measured away
+    assert premium is True and "measured case premium" in basis
 
     result = benchmark(line(), [loose], as_of=AS_OF)
-    assert result.uk_floor == Decimal("1241.10")
+    assert result.uk_floor == Decimal("1182.00")
     [derived] = result.derived
-    assert derived.source is loose and derived.offer.price == Decimal("1241.10")
+    assert derived.source is loose and derived.offer.price == Decimal("1182.00")
     assert Flag.DERIVED_FROM_CASE in result.flags
+
+
+def test_the_premium_is_measured_and_the_spread_is_why_it_still_flags():
+    """Parity is the median, not the rule. A quarter of the 27 pairs sat more
+    than 5% out and the tails ran to -30% (2014 Lignier-Michelot Clos de la
+    Roche: £175 loose against £123.17 a bottle in six) and +15% (2006 Roumier
+    Les Cras: £600 against £691.50). No constant can be right about one wine,
+    which is why the flag is the safeguard and the constant never was."""
+    assert PREMIUM_EVIDENCE["pairs"] == 27
+    assert PREMIUM_EVIDENCE["median"] == Decimal("1.0000") == CASE_PREMIUM
+    assert (PREMIUM_EVIDENCE["low"], PREMIUM_EVIDENCE["high"]) == (Decimal("0.7038"),
+                                                                   Decimal("1.1525"))
+    assert "not a fact about this wine" in PREMIUM_CAVEAT
+    assert str(PREMIUM_EVIDENCE["median"]) in PREMIUM_CAVEAT
+
+    # A wine at either tail is derived at the median and flagged, not corrected.
+    at_the_tail = offer("bordeaux-index", "175.00", pack_size=1, merchant="Bordeaux Index")
+    result = benchmark(line(), [at_the_tail], as_of=AS_OF)
+    assert result.uk_floor == Decimal("1050.00")        # 175 x 6, not 123.17 x 6
+    assert result.state is State.REVIEW
+    assert Flag.DERIVED_FROM_CASE in result.flags and Flag.DERIVED_FROM_CASE in REVIEW_FLAGS
 
 
 def test_case_to_case_carries_no_premium():
@@ -117,7 +145,7 @@ def test_derived_comp_forces_review():
     loose = offer("farr", "80.00", pack_size=1, merchant="Farr Vintners")
     result = benchmark(line(), [three, loose], as_of=AS_OF)
 
-    assert result.comp_count == 2 and result.uk_reference == Decimal("504.00")
+    assert result.comp_count == 2 and result.uk_reference == Decimal("480.00")
     assert Flag.DERIVED_FROM_CASE in result.flags
     assert Flag.DERIVED_FROM_CASE in REVIEW_FLAGS
     assert result.state is State.REVIEW
@@ -211,9 +239,9 @@ def test_operator_sees_source_unit_and_price():
 
     farr = by_merchant["Farr Vintners"]
     assert "Derived from a 1x75cl at 80.00 from Farr Vintners" in derivation_note(farr)
-    assert "a working assumption, not a measurement" in derivation_note(farr)
+    assert "measured median 1.0000 across 27 paired observations" in derivation_note(farr)
     # Both figures are on the run, each beside the offer it came from.
-    assert [d.offer.price for d in result.derived] == [Decimal("450.00"), Decimal("504.00")]
+    assert [d.offer.price for d in result.derived] == [Decimal("450.00"), Decimal("480.00")]
 
 
 def test_half_bottles_are_not_usable():
@@ -226,3 +254,90 @@ def test_half_bottles_are_not_usable():
     result = benchmark(line(), [halves], as_of=AS_OF)
     assert result.state is State.NO_MARKET and result.derived == []
     assert [r.reason for r in result.rejections] == [Reject.SIZE]
+
+
+# --- measuring the premium instead of assuming it -----------------------------
+#
+# docs/research/case-premium-measurement.md: "Every adapter that meets a wine in
+# two units on the same day should record the pair."
+
+
+def test_a_wine_met_in_two_pack_sizes_is_one_paired_observation():
+    """2013 Mugneret-Gibourg Vosne-Romanée at Bordeaux Index: £225 loose and
+    £225 a bottle in 2s, 6s and 12s alike — one of the ten pairs that came back
+    identical to the penny, which is what a merchant pricing per bottle and
+    multiplying looks like."""
+    found = case_pairs([
+        offer("bordeaux-index", "225.00", pack_size=1),
+        offer("bordeaux-index", "450.00", pack_size=2),
+        offer("bordeaux-index", "1350.00", pack_size=6),
+        offer("bordeaux-index", "2700.00", pack_size=12),
+    ])
+    assert [(p.smaller_pack, p.larger_pack, p.ratio) for p in found] == [
+        (1, 2, Decimal("1.000000")), (1, 6, Decimal("1.000000")),
+        (1, 12, Decimal("1.000000"))]
+    assert all(p.is_loose_pair for p in found)
+
+    # The tails are recorded exactly as they are, never corrected toward the
+    # median: 2014 Lignier-Michelot Clos de la Roche, £175 loose against
+    # £123.17 a bottle in six.
+    [tail] = case_pairs([offer("bordeaux-index", "175.00", pack_size=1),
+                         offer("bordeaux-index", "739.02", pack_size=6)])
+    assert tail.larger_price / tail.larger_pack == Decimal("123.17")
+    assert round(tail.ratio, 4) == Decimal("0.7038")      # as recorded
+
+
+def test_each_pack_size_is_paired_against_the_smallest_present():
+    """One baseline, no double counting. Three pack sizes are two observations,
+    not three, and where a loose bottle exists it is the baseline — that is the
+    ratio CASE_PREMIUM is about."""
+    found = case_pairs([offer("bi", "600.00", pack_size=3),
+                        offer("bi", "1150.00", pack_size=6),
+                        offer("bi", "2200.00", pack_size=12)])
+    assert [(p.smaller_pack, p.larger_pack) for p in found] == [(3, 6), (3, 12)]
+    assert not any(p.is_loose_pair for p in found)   # case-to-case measures something else
+
+
+def test_a_merchant_listing_one_wine_twice_is_still_one_observation():
+    """Bordeaux Index lists the same case twice. The best price wins for each
+    pack size, as in the measurement method, or a merchant with a long listing
+    tail would quietly outvote every other merchant."""
+    [pair] = case_pairs([
+        offer("bordeaux-index", "200.00", pack_size=1),
+        offer("bordeaux-index", "197.00", pack_size=1),       # the better loose price
+        offer("bordeaux-index", "1250.00", pack_size=6),
+        offer("bordeaux-index", "1182.00", pack_size=6),      # the better case price
+    ])
+    assert (pair.smaller_price, pair.larger_price) == (Decimal("197.00"), Decimal("1182.00"))
+    assert pair.ratio == Decimal("1.000000")
+
+
+def test_a_pair_needs_both_sides_to_be_the_same_thing():
+    """Duty Paid against In Bond measures the duty, not the case. A magnum
+    against a bottle measures the format. An indication is not a price at all,
+    and an unbuyable listing is not an offer."""
+    loose = offer("bi", "197.00", pack_size=1)
+    assert case_pairs([loose, offer("bi", "1400.00", pack_size=6,
+                                    duty_status=DutyStatus.DUTY_PAID)]) == []
+    assert case_pairs([loose, offer("bi", "1182.00", pack_size=6, bottle_ml=1500)]) == []
+    assert case_pairs([loose, offer("bi", "1182.00", pack_size=6,
+                                    price_kind=PriceKind.INDICATION)]) == []
+    assert case_pairs([loose, offer("bi", "1182.00", pack_size=6, is_buyable=False)]) == []
+    assert case_pairs([loose, offer("bi", "1182.00", pack_size=6, is_mixed_lot=True)]) == []
+    assert case_pairs([loose, offer("bi", "1182.00", pack_size=6, wine_id="w-other")]) == []
+    assert case_pairs([loose, offer("bi", "1182.00", pack_size=6, vintage=2019)]) == []
+    # And the pair that IS the same thing, to prove the helper is not just quiet.
+    assert len(case_pairs([loose, offer("bi", "1182.00", pack_size=6)])) == 1
+
+
+def test_the_measurement_never_touches_a_price():
+    """A pair is an observation about pricing policy, not evidence about this
+    wine. It must not add a comp, change depth, or move any figure."""
+    offers = [offer("bordeaux-index", "197.00", pack_size=1, merchant="Bordeaux Index"),
+              offer("bordeaux-index", "1182.00", pack_size=6, merchant="Bordeaux Index")]
+    assert len(case_pairs(offers)) == 1
+
+    result = benchmark(line(), offers, as_of=AS_OF)
+    assert result.comp_count == 1 and result.uk_floor == Decimal("1182.00")
+    # The exact-unit 6-pack is the comp; the loose bottle is not derived over it.
+    assert result.derived == [] and Flag.DERIVED_FROM_CASE not in result.flags

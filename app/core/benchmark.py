@@ -14,8 +14,8 @@ added. The adapter contract may evolve; this must not.
      6x75cl. Cross-unit evidence is returned separately as excluded evidence for
      the operator to see. ONE exception, and only when the caller sets
      `SellerLine.derive_units` (decision 0016, Burgundy only, 750ml only): a
-     comparable may be DERIVED from another case size, with a 5% case premium
-     that is an assumption and not a measurement. Such a comp ranks behind every
+     comparable may be DERIVED from another case size, at the measured case
+     premium. Such a comp ranks behind every
      exact-unit comp, is used only when fewer than two merchants hold the
      seller's own unit, and always flags the line DERIVED_FROM_CASE. Magnums and
      half bottles never convert, in either direction.
@@ -136,8 +136,8 @@ class DerivedComp:
     both are shown: the operator sees what was actually offered beside what was
     computed from it, and `raw` is the merchant's original record either way.
 
-    `basis` spells the arithmetic out in words, including whether the 5% case
-    premium was applied — and that premium is an assumption, not a measurement.
+    `basis` spells the arithmetic out in words, including whether the case
+    premium was applied at all — it is not, between two cases.
     """
     source: Offer
     offer: Offer
@@ -152,9 +152,13 @@ def derive_price(source: Offer, pack_size: int) -> Optional[tuple[Decimal, str, 
     never converts to or from a bottle, in either direction, because a large
     format carries a scarcity premium that has nothing to do with the wine.
 
-      loose -> case    price x N x 1.05      the premium, an ASSUMPTION
-      case  -> case    price / M x N         no premium: both sides are cases
-      case  -> loose   price / M / 1.05      the premium, in reverse
+      loose -> case    price x N x CASE_PREMIUM
+      case  -> case    price / M x N          no premium: both sides are cases
+      case  -> loose   price / M / CASE_PREMIUM
+
+    CASE_PREMIUM is measured, not assumed (median 1.0000 across 27 pairs), but
+    no constant can be right about an individual wine: a quarter of those pairs
+    sat more than 5% from parity. That is why a derived comp always flags.
 
     The one rounding point in this module besides the Median, and the fourth in
     the system (decision 0007): the derived figure is quantised to whole pence,
@@ -168,12 +172,14 @@ def derive_price(source: Offer, pack_size: int) -> Optional[tuple[Decimal, str, 
     per_bottle = source.price / source.pack_size
     if source.pack_size == 1:
         price, premium = source.price * pack_size * CASE_PREMIUM, True
-        words = (f"{source.price} loose x {pack_size}, plus a 5% case premium "
-                 f"(an assumption, not a measurement)")
+        words = (f"{source.price} loose x {pack_size}"
+                 + (", at the measured case premium of parity" if CASE_PREMIUM == 1
+                    else f", x the measured case premium of {CASE_PREMIUM}"))
     elif pack_size == 1:
         price, premium = per_bottle / CASE_PREMIUM, True
-        words = (f"{source.price} for {source.pack_size} = {per_bottle} a bottle, "
-                 f"less a 5% case premium (an assumption, not a measurement)")
+        words = (f"{source.price} for {source.pack_size} = {per_bottle} a bottle"
+                 + (", at the measured case premium of parity" if CASE_PREMIUM == 1
+                    else f", divided by the measured case premium of {CASE_PREMIUM}"))
     else:
         price, premium = per_bottle * pack_size, False
         words = (f"{source.price} for {source.pack_size} = {per_bottle} a bottle, "
@@ -352,8 +358,9 @@ def benchmark(line: SellerLine, offers: Iterable[Offer], *, as_of: datetime) -> 
     # fewer than two merchants hold the seller's own unit, and it never
     # displaces a merchant that does: with exact-unit depth, the other case
     # sizes stay what they always were — cross-unit evidence, shown and not
-    # priced from. The 5% premium is an assumption, so a line that rests on one
-    # of these carries DERIVED_FROM_CASE and goes to a person.
+    # priced from. The premium is measured but the spread around it is wide, so
+    # a line that rests on one of these carries DERIVED_FROM_CASE and goes to a
+    # person.
     if (line.derive_units and derivable and len(best) < 2
             and line.bottle_ml == DERIVABLE_BOTTLE_ML):
         for source in derivable:

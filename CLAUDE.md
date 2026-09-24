@@ -39,8 +39,10 @@ The invariants, in short:
    know what a producer or a cuvée is. No name matching lives here.
 2. Commercial unit equality is exact, with ONE exception the caller must ask
    for: `SellerLine.derive_units` permits a comparable to be DERIVED from
-   another case size of the same 750ml wine, with a 5% case premium that is an
-   assumption and is labelled one everywhere. Burgundy only. Derived comps rank
+   another case size of the same 750ml wine, at the MEASURED case premium
+   (`CASE_PREMIUM`, median 1.0000 across 27 paired observations). Burgundy only.
+   Every capture records the pairs it meets so the constant stays measured.
+   Derived comps rank
    behind every exact-unit comp, are used only when fewer than two merchants
    hold the seller's own unit, and always flag the line `DERIVED_FROM_CASE`, so
    a person sees them. Magnums and half bottles never convert, either way. The
@@ -144,12 +146,13 @@ INGEST → IDENTITY PROPOSAL → IDENTITY VERIFICATION → SNAPSHOT LOOKUP
 ## Testing
 
 ```bash
-python -m pytest -q                      # 275 pass, 107 skip; no network, no services
+python -m pytest -q                      # 281 pass, 108 skip; no network, no services
 docker compose up -d                     # Postgres + Redis, then:
 TEST_DATABASE_URL=postgresql://pricer:pricer@localhost:5432/pricer_test \
-TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q   # 382 pass
+TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q   # 389 pass
 python scripts/rerun_burgundy_proof.py   # expect READY 0  REVIEW 15  NO_MARKET 5
 python scripts/load_vintage_tiers.py    # the vintage register, from its CSV
+python scripts/case_premium_report.py   # what the collected pairs say CASE_PREMIUM is
 (cd docs/research/control-set && python run_band.py)   # the band over 70 lines
 cd web && npm test                       # 5 tests: the browser-side parsing rules
 cd web && npm run e2e                    # the whole operator flow in a browser;
@@ -216,8 +219,8 @@ the arithmetic, and nothing in it may change a figure the core produced:
 `vintage_band.py` (decision 0015 — a comp far above its own wine's
 quality-matched neighbouring vintages is excluded and recorded, a comp far below
 is flagged and kept; both put the line in review), `units.py` (decision 0016 —
-which regions may derive a comparable across case sizes, and the words the
-operator reads: the 5% case premium is an assumption, never a measurement) and
+which regions may derive a comparable across case sizes, the paired
+observations that measure the premium, and the words the operator reads) and
 `parcel.py` (decision 0014 — two merchants at one price to the penny is an
 operator note, never a gate).
 

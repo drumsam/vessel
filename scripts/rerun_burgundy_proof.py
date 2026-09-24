@@ -19,6 +19,7 @@ from dataclasses import replace
 
 from app.core.benchmark import benchmark
 from app.core.enums import DutyStatus, PriceKind, StockType
+from app.core.flags import CASE_PREMIUM
 from app.core.models import Offer, SellerLine
 from app.adapters.condition import normalise_condition
 from app.identity.resolver import CanonicalWine, Registry, wine_key
@@ -172,11 +173,11 @@ for i, (raw, wid, vintage, qty) in enumerate(SET, 1):
 print(f"\nREADY {ready}   REVIEW {review}   NO_MARKET {nomkt}")
 if derived_used:
     print(f"\nComparables derived across case sizes ({len(derived_used)}), "
-          "each one a 5% assumption and each one flagged DERIVED_FROM_CASE:")
+          f"at the measured premium of {CASE_PREMIUM}, each flagged DERIVED_FROM_CASE:")
     for lid, raw, d in derived_used:
         print(f"  {lid} {raw}: {d.source.merchant} {d.source.pack_size}x75 "
               f"£{d.source.price:,.2f} -> £{d.offer.price:,.2f} "
-              f"({'premium applied' if d.premium_applied else 'case to case'})")
+              f"({'premium' if d.premium_applied else 'case to case'})")
 else:
     print("\nNo comparable was derived across case sizes in this set.")
 

@@ -18,7 +18,7 @@ from app.core.benchmark import BenchmarkResult, DerivedComp, source_offer_id
 from app.core.enums import ConditionFlag, DutyStatus, PriceKind, StockType
 from app.core.flags import Flag
 from app.core.models import Offer, SellerLine
-from app.market.units import derivation_note
+from app.market.units import CasePair, case_pairs, derivation_note
 from app.market.vintage_band import FormatDisagreement, NeighbourVintage, VintageBandCheck
 from app.pricing.pricer import PricedLine
 from app.identity.resolver import (
@@ -1130,3 +1130,50 @@ def record_reinstatement(conn: psycopg.Connection, exclusion_id: str, *, reinsta
     if row is None:
         raise Conflict(f"exclusion {exclusion_id} is not open")
     return row
+
+
+# ------------------------------------------------- measuring the case premium
+
+
+def record_case_pairs(conn: psycopg.Connection, snapshot_id: str, merchant_id: str,
+                      pairs: list[CasePair], captured_at: datetime) -> int:
+    """Store every wine this capture met in two pack sizes (decision 0016).
+
+    Observation, not evidence for a price: nothing in the pricing path reads
+    this table. It exists so CASE_PREMIUM can stop being a judgement call, and
+    it is written while the traffic is happening anyway.
+    """
+    if not pairs:
+        return 0
+    with conn.cursor() as cur:
+        cur.executemany(
+            """INSERT INTO case_premium_pair
+                   (snapshot_id, merchant_id, wine_id, vintage, bottle_ml, duty_status,
+                    captured_at, smaller_pack, smaller_price, larger_pack, larger_price, ratio)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+               ON CONFLICT DO NOTHING""",
+            [(snapshot_id, merchant_id, p.wine_id, p.vintage, p.bottle_ml, p.duty_status,
+              captured_at, p.smaller_pack, exact_money(p.smaller_price),
+              p.larger_pack, exact_money(p.larger_price), p.ratio) for p in pairs])
+    return len(pairs)
+
+
+def case_premium_summary(conn: psycopg.Connection, bottle_ml: int = 750) -> list[dict]:
+    """The measurement as it stands, per merchant and overall, loose-vs-case only.
+
+    The median is what CASE_PREMIUM should be; the spread is why a derived comp
+    is flagged whatever the median says.
+    """
+    return conn.execute(
+        # percentile_DISC, not _cont: it returns the numeric it was given rather
+        # than a double, so no float touches this, and for an even count it
+        # picks an observed ratio instead of averaging two into one nobody saw.
+        """SELECT merchant_id, count(*) AS pairs,
+                  percentile_disc(0.5) WITHIN GROUP (ORDER BY ratio) AS median,
+                  avg(ratio) AS mean, min(ratio) AS low, max(ratio) AS high,
+                  count(*) FILTER (WHERE abs(ratio - 1) > 0.05) AS beyond_5pct,
+                  min(captured_at) AS first_seen, max(captured_at) AS last_seen
+             FROM case_premium_pair
+            WHERE is_loose_pair AND bottle_ml = %(ml)s
+            GROUP BY ROLLUP (merchant_id)
+            ORDER BY merchant_id NULLS LAST""", {"ml": bottle_ml}).fetchall()

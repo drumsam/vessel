@@ -31,10 +31,11 @@ from app.adapters.lea_sandeman import LIST_URL as LS_URL, LeaSandemanAdapter
 from app.adapters.lw_trading import API_URL as LW_URL, LayWheelerTradingAdapter
 from app.core.benchmark import benchmark
 from app.core.enums import Reject
+from app.core.models import Offer
 from app.db import repo
 from app.db.connection import transaction
 from app.identity.resolver import collided_lwins, norm_producer
-from app.market.units import derivation_allowed
+from app.market.units import case_pairs, derivation_allowed
 from app.market.vintage_band import (
     band_flags, check_vintage_band, without_high_outliers)
 from app.pricing.pricer import DEEP_DISCOUNT_THRESHOLD, CannotPrice, price_line
@@ -136,6 +137,7 @@ def ingest(conn: psycopg.Connection, snapshot_id: str, adapter: Adapter,
     untrusted = repo.untrusted_lwins(conn, adapter.id)
 
     written = rejected = 0
+    kept: list[Offer] = []
     for raw, outs in normalised:
         if not outs:
             repo.write_reject(conn, snapshot_id, adapter.id, NO_OFFER_ROWS,
@@ -168,8 +170,16 @@ def ingest(conn: psycopg.Connection, snapshot_id: str, adapter: Adapter,
                                   repo.unresolved_raw(out))
                 rejected += 1
                 continue
-            repo.write_offer(conn, snapshot_id, replace(out.offer, wine_id=wine_id))
+            stored = replace(out.offer, wine_id=wine_id)
+            repo.write_offer(conn, snapshot_id, stored)
+            kept.append(stored)
             written += 1
+
+    # A wine met in two pack sizes in ONE fetch is a paired same-day
+    # observation, which is the only honest way to measure the case premium:
+    # no assumption about timing or market drift. Recorded while the traffic is
+    # happening anyway; nothing in the pricing path reads it (decision 0016).
+    repo.record_case_pairs(conn, snapshot_id, adapter.id, case_pairs(kept), captured_at)
     return written, rejected
 
 

@@ -1,7 +1,9 @@
-# 0016 — Burgundy comps across case sizes, with an assumed 5% case premium
+# 0016 — Burgundy comps across case sizes, at the measured case premium
 
-**Status:** accepted, 24 September 2026. Doug's decision, specified in
-`docs/research/burgundy-unit-policy.md`.
+**Status:** accepted, 24 September 2026, and revised the same day when the
+premium was measured. Doug's decision, specified in
+`docs/research/burgundy-unit-policy.md`; the constant comes from
+`docs/research/case-premium-measurement.md`.
 
 The policy document asks for this to be recorded as 0014. That number was taken
 the same day by brokered comps and identical prices, and 0015 by the vintage
@@ -16,7 +18,9 @@ anything else in this folder, and they are the point, not decoration.
 
 1. For Burgundy, stop refusing a comp because the case size differs. A 6-pack, a
    3-pack and a loose bottle of the same wine and vintage are all usable.
-2. Cases carry a crude **5% premium** over loose bottles, per bottle.
+2. Cases carry a crude **5% premium** over loose bottles, per bottle. *(Measured
+   the same day and replaced by parity — see the next section. The decision to
+   adjust at all is what mattered; the number was always meant to be measured.)*
 3. Large formats are out. Magnums and above never mix with 750ml prices in
    either direction.
 
@@ -24,22 +28,75 @@ In his words: our job is to find a sensible starting point for a market price,
 and refusing to compare 3×75 with 6×75 was costing us most of the evidence we
 had.
 
-## The number is an assumption, and it is labelled one everywhere
+## The premium is 1.00, and it was measured
 
-Decision 0001 was **measured**. Across live merchant data the per-bottle price of
-a case ran from **17.3% below** to **20.0% above** the loose-bottle price of the
-same wine. A flat 5% sits inside that range and can still be wrong by about 15
-points one way and 22 the other — roughly **£200–£290 on a £1,300 six-pack**.
+This started at an assumed 5%. It was measured the same day and the answer is
+**parity**: `CASE_PREMIUM = Decimal("1.00")`.
 
-So `CASE_PREMIUM = Decimal("1.05")` carries that history in a comment where it is
-defined, `app/market/units.py` carries the sentence the operator reads, and the
-console prints it beside every derived figure:
+Bordeaux Index publishes loose bottles and cases of the same wine on the same
+card in the same response, which is a paired same-day observation needing no
+assumption about timing or drift. Thirty Burgundy producer pages, 512 cards,
+In Bond and 750ml only, 27 usable pairs across 12 domaines and vintages
+1999–2020:
 
-> Derived from a 3x75cl at 225.00 from Bordeaux Index: 450.00 at 6x75cl.
-> Case premium of 5% applied — a working assumption, not a measurement.
+| | |
+|---|---|
+| Median ratio | **1.0000** |
+| Mean ratio | 0.9737 |
+| Identical to the penny | 10 of 27 |
+| Within ±5% of parity | 16 of 27 |
+| Range | 0.7038 → 1.1525 |
+
+A case is priced at the same rate per bottle as a loose bottle more often than
+at any other rate, and when it differs it is slightly more often **cheaper** per
+bottle, not dearer. Ten pairs identical to the penny is a merchant pricing per
+bottle and multiplying.
+
+**The 5% was not far off the centre, but it was biased in the direction that
+costs us.** A derived figure that is too high raises the UK Reference, which is
+how we overpay and how a client gets overpriced. Parity has no such bias.
+
+`CASE_PREMIUM` carries the distribution in a comment where it is defined,
+`app/market/units.py` builds the operator's sentence **from the constant** so it
+cannot drift away from what the code does, and the console prints it beside
+every derived figure:
+
+> Derived from a 1x75cl at 197.00 from Bordeaux Index: 1182.00 at 6x75cl.
+> Cases and loose bottles are priced at the same rate per bottle — measured
+> median 1.0000 across 27 paired observations at Bordeaux Index. A quarter of
+> those sat more than 5% out (0.7038 to 1.1525), so this is not a fact about
+> this wine.
 
 A figure that looks observed and is not is the failure this whole system exists
 to prevent. It may never be silent.
+
+**The spread is the real finding, and nothing else about this decision changed
+because of it.** A quarter of the pairs sit more than 5% from parity and the
+tails run to −30% (2014 Lignier-Michelot Clos de la Roche: £175 loose against
+£123.17 a bottle in six) and +15% (2006 Roumier Les Cras: £600 against £691.50).
+No constant can be right about an individual wine. The flag is the safeguard;
+the constant never was.
+
+Honest limits, which is why the next section exists: **one merchant**, 27 pairs,
+Burgundy only. Goedhuis Waddesdon was tried for a second opinion — 8,750
+variants, 2,194 In Bond 750ml rows, and exactly **one** wine listed both loose
+and cased. A merchant who sells only by the case cannot answer this question.
+
+## Measuring it properly, from here on
+
+Every capture now records each wine it meets in two pack sizes in one fetch:
+same wine, vintage, bottle size **and duty status**, best price per pack size,
+each size paired against the smallest present. `case_premium_pair`, written by
+`ingest()`, read by `scripts/case_premium_report.py`, and read by nothing in the
+pricing path — it is an observation about a merchant's pricing policy, not
+evidence about a wine.
+
+The bar for moving the constant on evidence is **300 pairs across 5 merchants**.
+Below that the report says so. Changing it is still a decision record and a pull
+request, because it moves prices.
+
+Case-to-case pairs are stored too, and counted separately: they measure
+something else, which is why case-to-case derivation applies no premium at all.
 
 ## The two safeguards, which are not negotiable
 
@@ -53,8 +110,8 @@ without looking.
 merchants** hold the seller's own unit, and it never displaces a merchant that
 does hold it. With exact-unit depth, the other case sizes stay what they always
 were: cross-unit evidence, shown and not priced from. A £180 3×75 derives to
-£360 and would otherwise take the Floor away from a real £600 ask, on an
-assumption.
+£360 and would otherwise take the Floor away from a real £600 ask, on a constant
+that describes a merchant's pricing policy and not this wine.
 
 If derived comps should rank equally with exact-unit ones, that is Doug's call to
 make explicitly. It is not the default here.
@@ -66,9 +123,9 @@ Scope: **Burgundy only**, by region, and **750ml only**, both sides.
 | Offer | Comparable at N×750 |
 |---|---|
 | `pack_size == N` | the offer itself — exact, no adjustment, ranks first |
-| loose (1×750) | `price × N × 1.05` |
+| loose (1×750) | `price × N × CASE_PREMIUM` |
 | case of M ≠ N, both > 1 | `price / M × N` — no premium, case to case |
-| seller line is 1×750, offer is a case of M | `price / M / 1.05` |
+| seller line is 1×750, offer is a case of M | `price / M / CASE_PREMIUM` |
 | `bottle_ml ≠ 750` | **not usable**, in either direction |
 
 The derived figure is quantised to whole pence, ROUND_HALF_EVEN, at the point of
@@ -103,8 +160,15 @@ stop being near-misses and become non-evidence.
 | after | 0 | **15** | **5** |
 
 Ten lines gained a market. Twelve comparables were derived, every one of them
-from a case to a loose bottle, so every one carries the 5% and a review flag.
-READY stays 0 — nothing became shippable without a person.
+from a case to a loose bottle, so every one carries the premium and a review
+flag. READY stays 0 — nothing became shippable without a person.
+
+Measuring the premium at parity did not change those counts, but it did move
+every derived figure on this set **up by 5%**, because these are all cases
+divided down to loose bottles: dividing by 1.05 said a loose bottle is cheaper
+per bottle than the case, which is what the measurement contradicts. L4's
+Reference went from £1,941.90 to £2,039.00. The old constant was under-pricing
+in this direction and over-pricing in the other; parity is unbiased in both.
 
 Two lines then went **back** to NO_MARKET because the vintage band threw the
 derived figure out: L3 Chambertin 2009 (Bordeaux Index, derived £5,047.62, 1.13×
@@ -132,7 +196,8 @@ the case-to-case basis rather than assume it.
 
 ## Next time this is opened
 
-The 5% is the weakest number in the system. It should be replaced by a measured
-basis per region, and per case size if the data supports it, as soon as we hold
-enough paired observations of the same wine in two units on the same day. Until
-then it stays an assumption that says so.
+The constant is now measured, but from one merchant and 27 pairs. The collection
+step is gathering more on every capture. When the report clears 300 pairs across
+5 merchants, look at it again — per region, and per case size if the data
+supports it. Until then it rests on Bordeaux Index alone, and the report says so
+every time it is run.
