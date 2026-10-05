@@ -39,15 +39,16 @@ The invariants, in short:
    know what a producer or a cuvée is. No name matching lives here.
 2. Commercial unit equality is exact, with ONE exception the caller must ask
    for: `SellerLine.derive_units` permits a comparable to be DERIVED from
-   another case size of the same 750ml wine, at the MEASURED case premium
-   (`CASE_PREMIUM`, median 1.0000 across 27 paired observations). Burgundy only.
-   Every capture records the pairs it meets so the constant stays measured.
-   Derived comps rank
-   behind every exact-unit comp, are used only when fewer than two merchants
-   hold the seller's own unit, and always flag the line `DERIVED_FROM_CASE`, so
-   a person sees them. Magnums and half bottles never convert, either way. The
-   core is told which lines qualify; it does not know what a region is. See
-   `docs/decisions/0016`.
+   another case size of the same 750ml wine, at `CASE_PREMIUM` (median 1.0000
+   across 27 paired observations). Any wine with a region AND a colour
+   recorded qualifies (decision 0018) — the premium is MEASURED for Burgundy
+   and ASSUMED elsewhere, and the operator is told which. Every capture
+   records the pairs it meets so every region's evidence accumulates. Derived
+   comps rank behind every exact-unit comp, are used only when fewer than two
+   merchants hold the seller's own unit, and always flag the line
+   `DERIVED_FROM_CASE`, so a person sees them. Magnums and half bottles never
+   convert, either way. The core is told which lines qualify; it does not know
+   what a region is. See `docs/decisions/0016`, `0018`.
 3. Depth counts merchants, not listings.
 4. Floor = lowest merchant-best · Reference = second-lowest (or the only one,
    flagged `ONE_COMP`) · Median = median of merchant-bests.
@@ -104,6 +105,17 @@ The invariants, in short:
     Burgundy is tier 3 red and tier 1 white) and is maintained as
     `docs/research/vintage-tiers.csv`, loaded by `scripts/load_vintage_tiers.py`
     — a pull request, not a screen. A tier never scales a price. See 0015.
+19. Pricing precedence ends with the **market chain**, not `CannotPrice`: manual
+    price > line margin > line discount > deal margin > `buyer_discount`
+    (`UK Reference x (1 - BUYER_DISCOUNT)`, then `x (1 - MARGIN_ON_SALE)` for
+    what we pay the seller). `sell_price`/`cost_gbp` ARE the buyer price and the
+    seller price for this basis — nothing downstream had to change — and
+    `buyer_price_gbp`/`seller_price_gbp` are the same two figures under names
+    that cannot be misread, GENERATED from them so they can never drift. Both
+    settings are per-deal only, default 20%/8%, and recorded on every
+    `pricing_result` that used them. This basis never produces `NEGATIVE_GP`,
+    `COST_ABOVE_UK_REFERENCE` or `SELL_ABOVE_UK_REFERENCE` by construction.
+    See `docs/decisions/0017`.
 
 `REVIEW_FLAGS` in `app/core/flags.py` is the single definition of what forces
 operator *review*: it is about evidence quality and commercial flags never go in
@@ -146,10 +158,10 @@ INGEST → IDENTITY PROPOSAL → IDENTITY VERIFICATION → SNAPSHOT LOOKUP
 ## Testing
 
 ```bash
-python -m pytest -q                      # 281 pass, 108 skip; no network, no services
+python -m pytest -q                      # 307 pass, 111 skip; no network, no services
 docker compose up -d                     # Postgres + Redis, then:
 TEST_DATABASE_URL=postgresql://pricer:pricer@localhost:5432/pricer_test \
-TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q   # 389 pass
+TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q   # 418 pass
 python scripts/rerun_burgundy_proof.py   # expect READY 0  REVIEW 15  NO_MARKET 5
 python scripts/load_vintage_tiers.py    # the vintage register, from its CSV
 python scripts/case_premium_report.py   # what the collected pairs say CASE_PREMIUM is
@@ -209,7 +221,9 @@ FastAPI service (`app/api/`), Alembic migrations (`migrations/`), RQ worker
 (`app/worker/`) for snapshot collection and deterministic benchmark.
 
 Pricing rules are in `app/pricing/pricer.py` (decision 0007): margin, discount,
-precedence and the commercial flags, all pure and tested.
+precedence and the commercial flags, all pure and tested. The precedence ends
+with the market chain (decision 0017) — buyer price, then seller receives —
+rather than refusing to price a line that has nothing but a UK Reference.
 
 Snapshot retention (`prune_snapshots`, per merchant) and alias suggestions over
 the identity trail are built.
@@ -218,11 +232,12 @@ the identity trail are built.
 the arithmetic, and nothing in it may change a figure the core produced:
 `vintage_band.py` (decision 0015 — a comp far above its own wine's
 quality-matched neighbouring vintages is excluded and recorded, a comp far below
-is flagged and kept; both put the line in review), `units.py` (decision 0016 —
-which regions may derive a comparable across case sizes, the paired
-observations that measure the premium, and the words the operator reads) and
-`parcel.py` (decision 0014 — two merchants at one price to the penny is an
-operator note, never a gate).
+is flagged and kept; both put the line in review), `units.py` (decisions 0016
+and 0018 — any wine with a region and colour may derive a comparable across
+case sizes, Burgundy's premium is measured and every other region's is an
+assumption carried from it, and the paired observations that will eventually
+measure them too) and `parcel.py` (decision 0014 — two merchants at one price
+to the penny is an operator note, never a gate).
 
 Operator accounts and sessions are built (`app/api/auth.py`,
 `scripts/manage_operators.py`). The Next.js operator console is in `web/`:
@@ -240,9 +255,15 @@ Merchant specs and the control-set evidence are in `docs/research/`.
 
 Not built yet: the LWIN import (decision 0012 — waiting on the file), Albany and
 Vinum, the remaining merchant adapters, the auction evidence form (spec in
-`docs/research/`), AI provider implementations, a rendered buyer document (PDF),
-the auction layer. The vintage register covers Burgundy only: Bordeaux,
-Champagne, the Rhône, Piedmont and Tuscany are missing, and the band stays quiet
-for them until they are added.
+`docs/research/`), AI provider implementations, the auction layer. A client-
+and buyer-facing exported document (HTML/PDF) is specified
+(`docs/research/` build brief, 5 October 2026) but not built: it needs a
+design decision this file does not make alone. The vintage register covers
+Burgundy only: Bordeaux, Champagne, the Rhône, Piedmont and Tuscany are
+missing, and the band stays quiet for them until they are added — unit
+derivation (decision 0018) does not wait on this and already covers every
+region with a wine's own region and colour recorded. Stock location/landed
+cost (multi-jurisdiction bond) and deal workflow at scale (bulk identity
+approval, value-ordered queues, partial offers) are specified, not built.
 
 Known open questions are in `docs/decisions/` and in the Burgundy proof report.

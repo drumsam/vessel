@@ -6,6 +6,7 @@ Everything hard lives here and nowhere else:
   * abbreviations ("Ch", "Dom", "Dne", "CSJ", "VV")
   * aliases ("Ruchottes-Chambertin" vs "Ruchottes-Chambertin Clos des Ruchottes")
   * structural exclusions (grand vin vs second wine; adjacent climats)
+  * non-vintage release codes (Krug's numbered Grande Cuvée editions; decision 0019)
 
 The pricing core never sees a producer or a cuvee. It receives an approved
 `wine_id` or the record does not reach it.
@@ -22,6 +23,7 @@ Anything unresolved returns None. None means REVIEW, never a guess.
 """
 from __future__ import annotations
 
+import re
 import unicodedata
 from dataclasses import dataclass
 from typing import Optional
@@ -54,10 +56,56 @@ def norm_producer(s: str) -> str:
     return " ".join(parts)
 
 
-def wine_key(producer: str, cuvee: str) -> str:
+#: A trailing ordinal edition number: "156e", "156ème", "156th", each optionally
+#: followed by the word Edition/Édition. Anchored to the END of the string on
+#: purpose — Krug writes the edition as the LAST thing in the cuvée, and so
+#: does every live spelling seen. A classification like "3ème Cru Classé" has
+#: more text after the number, so the anchor refuses it: this is intentionally
+#: narrower than "any ordinal number", because a false strip here invents an
+#: identity split nobody approved.
+_EDITION_RE = re.compile(
+    r"\s*(\d{1,3})\s*(?:ème|eme|ième|ieme|e|th|rd|nd|st)\.?\s*(?:[EÉ]dition)?\s*$",
+    re.IGNORECASE)
+
+
+def split_release_code(text: str) -> tuple[str, Optional[str]]:
+    """Pull a release/edition number out of a cuvée string, if one is there.
+
+    "Grande Cuvée 156ème Édition" -> ("Grande Cuvée", "156"). "Grande Cuvée
+    169e" -> ("Grande Cuvée", "169"). "156th" alone -> ("", "156"). No match
+    -> the text unchanged, release_code None.
+
+    This is a PROPOSAL, exactly like producer/cuvee splitting elsewhere in
+    this module (decision 0019): it only shapes what goes into `wine_key`. The
+    resolver still requires the result to match or alias to an approved
+    canonical wine before any wine_id is used, and an operator approves a new
+    edition's canonical record the first time it is seen, same as any new
+    wine. Henri Giraud's "MV13" and Bollinger's "PN VZ16" are NOT this pattern
+    — each is already a complete, distinct cuvée name with no shared base to
+    split from, so wine_key tells them apart with no change here.
+    """
+    match = _EDITION_RE.search(text or "")
+    if not match:
+        return (text or "").strip(), None
+    remainder = " ".join((text[:match.start()] + text[match.end():]).split())
+    return remainder, match.group(1)
+
+
+def wine_key(producer: str, cuvee: str, release_code: Optional[str] = None) -> str:
     """Fallback identity when LWIN is absent. For Burgundy this is the PRIMARY
-    key: Farr publishes LWIN for Bordeaux and null for Burgundy grand cru."""
-    return f"{norm_producer(producer)}|{norm(cuvee)}"
+    key: Farr publishes LWIN for Bordeaux and null for Burgundy grand cru.
+
+    `release_code` is part of identity, not decoration (decision 0019): Krug's
+    Grande Cuvée 156ème Édition and 169ème Édition trade at their own levels,
+    and LWIN's NV convention (vintage 1000) collapses every edition into one
+    product. A release code appends a third segment, so an edition is simply a
+    different key from the bare cuvée — no wine with a code is ever registered
+    under the bare `producer|cuvee` key, which is what makes a codeless
+    candidate fail closed to the identity queue rather than guessing one: see
+    Registry below.
+    """
+    base = f"{norm_producer(producer)}|{norm(cuvee)}"
+    return f"{base}|{norm(release_code)}" if release_code else base
 
 
 # ------------------------------------------------------------------- guard rails
@@ -130,6 +178,10 @@ class CanonicalWine:
     producer: str
     cuvee: str
     lwin7: Optional[str] = None
+    #: An edition/release within the cuvée that trades at its own level — Krug
+    #: "156", Henri Giraud "MV13". None for a wine that has never needed one.
+    #: Part of the identity key (see wine_key). Decision 0019.
+    release_code: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -151,13 +203,14 @@ class Registry:
         self._by_key: dict[str, str] = {}
         self._by_lwin7: dict[str, str] = {}
         for w in wines:
-            self._by_key[wine_key(w.producer, w.cuvee)] = w.wine_id
+            self._by_key[wine_key(w.producer, w.cuvee, w.release_code)] = w.wine_id
             if w.lwin7:
                 self._by_lwin7[str(w.lwin7)] = w.wine_id
         for a in (aliases or []):
             self._by_key.setdefault(a.key, a.wine_id)
 
-    def resolve(self, producer: str, cuvee: str, lwin7: str | None = None) -> Optional[str]:
+    def resolve(self, producer: str, cuvee: str, lwin7: str | None = None,
+               release_code: str | None = None) -> Optional[str]:
         """The name resolves; the LWIN only ever cross-checks it.
 
         A merchant-published LWIN NEVER resolves identity on its own. It is the
@@ -170,11 +223,18 @@ class Registry:
         a DIFFERENT wine, that disagreement is itself evidence and neither is
         used. See docs/decisions/0006-merchant-lwin-policy.md; when the real
         LWIN database is imported this can be revisited.
+
+        `release_code` is looked up EXACTLY as given (decision 0019): a
+        candidate with no code computes the bare `producer|cuvee` key, which
+        is never the key of a wine that has a code, so it resolves to None —
+        fail closed to the identity queue, never to a guessed edition.
         """
-        return self._agree(self._lwin(lwin7), self._by_key.get(wine_key(producer, cuvee)))
+        key = wine_key(producer, cuvee, release_code)
+        return self._agree(self._lwin(lwin7), self._by_key.get(key))
 
     def resolve_candidate(self, producer_text: str, cuvee_text: str,
-                          lwin7: str | None = None) -> Optional[str]:
+                          lwin7: str | None = None,
+                          release_code: str | None = None) -> Optional[str]:
         """Merchant-agnostic entry point.
 
         Some merchants (Goedhuis) put producer and cuvee in one string with no
@@ -182,16 +242,23 @@ class Registry:
         combined field against the registry's combined index.
         """
         if producer_text:
-            return self.resolve(producer_text, cuvee_text, lwin7)
-        return self._agree(self._lwin(lwin7), self._combined(cuvee_text))
+            return self.resolve(producer_text, cuvee_text, lwin7, release_code)
+        return self._agree(self._lwin(lwin7), self._combined(cuvee_text, release_code))
 
     def _lwin(self, lwin7: str | None) -> Optional[str]:
         return self._by_lwin7.get(str(lwin7)) if lwin7 else None
 
-    def _combined(self, text: str) -> Optional[str]:
+    def _combined(self, text: str, release_code: str | None = None) -> Optional[str]:
         combined = norm(text)
+        wanted_code = norm(release_code) if release_code else None
         for key, wid in self._by_key.items():
-            p, _, c = key.partition("|")
+            parts = key.split("|")
+            if len(parts) not in (2, 3):
+                continue
+            p, c = parts[0], parts[1]
+            code = parts[2] if len(parts) == 3 else None
+            if code != wanted_code:
+                continue
             if p and c and p in combined and c in combined:
                 return wid
         return None

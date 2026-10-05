@@ -84,6 +84,9 @@ class WineIn(_In):
     region: Optional[str] = None
     colour: Optional[str] = None
     lwin7: Optional[str] = None
+    #: An edition within the cuvée that trades at its own level — Krug's
+    #: Grande Cuvée 156e, Henri Giraud's MV13. Part of identity (0019).
+    release_code: Optional[str] = None
 
 
 class WineOut(_Out):
@@ -93,6 +96,7 @@ class WineOut(_Out):
     region: Optional[str]
     colour: Optional[str]
     lwin7: Optional[str]
+    release_code: Optional[str] = None
     wine_key: str
 
 
@@ -163,6 +167,11 @@ class DealIn(_In):
     currency: Optional[Currency] = None
     #: The deal's global margin, used for any line with no margin or discount.
     target_margin: Optional[Decimal] = Field(default=None, ge=0, lt=1)
+    #: The market chain (decision 0017): what a trade buyer pays below the UK
+    #: Reference, and our fee on that buyer price. Null means the settings in
+    #: app/pricing/pricer.py (20% / 8%). Per-deal only, never per-line.
+    buyer_discount: Optional[Decimal] = Field(default=None, ge=0, lt=1)
+    margin_on_sale: Optional[Decimal] = Field(default=None, ge=0, lt=1)
     lines: list[LineIn] = Field(min_length=1)
 
 
@@ -259,12 +268,20 @@ class PricingOut(_Out):
     fx_rate_date: Optional[date]
     fx_source: Optional[str]
     cost_gbp: Optional[Money]
-    price_basis: Literal["manual", "line_margin", "line_discount", "global_margin"]
+    price_basis: Literal["manual", "line_margin", "line_discount", "global_margin",
+                         "buyer_discount"]
     target_margin: Optional[Decimal]
     discount: Optional[Decimal]
     deep_discount_threshold: Decimal
     sell_price: Optional[Money]
     sell_currency: str
+    #: Set only when price_basis == "buyer_discount" (decision 0017): the two
+    #: settings actually used, and the same two prices — sell_price/cost_gbp —
+    #: under names that cannot be misread. One is a sale, the other a purchase.
+    buyer_discount: Optional[Decimal] = None
+    margin_on_sale: Optional[Decimal] = None
+    buyer_price_gbp: Optional[Money] = None
+    seller_price_gbp: Optional[Money] = None
     gp: Optional[Money]
     gross_margin: Optional[Decimal]
     flags: list[str]
@@ -393,6 +410,10 @@ class DealOut(_Out):
     source_file: Optional[str]
     currency: Optional[str]
     target_margin: Optional[Decimal]
+    #: The market chain settings as stored, null meaning "the defaults" —
+    #: echoed back so the console can show what a line will actually use.
+    buyer_discount: Optional[Decimal]
+    margin_on_sale: Optional[Decimal]
     created_by: OperatorRef
     created_at: datetime
     lines: list[LineOut]
@@ -498,6 +519,10 @@ class DerivedFromOut(_Out):
     bottle_ml: int
     basis: str                       # the arithmetic, in words
     premium_applied: bool
+    #: Whether CASE_PREMIUM is measured for this wine's region, or carried
+    #: over from Burgundy as a working assumption (decision 0018). None on
+    #: runs computed before this existed.
+    measured: Optional[bool] = None
     note: str                        # the sentence shown beside the figure
 
 

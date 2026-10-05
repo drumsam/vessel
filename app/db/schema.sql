@@ -44,7 +44,12 @@ CREATE TABLE wine (
     region       text,
     colour       text,
     lwin7        text UNIQUE,
-    wine_key     text NOT NULL UNIQUE,          -- normalised producer|cuvee
+    -- An edition within the cuvee that trades at its own level: Krug's
+    -- Grande Cuvee 156e and 169e, Henri Giraud's MV13. Part of identity
+    -- (decision 0019) -- wine_key below folds it in as a third segment, so a
+    -- vintage=1000 line with no code can never resolve to a wine that has one.
+    release_code text,
+    wine_key     text NOT NULL UNIQUE,          -- normalised producer|cuvee[|release_code]
     created_at   timestamptz NOT NULL DEFAULT now()
 );
 
@@ -261,6 +266,14 @@ CREATE TABLE deal (
     source_file  text,
     currency     char(3),                        -- confirmed by the operator on import
     target_margin numeric(6,4),                  -- the deal's global margin; see 0007
+
+    -- The market chain (decision 0017): M -> buyer price -> seller receives.
+    -- Both default to the settings in app/pricing/pricer.py when null, and both
+    -- are recorded on every pricing_result that uses them, so a reprice is a
+    -- diff against what was actually used, not a new guess.
+    buyer_discount numeric(6,4),                  -- trade buyers move parcels below M
+    margin_on_sale numeric(6,4),                  -- our fee, taken on the buyer price
+
     created_by   uuid NOT NULL REFERENCES operator(operator_id),
     created_at   timestamptz NOT NULL DEFAULT now()
 );
@@ -535,7 +548,8 @@ CREATE TABLE pricing_result (
 
     -- Which rule produced sell_price, and the inputs it used (decision 0007).
     price_basis       text NOT NULL CHECK (price_basis IN
-                          ('manual','line_margin','line_discount','global_margin')),
+                          ('manual','line_margin','line_discount','global_margin',
+                           'buyer_discount')),
     target_margin     numeric(6,4),
     discount          numeric(6,4),
     deep_discount_threshold numeric(6,4) NOT NULL,
@@ -543,6 +557,20 @@ CREATE TABLE pricing_result (
     sell_currency     char(3) NOT NULL DEFAULT 'GBP',
     gp                numeric(14,2),
     gross_margin      numeric(6,4),            -- (sell - cost) / sell, never markup
+
+    -- The market chain (decision 0017), basis 'buyer_discount' only. The two
+    -- settings actually used (never the module defaults silently): buyer
+    -- price = UK Reference x (1 - buyer_discount); seller receives = buyer
+    -- price x (1 - margin_on_sale). buyer_price_gbp and seller_price_gbp are
+    -- GENERATED from sell_price/cost_gbp for this basis alone, so the two
+    -- numbers named on a client document can never drift from the figures the
+    -- rest of the system already prices and audits.
+    buyer_discount    numeric(6,4),
+    margin_on_sale    numeric(6,4),
+    buyer_price_gbp   numeric(14,2) GENERATED ALWAYS AS
+                      (CASE WHEN price_basis = 'buyer_discount' THEN sell_price END) STORED,
+    seller_price_gbp  numeric(14,2) GENERATED ALWAYS AS
+                      (CASE WHEN price_basis = 'buyer_discount' THEN cost_gbp END) STORED,
 
     flags             text[] NOT NULL DEFAULT '{}',
     state             text NOT NULL CHECK (state IN ('READY','REVIEW','NO_MARKET')),
@@ -563,7 +591,9 @@ CREATE TABLE pricing_result (
     CONSTRAINT pricing_result_cost_currency CHECK ((cost IS NULL) = (cost_currency IS NULL)),
     CONSTRAINT pricing_result_fx_recorded CHECK (
         cost IS NULL OR cost_currency = 'GBP'
-        OR (fx_rate IS NOT NULL AND fx_rate_date IS NOT NULL AND fx_source IS NOT NULL))
+        OR (fx_rate IS NOT NULL AND fx_rate_date IS NOT NULL AND fx_source IS NOT NULL)),
+    CONSTRAINT pricing_result_chain_fields CHECK (
+        (price_basis = 'buyer_discount') = (buyer_discount IS NOT NULL AND margin_on_sale IS NOT NULL))
 );
 
 -- A named operator accepting a gating flag on one pricing result. One per

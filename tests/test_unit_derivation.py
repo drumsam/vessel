@@ -1,12 +1,16 @@
-"""Cross-case-size comparables, Burgundy only, with a 5% case premium.
+"""Cross-case-size comparables, with a measured-or-assumed case premium.
 
-Spec: docs/research/burgundy-unit-policy.md, built as decision 0016. House style
-as in test_traps.py: name the merchant, the wine, and the size of the error the
+Spec: docs/research/burgundy-unit-policy.md, built as decision 0016; extended
+to every region by decision 0018 ("don't worry about case pricing, use
+whatever we can find" — Doug, 5 October 2026). House style as in
+test_traps.py: name the merchant, the wine, and the size of the error the
 test prevents.
 
-The premium is an assumption, not a measurement, and these tests exist as much
-to hold that line as to check the arithmetic: a derived figure must never be
-able to reach a client document without a person having seen it.
+The premium is measured for Burgundy and assumed elsewhere, and these tests
+exist as much to hold that distinction visible as to check the arithmetic: a
+derived figure must never be able to reach a client document without a person
+having seen it, and without being told honestly whether the number behind it
+is evidence or a carried-over guess.
 """
 from __future__ import annotations
 
@@ -18,8 +22,8 @@ from app.core.enums import DutyStatus, PriceKind, Reject, State, StockType
 from app.core.flags import CASE_PREMIUM, REVIEW_FLAGS, Flag
 from app.core.models import Offer, SellerLine
 from app.market.units import (
-    DERIVABLE_REGIONS, PREMIUM_CAVEAT, PREMIUM_EVIDENCE, case_pairs, derivation_allowed,
-    derivation_note)
+    MEASURED_REGIONS, PREMIUM_CAVEAT, PREMIUM_EVIDENCE, case_pairs, derivation_allowed,
+    derivation_note, is_measured_region)
 
 AS_OF = datetime(2026, 9, 23, 12, 0, tzinfo=timezone.utc)
 MUGNERET = "w-mugneret-gibourg-vosne"
@@ -186,20 +190,70 @@ def test_a_merchant_holding_the_exact_unit_is_never_derived_over():
     assert result.derived == [] and Flag.DERIVED_FROM_CASE not in result.flags
 
 
-def test_derivation_is_burgundy_only():
-    """The same shapes outside Burgundy are still rejected with UNIT. The core
-    does not know what a region is: the caller sets `derive_units`, and the
-    region list lives in app/market/units.py with the decision behind it."""
+def test_derivation_without_the_switch_set_is_still_refused():
+    """The core does not know what a region is: the caller sets
+    `derive_units`, and app/market/units.py decides the switch. A line this
+    helper built with `derive=False` must still refuse the same shapes UNIT
+    always refused, whatever region it is."""
     three = offer("bordeaux-index", "225.00", pack_size=3, merchant="Bordeaux Index")
-    bordeaux = benchmark(line(derive=False), [three], as_of=AS_OF)
-    assert bordeaux.state is State.NO_MARKET and bordeaux.derived == []
-    assert [r.reason for r in bordeaux.rejections] == [Reject.UNIT]
-    assert [e.per_bottle for e in bordeaux.cross_unit] == [Decimal("75")]
+    off = benchmark(line(derive=False), [three], as_of=AS_OF)
+    assert off.state is State.NO_MARKET and off.derived == []
+    assert [r.reason for r in off.rejections] == [Reject.UNIT]
+    assert [e.per_bottle for e in off.cross_unit] == [Decimal("75")]
 
+
+def test_derivation_is_now_general_decision_0018():
+    """"Don't worry about case pricing, use whatever we can find" (Doug,
+    5 October 2026). A third of a loose-bottle cellar was coming back
+    NO_MARKET on unit grounds alone for every region but Burgundy — Champagne
+    and Bordeaux among them. Any region with both a region AND a colour
+    recorded now derives; only a wine with neither is refused, because there
+    is nothing to widen from."""
     assert derivation_allowed("BURGUNDY_RED") and derivation_allowed("BURGUNDY_WHITE")
-    for elsewhere in ("BORDEAUX_RED", "CHAMPAGNE", "RHONE_NORTH", None, ""):
-        assert not derivation_allowed(elsewhere)
-    assert DERIVABLE_REGIONS == {"BURGUNDY_RED", "BURGUNDY_WHITE"}
+    for elsewhere in ("BORDEAUX_RED", "CHAMPAGNE_WHITE", "RHONE_NORTH_RED",
+                      "CHAMPAGNE_NV"):
+        assert derivation_allowed(elsewhere)
+    for unidentified in (None, ""):
+        assert not derivation_allowed(unidentified)
+
+
+def test_only_burgundy_is_measured_everywhere_else_is_assumed():
+    """The premium is the SAME number everywhere derivation runs — it is the
+    LABEL that changes. Burgundy's 27 pairs earn it "measured"; every other
+    region is told plainly that the same constant is a carried-over
+    assumption until its own pairs say otherwise."""
+    assert MEASURED_REGIONS == {"BURGUNDY_RED", "BURGUNDY_WHITE"}
+    assert is_measured_region("BURGUNDY_RED") and is_measured_region("BURGUNDY_WHITE")
+    assert not is_measured_region("BORDEAUX_RED")
+    assert not is_measured_region("CHAMPAGNE_WHITE")
+    assert not is_measured_region(None)
+
+    bottles = offer("bordeaux-index", "200.00", pack_size=1, wine_id=LAMBRAYS,
+                    merchant="Bordeaux Index")
+    derived_comp = benchmark(line(wine_id=LAMBRAYS), [bottles], as_of=AS_OF).derived[0]
+
+    measured = derivation_note(derived_comp, "BURGUNDY_RED")
+    assert "measured median 1.0000 across 27 paired observations" in measured
+    assert measured == derivation_note(derived_comp)       # the default: measured
+
+    assumed = derivation_note(derived_comp, "BORDEAUX_RED")
+    assert "assumed at the measured Burgundy rate" in assumed
+    assert "no bordeaux red observations yet" in assumed.lower()
+    assert "measured median" not in assumed                # never claims evidence it lacks
+
+
+def test_a_bordeaux_case_derives_at_the_same_arithmetic_as_burgundy():
+    """The region decides only whether derivation is ALLOWED and how the
+    caveat reads; the arithmetic in app/core/benchmark.py has never known or
+    cared what region a wine is. A Bordeaux 6x75 case behaves exactly as a
+    Burgundy one would, case to case, no premium."""
+    bordeaux_wine = "w-chateau-example"
+    case = offer("bordeaux-index", "900.00", pack_size=3, wine_id=bordeaux_wine,
+                 merchant="Bordeaux Index")
+    result = benchmark(line(wine_id=bordeaux_wine), [case], as_of=AS_OF)
+    assert result.uk_floor == Decimal("1800.00")           # 900 / 3 x 6, no premium
+    assert Flag.DERIVED_FROM_CASE in result.flags and Flag.DERIVED_FROM_CASE in REVIEW_FLAGS
+    assert result.derived[0].premium_applied is False
 
 
 def test_derived_money_is_decimal_and_rounded_once():

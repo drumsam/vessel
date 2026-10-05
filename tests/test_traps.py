@@ -35,7 +35,7 @@ from app.market.parcel import SAME_PRICE_AS_ANOTHER_MERCHANT, price_coincidences
 from app.worker.politeness import allowed, crawl_delay
 from app.identity.resolver import (
     PRODUCER_EXCLUSIONS, STRUCTURAL_EXCLUSIONS, Alias, CanonicalWine, Registry,
-    collided_lwins, norm_producer, producers_excluded, wine_key)
+    collided_lwins, norm_producer, producers_excluded, split_release_code, wine_key)
 
 WINE = "w-rousseau-chambertin"
 
@@ -1417,3 +1417,104 @@ def test_one_merchant_listing_twice_is_not_a_parcel_coincidence():
     r = benchmark(line(), twice)
     assert r.comp_count == 1 and r.duplicate_listings == 1
     assert price_coincidences(r.merchant_bests) == []
+
+
+# ------------------------------- non-vintage release-code identity (decision 0019)
+#
+# A live cellar: 41 Krug lines across Grande Cuvee 156e to 169e. Each edition
+# trades at its own level, and LWIN's NV convention (vintage 1000) collapses
+# them into one product.
+
+KRUG = "Krug"
+
+
+def test_grande_cuvee_156_and_169_are_different_wines():
+    """Two editions of the same NV cuvee must never share a wine_id: a 156e
+    offer priced against 169e evidence (or the reverse) is not a comparable,
+    it is a different product wearing the same name."""
+    registry = Registry([
+        CanonicalWine("krug-156", KRUG, "Grande Cuvee", release_code="156"),
+        CanonicalWine("krug-169", KRUG, "Grande Cuvee", release_code="169"),
+    ])
+    assert registry.resolve(KRUG, "Grande Cuvee", release_code="156") == "krug-156"
+    assert registry.resolve(KRUG, "Grande Cuvee", release_code="169") == "krug-169"
+    assert registry.resolve(KRUG, "Grande Cuvee", release_code="156") != \
+        registry.resolve(KRUG, "Grande Cuvee", release_code="169")
+    assert wine_key(KRUG, "Grande Cuvee", "156") != wine_key(KRUG, "Grande Cuvee", "169")
+
+
+def test_a_codeless_candidate_never_resolves_to_a_specific_edition():
+    """A seller writes "Krug Grande Cuvee" with no edition number — the private
+    cellar owner does not know or state one. Fail closed to the identity
+    queue, never a guess at which of fourteen editions it is."""
+    registry = Registry([
+        CanonicalWine("krug-156", KRUG, "Grande Cuvee", release_code="156"),
+        CanonicalWine("krug-169", KRUG, "Grande Cuvee", release_code="169"),
+    ])
+    assert registry.resolve(KRUG, "Grande Cuvee") is None
+    assert registry.resolve(KRUG, "Grande Cuvee", release_code=None) is None
+    # The combined-field path (Goedhuis-style) is equally fail-closed.
+    assert registry.resolve_candidate("", "Krug Grande Cuvee") is None
+
+
+def test_a_wine_with_no_edition_at_all_is_unaffected():
+    """Most NV wines never need a code. A bare producer|cuvee key still
+    resolves exactly as it always has when no edition is registered for it."""
+    registry = Registry([CanonicalWine("nv-plain", "Eric Rodez", "Cuvee des Crayeres")])
+    assert registry.resolve("Eric Rodez", "Cuvee des Crayeres") == "nv-plain"
+
+
+@pytest.mark.parametrize("text,remainder,code", [
+    ("Grande Cuvee 156eme Edition", "Grande Cuvee", "156"),
+    ("Grande Cuvée 156ème Édition", "Grande Cuvée", "156"),
+    ("Grande Cuvee 169e", "Grande Cuvee", "169"),
+    ("Grande Cuvee 156th Edition", "Grande Cuvee", "156"),
+    ("156th", "", "156"),
+])
+def test_the_live_spellings_of_an_edition_number_all_parse(text, remainder, code):
+    """156e, 156eme/156ème and 156th are the live spellings across merchants
+    (adapter-spec-pack). All three resolve to the same code."""
+    got_remainder, got_code = split_release_code(text)
+    assert (got_remainder, got_code) == (remainder, code)
+
+
+def test_a_bordeaux_classification_number_is_never_mistaken_for_an_edition():
+    """'3eme Cru Classe' is a classification, not an edition: Bordeaux writes
+    its growth number mid-name, with more words after it, where Krug's edition
+    is always the last thing in the name. Splitting on the classification would
+    invent an identity split nobody approved, and silently rename every third
+    growth's cuvee to 'Cru Classe'."""
+    text = "Chateau Exemple, 3eme Cru Classe"
+    assert split_release_code(text) == (text, None)
+
+
+def test_henri_giraud_and_bollinger_codes_need_no_split_at_all():
+    """MV13 and PN VZ16 are each a complete, distinct cuvee name with no
+    shared base to split from — unlike Krug's "Grande Cuvee", there is nothing
+    here for split_release_code to find, and nothing here needs it: two
+    different code strings are already two different wine_keys."""
+    assert split_release_code("MV13") == ("MV13", None)
+    assert split_release_code("PN VZ16") == ("PN VZ16", None)
+    assert wine_key("Henri Giraud", "MV13") != wine_key("Henri Giraud", "MV15")
+    assert wine_key("Bollinger", "PN VZ16") != wine_key("Bollinger", "PN VZ15")
+
+
+def test_release_code_is_normalised_like_every_other_identity_field():
+    """Case and whitespace in the code itself do not create a false split —
+    the same normalisation wine_key already applies to producer and cuvee."""
+    assert wine_key(KRUG, "Grande Cuvee", "156") == wine_key(KRUG, "grande cuvee", "156")
+    assert wine_key("Henri Giraud", "MV13") == wine_key("Henri Giraud", "mv13")
+
+
+def test_combined_field_resolution_still_finds_an_edition():
+    """Goedhuis packs producer and cuvee into one string with no separator.
+    The combined-field path must still find a release-coded wine when the
+    whole merchant string names one — not just fail safely, but succeed."""
+    registry = Registry([
+        CanonicalWine("krug-156", KRUG, "Grande Cuvee", release_code="156"),
+        CanonicalWine("krug-169", KRUG, "Grande Cuvee", release_code="169"),
+    ])
+    assert registry.resolve_candidate("", "Krug Grande Cuvee", release_code="156") == "krug-156"
+    assert registry.resolve_candidate("", "Krug Grande Cuvee", release_code="169") == "krug-169"
+    # And still fail-closed with no code at all, through the same path.
+    assert registry.resolve_candidate("", "Krug Grande Cuvee") is None

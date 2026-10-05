@@ -1,0 +1,1072 @@
+[
+ {
+  "line": "B01",
+  "name": "Ch. Lagrange St-Julien",
+  "unit": "6x750",
+  "ls": 210,
+  "A_state": "READY",
+  "A_depth": 3,
+  "A_ref": "207",
+  "A_floor": "205",
+  "A_flags": [],
+  "B_state": "READY",
+  "B_depth": 2,
+  "B_ref": "207",
+  "B_flags": [],
+  "bests": [
+   "Albany Vintners:205",
+   "Bordeaux Index:207",
+   "Lea & Sandeman:210"
+  ]
+ },
+ {
+  "line": "B02",
+  "name": "Ch. Laroque St-Emilion",
+  "unit": "6x750",
+  "ls": 125,
+  "A_state": "READY",
+  "A_depth": 3,
+  "A_ref": "146",
+  "A_floor": "125",
+  "A_flags": [],
+  "B_state": "READY",
+  "B_depth": 2,
+  "B_ref": "147",
+  "B_flags": [],
+  "bests": [
+   "Lea & Sandeman:125",
+   "Bordeaux Index:146",
+   "Albany Vintners:147"
+  ]
+ },
+ {
+  "line": "B03",
+  "name": "Ch. Canon St-Emilion",
+  "unit": "6x750",
+  "ls": 270,
+  "A_state": "READY",
+  "A_depth": 4,
+  "A_ref": "260",
+  "A_floor": "259",
+  "A_flags": [],
+  "B_state": "READY",
+  "B_depth": 3,
+  "B_ref": "260",
+  "B_flags": [],
+  "bests": [
+   "Bordeaux Index:259",
+   "Albany Vintners:260",
+   "Lea & Sandeman:270",
+   "Farr Vintners:300"
+  ]
+ },
+ {
+  "line": "B04",
+  "name": "Les Carmes Haut-Brion",
+  "unit": "6x750",
+  "ls": 330,
+  "A_state": "READY",
+  "A_depth": 3,
+  "A_ref": "325",
+  "A_floor": "298",
+  "A_flags": [],
+  "B_state": "READY",
+  "B_depth": 2,
+  "B_ref": "325",
+  "B_flags": [],
+  "bests": [
+   "Bordeaux Index:298",
+   "Vinum Fine Wines:325",
+   "Lea & Sandeman:330"
+  ]
+ },
+ {
+  "line": "B05",
+  "name": "Ch. Sansonnet",
+  "unit": "6x750",
+  "ls": 150,
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_ref": "150",
+  "A_floor": "150",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ],
+  "bests": [
+   "Lea & Sandeman:150"
+  ]
+ },
+ {
+  "line": "B06",
+  "name": "Aile d'Argent (Mouton) blanc",
+  "unit": "6x750",
+  "ls": 473,
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_ref": "473",
+  "A_floor": "473",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ],
+  "bests": [
+   "Lea & Sandeman:473"
+  ]
+ },
+ {
+  "line": "B07",
+  "name": "Dom. de Chevalier blanc",
+  "unit": "6x750",
+  "ls": 375,
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_ref": "375",
+  "A_floor": "375",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ],
+  "bests": [
+   "Lea & Sandeman:375"
+  ]
+ },
+ {
+  "line": "B08",
+  "name": "Le Petit Smith Haut Lafitte blanc",
+  "unit": "6x750",
+  "ls": 145,
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_ref": "145",
+  "A_floor": "145",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ],
+  "bests": [
+   "Lea & Sandeman:145"
+  ]
+ },
+ {
+  "line": "B09",
+  "name": "Dom. de Chevalier rouge",
+  "unit": "6x750",
+  "ls": 230,
+  "A_state": "READY",
+  "A_depth": 3,
+  "A_ref": "230",
+  "A_floor": "212",
+  "A_flags": [],
+  "B_state": "READY",
+  "B_depth": 2,
+  "B_ref": "230",
+  "B_flags": [],
+  "bests": [
+   "Farr Vintners:212",
+   "Lea & Sandeman:230",
+   "Albany Vintners:230"
+  ]
+ },
+ {
+  "line": "B10",
+  "name": "Ch. La Gaffeli\u00e8re",
+  "unit": "6x750",
+  "ls": 170,
+  "A_state": "READY",
+  "A_depth": 4,
+  "A_ref": "175",
+  "A_floor": "170",
+  "A_flags": [
+   "WIDE_SPREAD"
+  ],
+  "B_state": "READY",
+  "B_depth": 3,
+  "B_ref": "200",
+  "B_flags": [
+   "WIDE_SPREAD"
+  ],
+  "bests": [
+   "Lea & Sandeman:170",
+   "Bordeaux Index:175",
+   "Vinum Fine Wines:200",
+   "Albany Vintners:325"
+  ]
+ },
+ {
+  "line": "B11",
+  "name": "Grand-Puy-Lacoste",
+  "unit": "6x750",
+  "ls": 225,
+  "A_state": "READY",
+  "A_depth": 3,
+  "A_ref": "250",
+  "A_floor": "225",
+  "A_flags": [],
+  "B_state": "READY",
+  "B_depth": 2,
+  "B_ref": "260",
+  "B_flags": [],
+  "bests": [
+   "Lea & Sandeman:225",
+   "Bordeaux Index:250",
+   "Albany Vintners:260"
+  ]
+ },
+ {
+  "line": "B12",
+  "name": "Ch. Lafon-Rochet",
+  "unit": "6x750",
+  "ls": 112,
+  "A_state": "READY",
+  "A_depth": 2,
+  "A_ref": "130",
+  "A_floor": "112",
+  "A_flags": [],
+  "B_state": "REVIEW",
+  "B_depth": 1,
+  "B_ref": "130",
+  "B_flags": [
+   "ONE_COMP"
+  ],
+  "bests": [
+   "Lea & Sandeman:112",
+   "Albany Vintners:130"
+  ]
+ },
+ {
+  "line": "B13",
+  "name": "Ch. Langoa Barton",
+  "unit": "6x750",
+  "ls": 145,
+  "A_state": "READY",
+  "A_depth": 3,
+  "A_ref": "160",
+  "A_floor": "145",
+  "A_flags": [
+   "WIDE_SPREAD"
+  ],
+  "B_state": "READY",
+  "B_depth": 2,
+  "B_ref": "200",
+  "B_flags": [],
+  "bests": [
+   "Lea & Sandeman:145",
+   "Albany Vintners:160",
+   "Bordeaux Index:200"
+  ]
+ },
+ {
+  "line": "B14",
+  "name": "Ch. Larcis Ducasse",
+  "unit": "6x750",
+  "ls": 280,
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_ref": "280",
+  "A_floor": "280",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ],
+  "bests": [
+   "Lea & Sandeman:280"
+  ]
+ },
+ {
+  "line": "B15",
+  "name": "Latour-Martillac rouge",
+  "unit": "6x750",
+  "ls": 115,
+  "A_state": "READY",
+  "A_depth": 3,
+  "A_ref": "127",
+  "A_floor": "115",
+  "A_flags": [],
+  "B_state": "READY",
+  "B_depth": 2,
+  "B_ref": "129",
+  "B_flags": [],
+  "bests": [
+   "Lea & Sandeman:115",
+   "Bordeaux Index:127",
+   "Albany Vintners:129"
+  ]
+ },
+ {
+  "line": "B16",
+  "name": "L\u00e9oville Poyferr\u00e9 (Neb)",
+  "unit": "1x15000",
+  "ls": 2500,
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_ref": "2500",
+  "A_floor": "2500",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ],
+  "bests": [
+   "Lea & Sandeman:2500"
+  ]
+ },
+ {
+  "line": "B17",
+  "name": "La Mission Haut-Brion",
+  "unit": "3x750",
+  "ls": 560,
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_ref": "560",
+  "A_floor": "560",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ],
+  "bests": [
+   "Lea & Sandeman:560"
+  ]
+ },
+ {
+  "line": "B18",
+  "name": "Prieur\u00e9-Lichine",
+  "unit": "12x750",
+  "ls": 306,
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_ref": "306",
+  "A_floor": "306",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ],
+  "bests": [
+   "Lea & Sandeman:306"
+  ]
+ },
+ {
+  "line": "B19",
+  "name": "Ch. Valandraud",
+  "unit": "6x750",
+  "ls": 385,
+  "A_state": "READY",
+  "A_depth": 2,
+  "A_ref": "500",
+  "A_floor": "385",
+  "A_flags": [
+   "WIDE_SPREAD"
+  ],
+  "B_state": "REVIEW",
+  "B_depth": 1,
+  "B_ref": "500",
+  "B_flags": [
+   "ONE_COMP"
+  ],
+  "bests": [
+   "Lea & Sandeman:385",
+   "Bordeaux Index:500"
+  ]
+ },
+ {
+  "line": "B20",
+  "name": "Aile d'Argent (Mouton) blanc",
+  "unit": "6x750",
+  "ls": 535,
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_ref": "535",
+  "A_floor": "535",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ],
+  "bests": [
+   "Lea & Sandeman:535"
+  ]
+ },
+ {
+  "line": "B21",
+  "name": "Malartic-Lagravi\u00e8re blanc",
+  "unit": "6x750",
+  "ls": 195,
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_ref": "195",
+  "A_floor": "195",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ],
+  "bests": [
+   "Lea & Sandeman:195"
+  ]
+ },
+ {
+  "line": "B22",
+  "name": "Smith Haut Lafitte blanc",
+  "unit": "6x750",
+  "ls": 520,
+  "A_state": "READY",
+  "A_depth": 2,
+  "A_ref": "628",
+  "A_floor": "520",
+  "A_flags": [],
+  "B_state": "REVIEW",
+  "B_depth": 1,
+  "B_ref": "628",
+  "B_flags": [
+   "ONE_COMP"
+  ],
+  "bests": [
+   "Lea & Sandeman:520",
+   "Bordeaux Index:628"
+  ]
+ },
+ {
+  "line": "B23",
+  "name": "Marquis d'Alesme",
+  "unit": "6x750",
+  "ls": 160,
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_ref": "160",
+  "A_floor": "160",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ],
+  "bests": [
+   "Lea & Sandeman:160"
+  ]
+ },
+ {
+  "line": "B24",
+  "name": "Brane-Cantenac",
+  "unit": "6x750",
+  "ls": 245,
+  "A_state": "READY",
+  "A_depth": 3,
+  "A_ref": "245",
+  "A_floor": "245",
+  "A_flags": [],
+  "B_state": "READY",
+  "B_depth": 2,
+  "B_ref": "300",
+  "B_flags": [],
+  "bests": [
+   "Lea & Sandeman:245",
+   "Albany Vintners:245",
+   "Bordeaux Index:300"
+  ]
+ },
+ {
+  "line": "B25",
+  "name": "Cambon La Pelouse",
+  "unit": "6x750",
+  "ls": 110,
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_ref": "110",
+  "A_floor": "110",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ],
+  "bests": [
+   "Lea & Sandeman:110"
+  ]
+ },
+ {
+  "line": "B26",
+  "name": "Couvent des Jacobins",
+  "unit": "6x750",
+  "ls": 132,
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_ref": "132",
+  "A_floor": "132",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ],
+  "bests": [
+   "Lea & Sandeman:132"
+  ]
+ },
+ {
+  "line": "B27",
+  "name": "Ch. Le D\u00f4me",
+  "unit": "6x750",
+  "ls": 510,
+  "A_state": "READY",
+  "A_depth": 3,
+  "A_ref": "510",
+  "A_floor": "415",
+  "A_flags": [
+   "WIDE_SPREAD"
+  ],
+  "B_state": "READY",
+  "B_depth": 2,
+  "B_ref": "680",
+  "B_flags": [
+   "WIDE_SPREAD"
+  ],
+  "bests": [
+   "Bordeaux Index:415",
+   "Lea & Sandeman:510",
+   "Albany Vintners:680"
+  ]
+ },
+ {
+  "line": "B28",
+  "name": "Ch. La Gaffeli\u00e8re",
+  "unit": "6x750",
+  "ls": 220,
+  "A_state": "READY",
+  "A_depth": 2,
+  "A_ref": "238",
+  "A_floor": "220",
+  "A_flags": [],
+  "B_state": "REVIEW",
+  "B_depth": 1,
+  "B_ref": "238",
+  "B_flags": [
+   "ONE_COMP"
+  ],
+  "bests": [
+   "Lea & Sandeman:220",
+   "Bordeaux Index:238"
+  ]
+ },
+ {
+  "line": "B29",
+  "name": "Ch. Le Gay Pomerol",
+  "unit": "6x750",
+  "ls": 390,
+  "A_state": "READY",
+  "A_depth": 3,
+  "A_ref": "395",
+  "A_floor": "390",
+  "A_flags": [],
+  "B_state": "READY",
+  "B_depth": 2,
+  "B_ref": "399",
+  "B_flags": [],
+  "bests": [
+   "Lea & Sandeman:390",
+   "Farr Vintners:395",
+   "Bordeaux Index:399"
+  ]
+ },
+ {
+  "line": "B30",
+  "name": "Les Grandes Murailles",
+  "unit": "6x750",
+  "ls": 175,
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_ref": "175",
+  "A_floor": "175",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ],
+  "bests": [
+   "Lea & Sandeman:175"
+  ]
+ },
+ {
+  "line": "B31",
+  "name": "L\u00e9oville Barton",
+  "unit": "6x750",
+  "ls": 335,
+  "A_state": "READY",
+  "A_depth": 3,
+  "A_ref": "330",
+  "A_floor": "317",
+  "A_flags": [],
+  "B_state": "READY",
+  "B_depth": 2,
+  "B_ref": "330",
+  "B_flags": [],
+  "bests": [
+   "Bordeaux Index:317",
+   "Farr Vintners:330",
+   "Lea & Sandeman:335"
+  ]
+ },
+ {
+  "line": "B32",
+  "name": "Lynch-Bages",
+  "unit": "6x750",
+  "ls": 495,
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_ref": "495",
+  "A_floor": "495",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ],
+  "bests": [
+   "Lea & Sandeman:495"
+  ]
+ },
+ {
+  "line": "B33",
+  "name": "Malescot St-Exup\u00e9ry",
+  "unit": "6x750",
+  "ls": 170,
+  "A_state": "READY",
+  "A_depth": 3,
+  "A_ref": "170",
+  "A_floor": "165",
+  "A_flags": [],
+  "B_state": "READY",
+  "B_depth": 2,
+  "B_ref": "195",
+  "B_flags": [],
+  "bests": [
+   "Albany Vintners:165",
+   "Lea & Sandeman:170",
+   "Bordeaux Index:195"
+  ]
+ },
+ {
+  "line": "B34",
+  "name": "La Mondotte",
+  "unit": "6x750",
+  "ls": 350,
+  "A_state": "READY",
+  "A_depth": 2,
+  "A_ref": "398",
+  "A_floor": "350",
+  "A_flags": [],
+  "B_state": "REVIEW",
+  "B_depth": 1,
+  "B_ref": "398",
+  "B_flags": [
+   "ONE_COMP"
+  ],
+  "bests": [
+   "Lea & Sandeman:350",
+   "Bordeaux Index:398"
+  ]
+ },
+ {
+  "line": "B35",
+  "name": "Petit Mouton",
+  "unit": "6x750",
+  "ls": 690,
+  "A_state": "READY",
+  "A_depth": 2,
+  "A_ref": "740",
+  "A_floor": "690",
+  "A_flags": [],
+  "B_state": "REVIEW",
+  "B_depth": 1,
+  "B_ref": "740",
+  "B_flags": [
+   "ONE_COMP"
+  ],
+  "bests": [
+   "Lea & Sandeman:690",
+   "Goedhuis Waddesdon:740"
+  ]
+ },
+ {
+  "line": "B36",
+  "name": "Ch. La Violette",
+  "unit": "3x750",
+  "ls": 385,
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_ref": "385",
+  "A_floor": "385",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ],
+  "bests": [
+   "Lea & Sandeman:385"
+  ]
+ },
+ {
+  "line": "B37",
+  "name": "Aile d'Argent (Mouton) blanc",
+  "unit": "6x750",
+  "ls": 495,
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_ref": "495",
+  "A_floor": "495",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ],
+  "bests": [
+   "Lea & Sandeman:495"
+  ]
+ },
+ {
+  "line": "B38",
+  "name": "Smith Haut Lafitte blanc",
+  "unit": "6x750",
+  "ls": 465,
+  "A_state": "READY",
+  "A_depth": 2,
+  "A_ref": "546",
+  "A_floor": "465",
+  "A_flags": [],
+  "B_state": "REVIEW",
+  "B_depth": 1,
+  "B_ref": "546",
+  "B_flags": [
+   "ONE_COMP"
+  ],
+  "bests": [
+   "Lea & Sandeman:465",
+   "Bordeaux Index:546"
+  ]
+ },
+ {
+  "line": "B39",
+  "name": "L'H\u00eatre Castillon",
+  "unit": "6x750",
+  "ls": 105,
+  "A_state": "READY",
+  "A_depth": 3,
+  "A_ref": "90",
+  "A_floor": "90",
+  "A_flags": [],
+  "B_state": "READY",
+  "B_depth": 2,
+  "B_ref": "90",
+  "B_flags": [],
+  "bests": [
+   "Farr Vintners:90",
+   "Goedhuis Waddesdon:90",
+   "Lea & Sandeman:105"
+  ]
+ },
+ {
+  "line": "B40",
+  "name": "Couvent des Jacobins",
+  "unit": "6x750",
+  "ls": 130,
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_ref": "130",
+  "A_floor": "130",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ],
+  "bests": [
+   "Lea & Sandeman:130"
+  ]
+ },
+ {
+  "line": "B41",
+  "name": "Les Grandes Murailles",
+  "unit": "6x750",
+  "ls": 210,
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_ref": "210",
+  "A_floor": "210",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ],
+  "bests": [
+   "Lea & Sandeman:210"
+  ]
+ },
+ {
+  "line": "B42",
+  "name": "L\u00e9oville Barton",
+  "unit": "6x750",
+  "ls": 300,
+  "A_state": "READY",
+  "A_depth": 3,
+  "A_ref": "300",
+  "A_floor": "295",
+  "A_flags": [],
+  "B_state": "READY",
+  "B_depth": 2,
+  "B_ref": "300",
+  "B_flags": [],
+  "bests": [
+   "Bordeaux Index:295",
+   "Lea & Sandeman:300",
+   "Farr Vintners:300"
+  ]
+ },
+ {
+  "line": "B43",
+  "name": "Beau-S\u00e9jour B\u00e9cot",
+  "unit": "6x750",
+  "ls": 370,
+  "A_state": "READY",
+  "A_depth": 2,
+  "A_ref": "370",
+  "A_floor": "244",
+  "A_flags": [
+   "WIDE_SPREAD"
+  ],
+  "B_state": "REVIEW",
+  "B_depth": 1,
+  "B_ref": "244",
+  "B_flags": [
+   "ONE_COMP"
+  ],
+  "bests": [
+   "Bordeaux Index:244",
+   "Lea & Sandeman:370"
+  ]
+ },
+ {
+  "line": "B44",
+  "name": "Ch. Haut-Bailly",
+  "unit": "6x750",
+  "ls": 510,
+  "A_state": "READY",
+  "A_depth": 3,
+  "A_ref": "510",
+  "A_floor": "500",
+  "A_flags": [],
+  "B_state": "READY",
+  "B_depth": 2,
+  "B_ref": "510",
+  "B_flags": [],
+  "bests": [
+   "Bordeaux Index:500",
+   "Lea & Sandeman:510",
+   "Albany Vintners:510"
+  ]
+ },
+ {
+  "line": "B45",
+  "name": "Les Ormes de Pez",
+  "unit": "12x750",
+  "ls": 380,
+  "A_state": "READY",
+  "A_depth": 2,
+  "A_ref": "380",
+  "A_floor": "321",
+  "A_flags": [],
+  "B_state": "REVIEW",
+  "B_depth": 1,
+  "B_ref": "321",
+  "B_flags": [
+   "ONE_COMP"
+  ],
+  "bests": [
+   "Bordeaux Index:321",
+   "Lea & Sandeman:380"
+  ]
+ },
+ {
+  "line": "B46",
+  "name": "L'\u00c9glise Clinet",
+  "unit": "6x750",
+  "ls": 445,
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_ref": "445",
+  "A_floor": "445",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ],
+  "bests": [
+   "Lea & Sandeman:445"
+  ]
+ },
+ {
+  "line": "B47",
+  "name": "La Clart\u00e9 de Haut-Brion",
+  "unit": "12x750",
+  "ls": 760,
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_ref": "760",
+  "A_floor": "760",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ],
+  "bests": [
+   "Lea & Sandeman:760"
+  ]
+ },
+ {
+  "line": "B48",
+  "name": "L'\u00c9glise Clinet",
+  "unit": "6x750",
+  "ls": 785,
+  "A_state": "READY",
+  "A_depth": 3,
+  "A_ref": "885",
+  "A_floor": "785",
+  "A_flags": [],
+  "B_state": "READY",
+  "B_depth": 2,
+  "B_ref": "900",
+  "B_flags": [],
+  "bests": [
+   "Lea & Sandeman:785",
+   "Bordeaux Index:885",
+   "Goedhuis Waddesdon:900"
+  ]
+ },
+ {
+  "line": "B49",
+  "name": "La Croix de Beaucaillou (mag)",
+  "unit": "6x1500",
+  "ls": 395,
+  "A_state": "REVIEW",
+  "A_depth": 1,
+  "A_ref": "395",
+  "A_floor": "395",
+  "A_flags": [
+   "ONE_COMP"
+  ],
+  "B_state": "NO_MARKET",
+  "B_depth": 0,
+  "B_ref": null,
+  "B_flags": [
+   "NO_MARKET"
+  ],
+  "bests": [
+   "Lea & Sandeman:395"
+  ]
+ },
+ {
+  "line": "B50",
+  "name": "L\u00e9oville Barton",
+  "unit": "12x750",
+  "ls": 570,
+  "A_state": "READY",
+  "A_depth": 2,
+  "A_ref": "570",
+  "A_floor": "556",
+  "A_flags": [],
+  "B_state": "REVIEW",
+  "B_depth": 1,
+  "B_ref": "556",
+  "B_flags": [
+   "ONE_COMP"
+  ],
+  "bests": [
+   "Bordeaux Index:556",
+   "Lea & Sandeman:570"
+  ]
+ }
+]

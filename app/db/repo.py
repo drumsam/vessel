@@ -18,7 +18,7 @@ from app.core.benchmark import BenchmarkResult, DerivedComp, source_offer_id
 from app.core.enums import ConditionFlag, DutyStatus, PriceKind, StockType
 from app.core.flags import Flag
 from app.core.models import Offer, SellerLine
-from app.market.units import CasePair, case_pairs, derivation_note
+from app.market.units import CasePair, case_pairs, derivation_note, is_measured_region
 from app.market.vintage_band import FormatDisagreement, NeighbourVintage, VintageBandCheck
 from app.pricing.pricer import PricedLine
 from app.identity.resolver import (
@@ -70,8 +70,10 @@ def exact_money(value: Optional[Decimal]) -> Optional[Decimal]:
 
 def load_registry(conn: psycopg.Connection) -> Registry:
     wines = [
-        CanonicalWine(str(r["wine_id"]), r["producer"], r["cuvee"], r["lwin7"])
-        for r in conn.execute("SELECT wine_id, producer, cuvee, lwin7 FROM wine")
+        CanonicalWine(str(r["wine_id"]), r["producer"], r["cuvee"], r["lwin7"],
+                      r["release_code"])
+        for r in conn.execute(
+            "SELECT wine_id, producer, cuvee, lwin7, release_code FROM wine")
     ]
     aliases = [
         Alias(key=r["wine_key"], wine_id=str(r["wine_id"]), approved_by=r["approved_by"],
@@ -83,11 +85,13 @@ def load_registry(conn: psycopg.Connection) -> Registry:
 
 
 def create_wine(conn: psycopg.Connection, *, producer: str, cuvee: str,
-                region: str | None, colour: str | None, lwin7: str | None) -> dict:
+                region: str | None, colour: str | None, lwin7: str | None,
+                release_code: str | None = None) -> dict:
     return conn.execute(
-        """INSERT INTO wine (producer, cuvee, region, colour, lwin7, wine_key)
-           VALUES (%s, %s, %s, %s, %s, %s) RETURNING *""",
-        (producer, cuvee, region, colour, lwin7, wine_key(producer, cuvee)),
+        """INSERT INTO wine (producer, cuvee, region, colour, lwin7, release_code, wine_key)
+           VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING *""",
+        (producer, cuvee, region, colour, lwin7, release_code,
+         wine_key(producer, cuvee, release_code)),
     ).fetchone()
 
 
@@ -261,11 +265,13 @@ def list_merchants(conn: psycopg.Connection) -> list[dict]:
 
 def create_deal(conn: psycopg.Connection, deal: dict, lines: list[dict]) -> dict:
     row = conn.execute(
-        """INSERT INTO deal (name, seller, source_file, currency, target_margin, created_by)
+        """INSERT INTO deal (name, seller, source_file, currency, target_margin,
+                             buyer_discount, margin_on_sale, created_by)
            VALUES (%(name)s, %(seller)s, %(source_file)s, %(currency)s, %(target_margin)s,
-                   %(created_by)s)
+                   %(buyer_discount)s, %(margin_on_sale)s, %(created_by)s)
            RETURNING *""",
-        deal,
+        {**deal, "buyer_discount": deal.get("buyer_discount"),
+         "margin_on_sale": deal.get("margin_on_sale")},
     ).fetchone()
     for ln in lines:
         conn.execute(
@@ -534,13 +540,20 @@ def resolve_offers(conn: psycopg.Connection, *, wine_id: str, vintage: int,
                       merchant_offer_ids={str(r["offer_pk"]): r["merchant_offer_id"] for r in rows})
 
 
-def derived_from_json(d: DerivedComp) -> dict:
-    """What a derived comparable was derived from. Never a price of its own."""
+def derived_from_json(d: DerivedComp, region_key: Optional[str] = None) -> dict:
+    """What a derived comparable was derived from. Never a price of its own.
+
+    `region_key` decides the wording only (decision 0018): the same premium is
+    applied everywhere derivation runs, but a region outside
+    `MEASURED_REGIONS` is told honestly that the number is assumed, not
+    measured, for it.
+    """
     return {"offer_id": None, "merchant_id": d.source.merchant_id,
             "merchant": d.source.merchant, "price": str(exact_money(d.source.price)),
             "pack_size": d.source.pack_size, "bottle_ml": d.source.bottle_ml,
             "basis": d.basis, "premium_applied": d.premium_applied,
-            "note": derivation_note(d)}
+            "measured": is_measured_region(region_key) if region_key else None,
+            "note": derivation_note(d, region_key)}
 
 
 def offer_snapshot(o: Offer, merchant_offer_id: str,
@@ -577,7 +590,7 @@ def offer_snapshot(o: Offer, merchant_offer_id: str,
 
 
 def save_benchmark(conn: psycopg.Connection, result: BenchmarkResult,
-                   resolution: Resolution) -> str:
+                   resolution: Resolution, region: Optional[str] = None) -> str:
     run_id = conn.execute(
         """INSERT INTO benchmark_run (line_id, as_of, uk_floor, uk_reference, uk_median,
                                       comp_count, duplicate_listings, flags, state,
@@ -620,7 +633,8 @@ def save_benchmark(conn: psycopg.Connection, result: BenchmarkResult,
             [(run_id, source_pk(o.offer_id), role, reason,
               Jsonb(offer_snapshot(
                   o, resolution.merchant_offer_ids[source_pk(o.offer_id)], pb, variance,
-                  derived_from_json(derived[o.offer_id]) if o.offer_id in derived else None)))
+                  derived_from_json(derived[o.offer_id], region)
+                  if o.offer_id in derived else None)))
              for o, role, reason, pb, variance in rows])
     return run_id
 
@@ -655,20 +669,24 @@ def save_pricing(conn: psycopg.Connection, *, line_id: str, run: dict, priced: P
                  auction_evidence: Optional[list] = None) -> str:
     """The figures as they stood at the moment of pricing. The benchmark numbers
     are copied from the run, never joined back to it on read."""
+    # buyer_price_gbp and seller_price_gbp are GENERATED columns (decision
+    # 0017): Postgres refuses a value for them in the INSERT list, by design —
+    # they can only ever be what sell_price/cost_gbp already are for this basis.
     return conn.execute(
         """INSERT INTO pricing_result
                (line_id, run_id, priced_by, uk_floor, uk_reference, uk_median, comp_count,
                 auction_evidence, cost, cost_currency, fx_rate, fx_rate_date, fx_source,
                 cost_gbp, price_basis, target_margin, discount, deep_discount_threshold,
-                sell_price, gp, gross_margin, flags, state)
+                buyer_discount, margin_on_sale, sell_price, gp, gross_margin, flags, state)
            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                   %s, %s, %s, %s, %s)
+                   %s, %s, %s, %s, %s, %s, %s)
            RETURNING pricing_id""",
         (line_id, run["run_id"], priced_by, exact_money(run["uk_floor"]),
          exact_money(run["uk_reference"]), exact_money(run["uk_median"]), run["comp_count"],
          Jsonb(auction_evidence or []), exact_money(cost), cost_currency, fx_rate,
          fx_rate_date, fx_source, exact_money(priced.cost_gbp), priced.price_basis,
          priced.target_margin, priced.discount, priced.deep_discount_threshold,
+         priced.buyer_discount, priced.margin_on_sale,
          exact_money(priced.sell_price), exact_money(priced.gp), priced.gross_margin,
          sorted({*run["flags"], *(f.value for f in priced.flags)}), run["state"]),
     ).fetchone()["pricing_id"]

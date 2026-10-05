@@ -2364,3 +2364,94 @@ def test_a_capture_records_every_wine_it_meets_in_two_pack_sizes(client):
     assert overall["median"] == Decimal("1.000000")
     assert isinstance(overall["mean"], Decimal)
     assert (overall["low"], overall["high"]) == (Decimal("1.000000"), Decimal("1.015228"))
+
+
+# --------------------------------- the market chain, end to end (decision 0017)
+
+
+@pg
+def test_a_line_with_only_a_reference_prices_from_the_market_chain(client):
+    """A private cellar's line usually carries nothing but a verified UK
+    Reference: no manual price, no margin, no discount, often no cost figure
+    either. Before decision 0017 such a line could not be priced at all.
+    Farr's £610 loose bottle, one merchant: buyer pays £488.00 (20% below
+    market), the seller receives £448.96 (our 8% fee on the buyer price)."""
+    wid = _seed_wine(client)
+    _collect(client)
+    r = client.post("/deals", json={
+        "name": "Private cellar", "currency": "GBP",
+        "lines": [{"row_index": 0, "raw_description": "Rousseau Charmes 2011 x6 loose",
+                   "raw_row": {"A": "Rousseau Charmes 2011"}, "quantity": 6}]})
+    assert r.status_code == 201, r.text
+    deal = r.json()
+    line_id = deal["lines"][0]["line_id"]
+    assert client.put(f"/lines/{line_id}/identity", json={
+        "wine_id": wid, "vintage": 2011, "bottle_ml": 750, "pack_size": 1,
+        "source": "operator", "flags": []}).status_code == 200
+    _benchmark(client, deal["deal_id"])
+    j = _price(client, deal["deal_id"])
+    assert j["status"] == "finished" and list(j["result"]["priced"]) == [line_id]
+
+    p = client.get(f"/lines/{line_id}/pricing").json()
+    assert p["price_basis"] == "buyer_discount"
+    assert (p["buyer_price_gbp"], p["seller_price_gbp"]) == ("488.00", "448.96")
+    assert p["sell_price"] == p["buyer_price_gbp"] and p["cost_gbp"] == p["seller_price_gbp"]
+    assert (p["buyer_discount"], p["margin_on_sale"]) == ("0.2000", "0.0800")
+    assert p["gp"] == "39.04" and p["gross_margin"] == "0.0800"
+
+    # ONE_COMP still gates the export exactly as it would for any other basis:
+    # the chain does not bypass the review path.
+    refused = client.post(f"/deals/{deal['deal_id']}/buyer-offers", json={
+        "client": "A Merchant Ltd", "lines": [{"line_id": line_id}]})
+    assert refused.status_code == 409, refused.text
+    client.post(f"/lines/{line_id}/pricing/acknowledge", json={"note": "one source, accepted"})
+    issued = client.post(f"/deals/{deal['deal_id']}/buyer-offers", json={
+        "client": "A Merchant Ltd", "lines": [{"line_id": line_id}]})
+    assert issued.status_code == 201, issued.text
+    # The document carries the BUYER price, same as any other basis always has.
+    assert issued.json()["lines"][0]["unit_price"] == "488.00"
+
+
+@pg
+def test_a_deal_can_override_the_chain_and_the_override_is_recorded(client):
+    """A deal that wants a steeper buyer discount or a different fee sets its
+    own numbers on the deal, not the line: the chain is per-deal, never
+    per-line (Doug's spec)."""
+    wid = _seed_wine(client)
+    _collect(client)
+    r = client.post("/deals", json={
+        "name": "Private cellar, deeper discount", "currency": "GBP",
+        "buyer_discount": 0.30, "margin_on_sale": 0.10,
+        "lines": [{"row_index": 0, "raw_description": "Rousseau Charmes 2011 x6 loose",
+                   "raw_row": {"A": "Rousseau Charmes 2011"}, "quantity": 6}]})
+    assert r.status_code == 201, r.text
+    deal = r.json()
+    assert (deal["buyer_discount"], deal["margin_on_sale"]) == ("0.3000", "0.1000")
+    line_id = deal["lines"][0]["line_id"]
+    client.put(f"/lines/{line_id}/identity", json={
+        "wine_id": wid, "vintage": 2011, "bottle_ml": 750, "pack_size": 1,
+        "source": "operator", "flags": []})
+    _benchmark(client, deal["deal_id"])
+    _price(client, deal["deal_id"])
+
+    p = client.get(f"/lines/{line_id}/pricing").json()
+    assert (p["buyer_discount"], p["margin_on_sale"]) == ("0.3000", "0.1000")
+    assert p["buyer_price_gbp"] == "427.00"                # 610 x 0.70
+    assert p["seller_price_gbp"] == "384.30"               # 427 x 0.90
+    # Deeper than the default 25% deep-discount threshold: flagged.
+    assert "DEEP_DISCOUNT" in p["flags"]
+
+
+@pg
+def test_a_cost_or_margin_still_outranks_the_chain_through_the_api(client):
+    """A line that DOES carry a known cost and margin is priced from that, not
+    the chain — precedence end to end, not just in the pure function."""
+    wid = _seed_wine(client)
+    _collect(client)
+    deal_id, line_id = _deal(client, wid)        # _deal sets cost=480.00
+    _benchmark(client, deal_id)
+    _sql("UPDATE seller_line SET target_margin = 0.2500", fetch=False)
+    _price(client, deal_id)
+    p = client.get(f"/lines/{line_id}/pricing").json()
+    assert p["price_basis"] == "line_margin"
+    assert (p["buyer_price_gbp"], p["seller_price_gbp"]) == (None, None)

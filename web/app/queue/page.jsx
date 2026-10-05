@@ -140,7 +140,9 @@ function Conflict({ conflict, onDone }) {
                     onChange={(e) => setChoice({ ...choice, [name]: e.target.value })}>
               <option value="">which wine is this?</option>
               {wines.map((w) => (
-                <option key={w.wine_id} value={w.wine_id}>{w.producer} — {w.cuvee}</option>
+                <option key={w.wine_id} value={w.wine_id}>
+                  {w.producer} — {w.cuvee}{w.release_code ? ` (${w.release_code})` : ""}
+                </option>
               ))}
             </select>
           </div>

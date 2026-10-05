@@ -45,6 +45,12 @@ class Candidate:
     producer_text: str
     cuvee_text: str
     lwin7: Optional[str] = None
+    #: A release/edition code read out of the merchant's own wording — Krug's
+    #: "Grande Cuvée 156ème Édition" is "156" (decision 0019). A proposal like
+    #: any other identity field: the resolver still requires it to agree with
+    #: the canonical wine_key, and a vintage=1000 line with no code can never
+    #: resolve to a wine that has one.
+    release_code: Optional[str] = None
 
     def __post_init__(self) -> None:
         if self.offer.condition_flags and not (self.offer.condition_notes or "").strip():

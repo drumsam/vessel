@@ -371,7 +371,7 @@ def _benchmark_with_band(conn: psycopg.Connection, line, res: repo.Resolution,
         offers = without_high_outliers(res.offers, check) if check.high_outliers else res.offers
         result = benchmark(line, offers, as_of=when)
 
-    run_id = str(repo.save_benchmark(conn, result, res))
+    run_id = str(repo.save_benchmark(conn, result, res, region=region))
     repo.save_vintage_band(conn, run_id, check, res)
     return run_id, check
 
@@ -438,6 +438,7 @@ def price_deal(deal_id: str, priced_by: str, fx_rates: Optional[dict] = None,
                     fx_rate=Decimal(fx["rate"]) if fx.get("rate") else None,
                     manual_price=row["manual_price"], line_margin=row["target_margin"],
                     line_discount=row["target_discount"], deal_margin=deal["target_margin"],
+                    buyer_discount=deal["buyer_discount"], margin_on_sale=deal["margin_on_sale"],
                     deep_discount_threshold=threshold)
             except CannotPrice as e:
                 skipped.append({"line_id": line_id, "reason": str(e)})

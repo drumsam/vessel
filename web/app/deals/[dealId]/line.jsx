@@ -92,7 +92,9 @@ export default function LineDetail({ lineId, line, onChange }) {
                     onChange={(e) => setIdentity({ ...identity, wine_id: e.target.value })}>
               <option value="">—</option>
               {wines.map((w) => (
-                <option key={w.wine_id} value={w.wine_id}>{w.producer} — {w.cuvee}</option>
+                <option key={w.wine_id} value={w.wine_id}>
+                  {w.producer} — {w.cuvee}{w.release_code ? ` (${w.release_code})` : ""}
+                </option>
               ))}
             </select>
           </div>
@@ -131,11 +133,26 @@ export default function LineDetail({ lineId, line, onChange }) {
       {pricing && (
         <>
           <h2>Price</h2>
-          <p>
-            {money(pricing.sell_price, pricing.sell_currency)} on {pricing.price_basis.replaceAll("_", " ")}
-            {" · "}GP {money(pricing.gp)} ({rate(pricing.gross_margin)})
-            {pricing.fx_rate && ` · FX ${pricing.fx_rate} ${pricing.cost_currency}/GBP on ${pricing.fx_rate_date} (${pricing.fx_source})`}
-          </p>
+          {pricing.price_basis === "buyer_discount" ? (
+            <>
+              <p>
+                Buyer pays {money(pricing.buyer_price_gbp, pricing.sell_currency)} · Seller
+                receives {money(pricing.seller_price_gbp, pricing.sell_currency)} · our fee{" "}
+                {money(pricing.gp)} ({rate(pricing.margin_on_sale)} of the buyer price)
+              </p>
+              <p className="muted" style={{ fontSize: 13 }}>
+                Priced from the market chain: UK Reference {money(pricing.uk_reference)} ·
+                buyer discount {rate(pricing.buyer_discount)} · our fee on the buyer price{" "}
+                {rate(pricing.margin_on_sale)}. One is a sale, the other a purchase.
+              </p>
+            </>
+          ) : (
+            <p>
+              {money(pricing.sell_price, pricing.sell_currency)} on {pricing.price_basis.replaceAll("_", " ")}
+              {" · "}GP {money(pricing.gp)} ({rate(pricing.gross_margin)})
+              {pricing.fx_rate && ` · FX ${pricing.fx_rate} ${pricing.cost_currency}/GBP on ${pricing.fx_rate_date} (${pricing.fx_source})`}
+            </p>
+          )}
           <Flags flags={pricing.flags} tone="review" />
           {pricing.requires_acknowledgement && (
             pricing.acknowledgement ? (

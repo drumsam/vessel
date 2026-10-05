@@ -13,9 +13,10 @@ measurement.
 GM is a **margin, never a markup**. Cost £600 at a 25% target sells at £800, not
 £750: markup would under-price by £50 and report a 25% margin that is really 20%.
 
-**Precedence:** manual price > line margin > line discount > deal margin. The
-first one set wins outright and the rest are not consulted. `price_basis` on
-`pricing_result` records which one it was.
+**Precedence:** manual price > line margin > line discount > deal margin > the
+market chain (decision 0017, for a line with nothing else set but a verified
+UK Reference). The first one set wins outright and the rest are not
+consulted. `price_basis` on `pricing_result` records which one it was.
 
 **Flags** (context, not review gates — `REVIEW_FLAGS` in `app/core/flags.py`
 remains the only definition of what forces review):

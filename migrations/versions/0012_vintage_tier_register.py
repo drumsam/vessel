@@ -27,6 +27,13 @@ def upgrade() -> None:
     op.execute("ALTER TABLE vintage_tier DROP CONSTRAINT vintage_tier_set_by_fkey")
     op.execute("ALTER TABLE vintage_tier ALTER COLUMN set_by TYPE text USING set_by::text")
     op.execute("ALTER TABLE vintage_tier RENAME COLUMN source TO sources")
+    # RENAME COLUMN does not rename the NOT NULL constraint Postgres auto-named
+    # after the old column — left alone, this migration reproduces every
+    # column schema.sql expects but under the wrong constraint name, which
+    # test_migrations_reproduce_schema_sql_exactly exists to catch.
+    op.execute("""ALTER TABLE vintage_tier
+                  RENAME CONSTRAINT vintage_tier_source_not_null
+                  TO vintage_tier_sources_not_null""")
     op.execute("ALTER TABLE vintage_tier ADD COLUMN tier_label text NOT NULL")
     op.execute("ALTER TABLE vintage_tier ADD COLUMN note text")
 
@@ -35,6 +42,9 @@ def downgrade() -> None:
     op.execute("DELETE FROM vintage_tier")
     op.execute("ALTER TABLE vintage_tier DROP COLUMN note")
     op.execute("ALTER TABLE vintage_tier DROP COLUMN tier_label")
+    op.execute("""ALTER TABLE vintage_tier
+                  RENAME CONSTRAINT vintage_tier_sources_not_null
+                  TO vintage_tier_source_not_null""")
     op.execute("ALTER TABLE vintage_tier RENAME COLUMN sources TO source")
     op.execute("ALTER TABLE vintage_tier ALTER COLUMN set_by TYPE uuid USING set_by::uuid")
     op.execute("""ALTER TABLE vintage_tier ADD CONSTRAINT vintage_tier_set_by_fkey

@@ -1,16 +1,28 @@
 """Which lines may derive a comparable across case sizes, and what the operator is told.
 
-Decision 0016. The pricing core does not know what Burgundy is and never will
-(invariant 1), so it is told: `SellerLine.derive_units` is set here, from the
-wine's region, before the benchmark runs.
+Decision 0016, extended by 0018. The pricing core does not know what a region
+is and never will (invariant 1), so it is told: `SellerLine.derive_units` is
+set here, from the wine's region, before the benchmark runs.
 
-The case premium is **measured**: 27 paired same-day observations put the median
-at 1.0000, so a case is priced at the same rate per bottle as a loose bottle
-(docs/research/case-premium-measurement.md). What a measurement cannot fix is
-the spread — a quarter of those pairs sit more than 5% from parity, with tails
-at -30% and +15% — so every place a derived figure is shown says what it is and
-how far out it could be. A number that looks observed and is not is exactly the
-failure this system exists to prevent.
+Derivation itself is now general: "don't worry about case pricing, use whatever
+we can find" (Doug, 5 October 2026). A third of a loose-bottle cellar — any
+wine a merchant only sells by the case — came back NO_MARKET on unit grounds
+alone, for every region but Burgundy. Refusing a real offer because the pack
+size differs was costing more evidence than a 750ml-only, flagged, rank-behind
+derivation ever risks.
+
+The case premium itself is **measured only for Burgundy**: 27 paired same-day
+observations at Bordeaux Index put the median at 1.0000
+(docs/research/case-premium-measurement.md). Every other region uses the same
+constant on the working assumption that it holds elsewhere too, until its own
+pairs say otherwise — `case_premium_pair` is captured for every region, by
+wine, so that evidence accumulates regardless. The operator is always told
+which kind of number they are looking at: measured, or assumed pending its own
+data. What no measurement fixes, in any region, is the SPREAD — a quarter of
+the 27 Burgundy pairs sat more than 5% from parity, with tails at -30% and
++15% — so every derived figure is shown with what it is and how far out it
+could be. A number that looks observed and is not is exactly the failure this
+system exists to prevent.
 """
 from __future__ import annotations
 
@@ -23,11 +35,11 @@ from app.core.enums import PriceKind
 from app.core.flags import CASE_PREMIUM
 from app.core.models import GBP, Offer
 
-#: Regions where a comparable may be derived across case sizes. Burgundy only,
-#: by Doug's decision of 24 September 2026, and on the evidence of the control
-#: set: refusing to compare 3x75 with 6x75 was costing us most of what we had.
-#: Adding a region means measuring its basis first and recording a decision.
-DERIVABLE_REGIONS = frozenset({"BURGUNDY_RED", "BURGUNDY_WHITE"})
+#: Regions whose case premium is MEASURED rather than assumed. Burgundy only,
+#: on the 27 paired observations of docs/research/case-premium-measurement.md.
+#: Every other region derivation_allowed() now permits uses the same constant,
+#: but is told it is assumed, not measured — see PREMIUM_CAVEAT.
+MEASURED_REGIONS = frozenset({"BURGUNDY_RED", "BURGUNDY_WHITE"})
 
 #: The measurement behind CASE_PREMIUM, for the operator and the record.
 #: Bordeaux Index, In Bond, 750ml, 24 September 2026.
@@ -35,8 +47,9 @@ PREMIUM_EVIDENCE = {"median": Decimal("1.0000"), "mean": Decimal("0.9737"), "pai
                     "low": Decimal("0.7038"), "high": Decimal("1.1525"),
                     "merchant": "Bordeaux Index", "measured_on": "2026-09-24"}
 
-#: What the operator reads beside any derived figure. Never abbreviated away,
-#: and written from the constant so it cannot drift away from what the code does.
+#: What the operator reads beside a derived figure for a MEASURED region.
+#: Never abbreviated away, and written from the constant so it cannot drift
+#: away from what the code does.
 PREMIUM_CAVEAT = (
     ("Cases and loose bottles are priced at the same rate per bottle"
      if CASE_PREMIUM == 1 else
@@ -48,25 +61,53 @@ PREMIUM_CAVEAT = (
       "a fact about this wine.")
 
 
+def _region_label(register_key: str) -> str:
+    """'BORDEAUX_RED' -> 'Bordeaux red'. Display only."""
+    return register_key.replace("_", " ").capitalize()
+
+
+def assumed_caveat(register_key: str) -> str:
+    """What the operator reads beside a derived figure OUTSIDE a measured
+    region: the same number, honestly labelled as unproven here."""
+    return (f"Case premium assumed at the measured Burgundy rate (parity) — no "
+            f"{_region_label(register_key)} observations yet. "
+            "scripts/case_premium_report.py says when there are enough to check.")
+
+
 def derivation_allowed(register_key: Optional[str]) -> bool:
-    """True when this wine's region permits derivation. Unknown region, or a
-    wine with no region recorded, means no: the exact-unit rule of 0001."""
-    return bool(register_key) and register_key in DERIVABLE_REGIONS
+    """True whenever this wine's region AND colour are both known. Derivation
+    is general now (decision 0018): a wine with no region or colour recorded
+    is the only case refused, because there is nothing to widen from — the
+    exact-unit rule of 0001 still holds for an unidentified wine."""
+    return bool(register_key)
 
 
-def derivation_note(derived: DerivedComp) -> str:
+def is_measured_region(register_key: Optional[str]) -> bool:
+    """True when CASE_PREMIUM for this region is a measurement rather than an
+    assumption carried over from Burgundy. Display only — the arithmetic does
+    not change either way."""
+    return bool(register_key) and register_key in MEASURED_REGIONS
+
+
+def derivation_note(derived: DerivedComp, register_key: Optional[str] = None) -> str:
     """The sentence shown on a line priced from a derived comp.
 
     The source offer, its real unit and its real price are named, so the
-    operator can always see what was actually offered.
+    operator can always see what was actually offered. `register_key` says
+    whether the premium behind this figure is measured or assumed for this
+    wine's region; omitted, it reads as measured Burgundy evidence, which is
+    the only case decision 0016 originally had.
     """
     source = derived.source
     unit = f"{source.pack_size}x{source.bottle_ml // 10}cl"
     sentence = (f"Derived from a {unit} at {source.price} from {source.merchant}: "
                 f"{derived.offer.price} at "
                 f"{derived.offer.pack_size}x{derived.offer.bottle_ml // 10}cl.")
-    return f"{sentence} {PREMIUM_CAVEAT}" if derived.premium_applied else (
-        f"{sentence} No premium applied: case to case.")
+    if not derived.premium_applied:
+        return f"{sentence} No premium applied: case to case."
+    caveat = (PREMIUM_CAVEAT if register_key is None or is_measured_region(register_key)
+              else assumed_caveat(register_key))
+    return f"{sentence} {caveat}"
 
 
 # --------------------------------------------------- measuring the premium itself

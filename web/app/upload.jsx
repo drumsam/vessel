@@ -19,7 +19,10 @@ export default function Upload({ onDone }) {
   const [rows, setRows] = useState(null);
   const [headers, setHeaders] = useState([]);
   const [mapping, setMapping] = useState({});
-  const [meta, setMeta] = useState({ name: "", seller: "", currency: "GBP", target_margin: "" });
+  const [meta, setMeta] = useState({
+    name: "", seller: "", currency: "GBP", target_margin: "",
+    buyer_discount: "", margin_on_sale: "",
+  });
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
 
@@ -57,6 +60,8 @@ export default function Upload({ onDone }) {
         seller: meta.seller || null,
         currency: meta.currency,
         target_margin: meta.target_margin ? Number(meta.target_margin) / 100 : null,
+        buyer_discount: meta.buyer_discount ? Number(meta.buyer_discount) / 100 : null,
+        margin_on_sale: meta.margin_on_sale ? Number(meta.margin_on_sale) / 100 : null,
         lines,
       });
       onDone?.();
@@ -103,6 +108,27 @@ export default function Upload({ onDone }) {
               <input id="margin" inputMode="decimal" placeholder="optional"
                      value={meta.target_margin}
                      onChange={(e) => setMeta({ ...meta, target_margin: e.target.value })} />
+            </div>
+          </div>
+
+          <p className="muted" style={{ fontSize: 13, marginTop: 10 }}>
+            Lines with none of the above — no manual price, margin or discount — price
+            from the market chain: a trade buyer pays below the UK Reference, and we take
+            a fee on that buyer price. Leave both blank to use the standing settings
+            (20% / 8%).
+          </p>
+          <div className="row">
+            <div style={{ width: 170 }}>
+              <label htmlFor="buyer-discount">Buyer discount %</label>
+              <input id="buyer-discount" inputMode="decimal" placeholder="20 (default)"
+                     value={meta.buyer_discount}
+                     onChange={(e) => setMeta({ ...meta, buyer_discount: e.target.value })} />
+            </div>
+            <div style={{ width: 170 }}>
+              <label htmlFor="margin-on-sale">Our fee on the buyer price %</label>
+              <input id="margin-on-sale" inputMode="decimal" placeholder="8 (default)"
+                     value={meta.margin_on_sale}
+                     onChange={(e) => setMeta({ ...meta, margin_on_sale: e.target.value })} />
             </div>
           </div>
 
