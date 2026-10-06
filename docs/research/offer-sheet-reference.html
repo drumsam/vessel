@@ -1,0 +1,386 @@
+<title>WFS Cellar Offer</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: single measured column, document-like; figures in a tabular monospace so columns read down the page. */
+:root{
+  --bg:#f3f4f2; --panel:#ffffff; --ink:#15211c; --muted:#5d6b64; --line:#d8ddd8;
+  --accent:#1f4435; --accent-soft:#e4ebe6; --gold:#8a6b2f; --warn:#8a5a1f;
+  --display:"Newsreader",Georgia,"Times New Roman",serif;
+  --body:"IBM Plex Sans","Helvetica Neue",Arial,sans-serif;
+  --mono:"IBM Plex Mono","SFMono-Regular",Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#10150f; --panel:#171d18; --ink:#e8ece8; --muted:#9aa89f; --line:#2a332c;
+  --accent:#7fc0a2; --accent-soft:#1c2a22; --gold:#d6a85a; --warn:#d6a85a; color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --bg:#10150f; --panel:#171d18; --ink:#e8ece8; --muted:#9aa89f; --line:#2a332c;
+  --accent:#7fc0a2; --accent-soft:#1c2a22; --gold:#d6a85a; --warn:#d6a85a; color-scheme:dark;}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.55;margin:0}
+.wrap{max-width:66rem;margin:0 auto;padding-inline:20px;padding-block:clamp(28px,5vw,56px)}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 18px}
+h1{font-family:var(--display);font-weight:500;font-size:clamp(2rem,5vw,3.1rem);line-height:1.08;margin:14px 0 0;text-wrap:balance;letter-spacing:-.01em}
+.lede{max-width:58ch;color:var(--muted);margin:14px 0 0;font-size:1.0625rem}
+.draft{display:inline-flex;align-items:center;gap:8px;margin-top:22px;padding:7px 12px;border:1px solid var(--line);border-radius:2px;background:var(--panel);font-family:var(--mono);font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--warn)}
+.draft b{color:var(--ink);font-weight:500}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);margin:34px 0 0}
+.tile{background:var(--panel);padding:18px 18px 16px}
+.tile dt{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0}
+.tile dd{margin:8px 0 0;font-family:var(--display);font-size:1.75rem;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.tile .sub{display:block;font-family:var(--body);font-size:12px;color:var(--muted);margin-top:3px;letter-spacing:0}
+h2{font-family:var(--display);font-weight:500;font-size:1.5rem;margin:52px 0 0;letter-spacing:-.01em}
+h2+p{color:var(--muted);margin:8px 0 0;max-width:62ch}
+.tablewrap{overflow-x:auto;margin-top:22px;border:1px solid var(--line);background:var(--panel)}
+table{border-collapse:collapse;width:100%;min-width:640px}
+thead th{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:400;text-align:left;padding:12px 14px;border-bottom:1px solid var(--line);white-space:nowrap}
+thead th.num,td.num{text-align:right}
+tbody td{padding:12px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+tbody tr:last-child td{border-bottom:0}
+.wine .prod{display:block;font-weight:500}
+.wine .cuvee{display:block;color:var(--muted);font-size:13.5px}
+td.num{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+td.mkt{color:var(--muted)}
+td.off{color:var(--accent);font-weight:500}
+td.tot{font-weight:500}
+.pill{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;padding:3px 7px;border:1px solid var(--line);border-radius:2px;color:var(--muted);white-space:nowrap}
+.pill.one{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 40%,var(--line))}
+tfoot td{padding:14px;font-family:var(--mono);font-size:12.5px;font-variant-numeric:tabular-nums;border-top:2px solid var(--accent)}
+tfoot td.label{font-family:var(--body);font-size:14px;font-weight:500}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(248px,1fr));gap:28px;margin-top:22px}
+.card{border-left:2px solid var(--accent);padding-left:16px}
+.card h3{font-family:var(--body);font-size:13px;letter-spacing:.02em;margin:0 0 6px;text-transform:none}
+.card p{margin:0;color:var(--muted);font-size:14px}
+.card ul{margin:0;padding-left:18px;color:var(--muted);font-size:14px}
+.card li{margin-bottom:5px}
+.steps{list-style:none;margin:22px 0 0;padding:0;counter-reset:s}
+.steps li{counter-increment:s;position:relative;padding-left:40px;margin-bottom:16px;max-width:60ch;color:var(--muted)}
+.steps li::before{content:counter(s);position:absolute;left:0;top:1px;width:26px;height:26px;border:1px solid var(--line);border-radius:50%;display:grid;place-items:center;font-family:var(--mono);font-size:12px;color:var(--accent);background:var(--panel)}
+.steps b{color:var(--ink);font-weight:500}
+footer{margin-top:56px;padding-top:20px;border-top:1px solid var(--line);color:var(--muted);font-size:13px;display:flex;flex-wrap:wrap;gap:10px 28px;justify-content:space-between}
+footer span{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em}
+@media (max-width:420px){.tile dd{font-size:1.45rem}}
+</style>
+
+<div class="wrap">
+<div class="eyebrow"><span>Reference WFS&nbsp;260900</span><span>Private cellar · Hong Kong, in bond</span><span>5 October 2026</span></div>
+<h1>Offer for your cellar</h1>
+<p class="lede">Thirty-four lines of the cellar, priced against live UK In&nbsp;Bond merchant offers. Every figure below traces to a real offer on a named merchant's list on the date shown — nothing is estimated, and where we could only find one merchant holding the wine, the line says so.</p>
+
+<div class="draft"><b>Draft</b> · one merchant per line · pending full market run</div>
+
+<dl class="tiles">
+  <div class="tile"><dt>Bottles in this offer</dt><dd>233<span class="sub">of 3,544 in the cellar</span></dd></div>
+  <div class="tile"><dt>UK market value</dt><dd>£62,386<span class="sub">In Bond, per bottle basis</span></dd></div>
+  <div class="tile"><dt>Our offer to you</dt><dd>£45,916<span class="sub">paid on collection</span></dd></div>
+  <div class="tile"><dt>Share of market</dt><dd>73.6%<span class="sub">after buyer discount and our fee</span></dd></div>
+</dl>
+
+<h2>The wines</h2>
+<p>Market price is the lowest comparable UK In Bond offer we found, converted to a per-bottle basis. Your price is that figure less the buyer discount and our 8% fee.</p>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Wine</th><th class="num">Vintage</th><th class="num">Bottles</th><th class="num">Market £/btl</th><th class="num">Your price £/btl</th><th class="num">Line total</th><th>Evidence</th></tr></thead>
+<tbody>
+<tr>
+<td class="wine"><span class="prod">Comte Georges de Vogüé</span><span class="cuvee">Bonnes Mares Grand Cru</span></td>
+<td class="num">2008</td><td class="num">6</td>
+<td class="num mkt">£425.50</td>
+<td class="num off">£313.17</td>
+<td class="num tot">£1879.02</td>
+<td class="src"><span class="pill one">1 source</span></td>
+</tr>
+<tr>
+<td class="wine"><span class="prod">Comte Georges de Vogüé</span><span class="cuvee">Bonnes Mares Grand Cru</span></td>
+<td class="num">2011</td><td class="num">6</td>
+<td class="num mkt">£381.17</td>
+<td class="num off">£280.54</td>
+<td class="num tot">£1683.24</td>
+<td class="src"><span class="pill one">1 source</span></td>
+</tr>
+<tr>
+<td class="wine"><span class="prod">Comte Georges de Vogüé</span><span class="cuvee">Bonnes Mares Grand Cru</span></td>
+<td class="num">2011</td><td class="num">12</td>
+<td class="num mkt">£381.17</td>
+<td class="num off">£280.54</td>
+<td class="num tot">£3366.48</td>
+<td class="src"><span class="pill one">1 source</span></td>
+</tr>
+<tr>
+<td class="wine"><span class="prod">Comte Georges de Vogüé</span><span class="cuvee">Bonnes Mares Grand Cru</span></td>
+<td class="num">2012</td><td class="num">6</td>
+<td class="num mkt">£407.83</td>
+<td class="num off">£300.16</td>
+<td class="num tot">£1800.96</td>
+<td class="src"><span class="pill one">1 source</span></td>
+</tr>
+<tr>
+<td class="wine"><span class="prod">Comte Georges de Vogüé</span><span class="cuvee">Musigny Cuvée Vieilles Vignes</span></td>
+<td class="num">2010</td><td class="num">6</td>
+<td class="num mkt">£638.33</td>
+<td class="num off">£469.81</td>
+<td class="num tot">£2818.86</td>
+<td class="src"><span class="pill one">1 source</span></td>
+</tr>
+<tr>
+<td class="wine"><span class="prod">Comte Georges de Vogüé</span><span class="cuvee">Musigny Cuvée Vieilles Vignes</span></td>
+<td class="num">2012</td><td class="num">6</td>
+<td class="num mkt">£576.25</td>
+<td class="num off">£424.12</td>
+<td class="num tot">£2544.72</td>
+<td class="src"><span class="pill one">1 source</span></td>
+</tr>
+<tr>
+<td class="wine"><span class="prod">Comte Georges de Vogüé</span><span class="cuvee">Musigny Cuvée Vieilles Vignes</span></td>
+<td class="num">2012</td><td class="num">12</td>
+<td class="num mkt">£576.25</td>
+<td class="num off">£424.12</td>
+<td class="num tot">£5089.44</td>
+<td class="src"><span class="pill one">1 source</span></td>
+</tr>
+<tr>
+<td class="wine"><span class="prod">Charles Van Canneyt</span><span class="cuvee">Chambertin Clos de Bèze Grand Cru</span></td>
+<td class="num">2015</td><td class="num">6</td>
+<td class="num mkt">£301.50</td>
+<td class="num off">£221.90</td>
+<td class="num tot">£1331.40</td>
+<td class="src"><span class="pill one">1 source</span></td>
+</tr>
+<tr>
+<td class="wine"><span class="prod">Charles Van Canneyt</span><span class="cuvee">Chambertin Clos de Bèze Grand Cru</span></td>
+<td class="num">2016</td><td class="num">6</td>
+<td class="num mkt">£375.00</td>
+<td class="num off">£276.00</td>
+<td class="num tot">£1656.00</td>
+<td class="src"><span class="pill one">1 source</span></td>
+</tr>
+<tr>
+<td class="wine"><span class="prod">Charles Van Canneyt</span><span class="cuvee">Chambertin Grand Cru</span></td>
+<td class="num">2015</td><td class="num">6</td>
+<td class="num mkt">£354.67</td>
+<td class="num off">£261.04</td>
+<td class="num tot">£1566.24</td>
+<td class="src"><span class="pill one">1 source</span></td>
+</tr>
+<tr>
+<td class="wine"><span class="prod">Charles Van Canneyt</span><span class="cuvee">Chambertin Grand Cru</span></td>
+<td class="num">2016</td><td class="num">6</td>
+<td class="num mkt">£230.50</td>
+<td class="num off">£169.65</td>
+<td class="num tot">£1017.90</td>
+<td class="src"><span class="pill one">1 source</span></td>
+</tr>
+<tr>
+<td class="wine"><span class="prod">Charles Van Canneyt</span><span class="cuvee">Charmes Chambertin Grand Cru</span></td>
+<td class="num">2015</td><td class="num">6</td>
+<td class="num mkt">£211.83</td>
+<td class="num off">£155.90</td>
+<td class="num tot">£935.40</td>
+<td class="src"><span class="pill one">1 source</span></td>
+</tr>
+<tr>
+<td class="wine"><span class="prod">Charles Van Canneyt</span><span class="cuvee">Charmes Chambertin Grand Cru</span></td>
+<td class="num">2016</td><td class="num">6</td>
+<td class="num mkt">£150.67</td>
+<td class="num off">£110.90</td>
+<td class="num tot">£665.40</td>
+<td class="src"><span class="pill one">1 source</span></td>
+</tr>
+<tr>
+<td class="wine"><span class="prod">Jean-Jacques Confuron</span><span class="cuvee">Romanée St. Vivant Grand Cru</span></td>
+<td class="num">2017</td><td class="num">6</td>
+<td class="num mkt">£416.67</td>
+<td class="num off">£306.67</td>
+<td class="num tot">£1840.02</td>
+<td class="src"><span class="pill one">1 source</span></td>
+</tr>
+<tr>
+<td class="wine"><span class="prod">Jean-Jacques Confuron</span><span class="cuvee">Romanée St. Vivant Grand Cru</span></td>
+<td class="num">2018</td><td class="num">6</td>
+<td class="num mkt">£387.50</td>
+<td class="num off">£285.20</td>
+<td class="num tot">£1711.20</td>
+<td class="src"><span class="pill one">1 source</span></td>
+</tr>
+<tr>
+<td class="wine"><span class="prod">Hudelot-Noëllat</span><span class="cuvee">Clos de Vougeot Grand Cru</span></td>
+<td class="num">2012</td><td class="num">4</td>
+<td class="num mkt">£225.00</td>
+<td class="num off">£165.60</td>
+<td class="num tot">£662.40</td>
+<td class="src"><span class="pill one">1 source</span></td>
+</tr>
+<tr>
+<td class="wine"><span class="prod">Sylvie Esmonin</span><span class="cuvee">Gevrey-Chambertin 1er Clos St Jacques</span></td>
+<td class="num">2012</td><td class="num">12</td>
+<td class="num mkt">£141.00</td>
+<td class="num off">£103.78</td>
+<td class="num tot">£1245.36</td>
+<td class="src"><span class="pill one">1 source</span></td>
+</tr>
+<tr>
+<td class="wine"><span class="prod">Sylvie Esmonin</span><span class="cuvee">Gevrey-Chambertin 1er Clos St Jacques</span></td>
+<td class="num">2019</td><td class="num">3</td>
+<td class="num mkt">£186.17</td>
+<td class="num off">£137.02</td>
+<td class="num tot">£411.06</td>
+<td class="src"><span class="pill one">1 source</span></td>
+</tr>
+<tr>
+<td class="wine"><span class="prod">Sylvie Esmonin</span><span class="cuvee">Gevrey-Chambertin 1er Clos St Jacques</span></td>
+<td class="num">2020</td><td class="num">2</td>
+<td class="num mkt">£194.17</td>
+<td class="num off">£142.91</td>
+<td class="num tot">£285.82</td>
+<td class="src"><span class="pill one">1 source</span></td>
+</tr>
+<tr>
+<td class="wine"><span class="prod">Louis Roederer</span><span class="cuvee">Cristal</span></td>
+<td class="num">2005</td><td class="num">24</td>
+<td class="num mkt">£194.83</td>
+<td class="num off">£143.39</td>
+<td class="num tot">£3441.36</td>
+<td class="src"><span class="pill one">1 source</span></td>
+</tr>
+<tr>
+<td class="wine"><span class="prod">Louis Roederer</span><span class="cuvee">Cristal</span></td>
+<td class="num">2006</td><td class="num">12</td>
+<td class="num mkt">£154.17</td>
+<td class="num off">£113.47</td>
+<td class="num tot">£1361.64</td>
+<td class="src"><span class="pill one">1 source</span></td>
+</tr>
+<tr>
+<td class="wine"><span class="prod">Louis Roederer</span><span class="cuvee">Cristal</span></td>
+<td class="num">2007</td><td class="num">6</td>
+<td class="num mkt">£158.33</td>
+<td class="num off">£116.53</td>
+<td class="num tot">£699.18</td>
+<td class="src"><span class="pill one">1 source</span></td>
+</tr>
+<tr>
+<td class="wine"><span class="prod">Taittinger</span><span class="cuvee">Comtes de Champagne</span></td>
+<td class="num">2004</td><td class="num">12</td>
+<td class="num mkt">£116.67</td>
+<td class="num off">£85.87</td>
+<td class="num tot">£1030.44</td>
+<td class="src"><span class="pill one">1 source</span></td>
+</tr>
+<tr>
+<td class="wine"><span class="prod">Taittinger</span><span class="cuvee">Comtes de Champagne</span></td>
+<td class="num">2005</td><td class="num">6</td>
+<td class="num mkt">£88.33</td>
+<td class="num off">£65.01</td>
+<td class="num tot">£390.06</td>
+<td class="src"><span class="pill one">1 source</span></td>
+</tr>
+<tr>
+<td class="wine"><span class="prod">Taittinger</span><span class="cuvee">Comtes de Champagne</span></td>
+<td class="num">2006</td><td class="num">6</td>
+<td class="num mkt">£95.00</td>
+<td class="num off">£69.92</td>
+<td class="num tot">£419.52</td>
+<td class="src"><span class="pill one">1 source</span></td>
+</tr>
+<tr>
+<td class="wine"><span class="prod">Taittinger</span><span class="cuvee">Comtes de Champagne</span></td>
+<td class="num">2007</td><td class="num">12</td>
+<td class="num mkt">£96.67</td>
+<td class="num off">£71.15</td>
+<td class="num tot">£853.80</td>
+<td class="src"><span class="pill one">1 source</span></td>
+</tr>
+<tr>
+<td class="wine"><span class="prod">Taittinger</span><span class="cuvee">Comtes de Champagne</span></td>
+<td class="num">2008</td><td class="num">12</td>
+<td class="num mkt">£140.67</td>
+<td class="num off">£103.54</td>
+<td class="num tot">£1242.48</td>
+<td class="src"><span class="pill one">1 source</span></td>
+</tr>
+<tr>
+<td class="wine"><span class="prod">Château Montrose</span><span class="cuvee">Saint-Estèphe</span></td>
+<td class="num">1990</td><td class="num">5</td>
+<td class="num mkt">£611.67</td>
+<td class="num off">£450.19</td>
+<td class="num tot">£2250.95</td>
+<td class="src"><span class="pill one">1 source</span></td>
+</tr>
+<tr>
+<td class="wine"><span class="prod">Château Montrose</span><span class="cuvee">Saint-Estèphe</span></td>
+<td class="num">1996</td><td class="num">2</td>
+<td class="num mkt">£173.75</td>
+<td class="num off">£127.88</td>
+<td class="num tot">£255.76</td>
+<td class="src"><span class="pill one">1 source</span></td>
+</tr>
+<tr>
+<td class="wine"><span class="prod">Château Montrose</span><span class="cuvee">Saint-Estèphe</span></td>
+<td class="num">2001</td><td class="num">2</td>
+<td class="num mkt">£122.00</td>
+<td class="num off">£89.79</td>
+<td class="num tot">£179.58</td>
+<td class="src"><span class="pill one">1 source</span></td>
+</tr>
+<tr>
+<td class="wine"><span class="prod">Château Montrose</span><span class="cuvee">Saint-Estèphe</span></td>
+<td class="num">2004</td><td class="num">4</td>
+<td class="num mkt">£81.67</td>
+<td class="num off">£60.11</td>
+<td class="num tot">£240.44</td>
+<td class="src"><span class="pill one">1 source</span></td>
+</tr>
+<tr>
+<td class="wine"><span class="prod">Château Montrose</span><span class="cuvee">Saint-Estèphe</span></td>
+<td class="num">2005</td><td class="num">3</td>
+<td class="num mkt">£124.50</td>
+<td class="num off">£91.63</td>
+<td class="num tot">£274.89</td>
+<td class="src"><span class="pill one">1 source</span></td>
+</tr>
+<tr>
+<td class="wine"><span class="prod">Château Montrose</span><span class="cuvee">Saint-Estèphe</span></td>
+<td class="num">2011</td><td class="num">2</td>
+<td class="num mkt">£64.58</td>
+<td class="num off">£47.53</td>
+<td class="num tot">£95.06</td>
+<td class="src"><span class="pill one">1 source</span></td>
+</tr>
+<tr>
+<td class="wine"><span class="prod">Château Cheval Blanc</span><span class="cuvee">Saint-Émilion</span></td>
+<td class="num">2001</td><td class="num">2</td>
+<td class="num mkt">£455.00</td>
+<td class="num off">£334.88</td>
+<td class="num tot">£669.76</td>
+<td class="src"><span class="pill one">1 source</span></td>
+</tr>
+</tbody>
+<tfoot><tr><td class="label" colspan="5">Total offer, 34 lines</td><td class="num">£45,915.84</td><td></td></tr></tfoot>
+</table>
+</div>
+
+<h2>How this was priced</h2>
+<ol class="steps">
+<li><b>Identity first.</b> Each line of your list is matched to one specific wine — producer, cuvée, vintage and bottle size. Where a name could mean two different wines, we stop and ask rather than guess.</li>
+<li><b>Live merchant offers.</b> We read the current In Bond lists of UK merchants and keep only offers you could actually buy today: In Bond, in sterling, in stock, same wine, same vintage, same bottle size.</li>
+<li><b>Lowest comparable offer sets the market.</b> Not an average, not an auction estimate. Where two or more merchants hold the wine we take the second-lowest as the reference, because a single price is not a market.</li>
+<li><b>Buyer discount, then our fee.</b> Trade buyers move parcels at 20% below market. We take 8% of the sale, and the balance is yours.</li>
+</ol>
+
+<h2>What this offer does not yet cover</h2>
+<div class="cols">
+  <div class="card"><h3>527 lines still to price</h3><p>This draft covers the lines where we already hold live evidence. The rest of the cellar is in the queue — Burgundy grand cru from Roche de Bellene, Méo-Camuzet, Leflaive, Bernstein and Jacques Prieur, and the Krug run.</p></div>
+  <div class="card"><h3>Magnums and half bottles</h3><p>Nineteen lines. Large formats carry their own premium and we never price them from bottle data, so they are quoted separately once we have format-matched offers.</p></div>
+  <div class="card"><h3>Krug Grande Cuvée editions</h3><p>Forty-one lines across editions 156ᵉ to 169ᵉ. The edition number is the wine's identity and each trades at its own level, so they are priced edition by edition rather than as one wine.</p></div>
+  <div class="card"><h3>Shipping from Hong Kong</h3><p>Figures above are UK In Bond market levels and exclude moving the stock from Hong Kong bond into UK bond. That cost is quoted separately once the parcel is agreed.</p></div>
+</div>
+
+<h2>Terms</h2>
+<div class="cols">
+  <div class="card"><h3>Validity</h3><p>Prices move with the market. This offer holds for seven days from the date above, after which the lines are re-priced against current merchant offers.</p></div>
+  <div class="card"><h3>Condition</h3><p>Priced on the basis of professional storage throughout and bottles in sound condition, labels and levels as expected for age. Anything found otherwise is re-quoted, not quietly discounted.</p></div>
+  <div class="card"><h3>What you get</h3><p>One payment on collection, per line, with the market evidence for every figure available on request — the merchant, the price and the date we read it.</p></div>
+  <div class="card"><h3>Lines we cannot price</h3><p>Where no UK merchant holds the wine, we say so rather than inventing a number. Those lines can go to auction or stay with you; either way you see the reasoning.</p></div>
+</div>
+
+<footer><span>Evidence: Bordeaux Index In Bond offers, read 5 October 2026</span><span>Prepared for discussion · not a contract</span></footer>
+</div>

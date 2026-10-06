@@ -679,3 +679,236 @@ CREATE TABLE buyer_offer_market_claim (
     FOREIGN KEY (buyer_offer_id, line_no)
         REFERENCES buyer_offer_line (buyer_offer_id, line_no) ON DELETE CASCADE
 );
+
+-- ============================================================= VESSEL private sale
+
+-- VESSEL buys nothing: it lists a seller's own wine for sale at a price
+-- VESSEL sets, under a time-boxed mandate, and takes a fee on the buyer's
+-- price when it sells. This is a different business from buyer_offer/
+-- seller_offer above (direct purchase and resale) and shares no table with
+-- either -- a listing is neither of those documents, it is a standing offer
+-- to a buyer that can be reserved and bought.
+-- docs/decisions/0020-vessel-private-sale.md, docs/research/vessel-private-sale-v4.md
+-- (v4 supersedes v3 where they differ).
+
+-- One seller-approval event. "Approve 42 wines" writes exactly one of these,
+-- and it never changes again: the trigger below enforces that structurally,
+-- not by convention -- test_mandate_record_is_immutable_once_approved.
+-- No seller login exists in this system; approved_by_name is captured on the
+-- approval screen itself, same way deal.seller already is free text.
+CREATE TABLE vessel_mandate (
+    mandate_id       uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    deal_id          uuid NOT NULL REFERENCES deal(deal_id),
+    mandate_text     text NOT NULL,              -- the rendered paragraph, verbatim
+    window_days      int  NOT NULL DEFAULT 30 CHECK (window_days > 0),
+    approved_by_name text NOT NULL CHECK (approved_by_name <> ''),
+    approved_at      timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE OR REPLACE FUNCTION vessel_forbid_mandate_mutation() RETURNS trigger AS $$
+BEGIN
+    RAISE EXCEPTION 'vessel_mandate is immutable once written (mandate_id %)',
+        COALESCE(OLD.mandate_id, NEW.mandate_id);
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER vessel_mandate_no_update
+    BEFORE UPDATE OR DELETE ON vessel_mandate
+    FOR EACH ROW EXECUTE FUNCTION vessel_forbid_mandate_mutation();
+
+-- A dated collection of listings. Can be empty -- "better nothing on a
+-- Thursday than filler" (v3).
+CREATE TABLE vessel_drop (
+    drop_id      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    label        text NOT NULL,                  -- "Drop 1 -- 9 October 2026"
+    drop_date    date NOT NULL,
+    created_by   uuid NOT NULL REFERENCES operator(operator_id),
+    created_at   timestamptz NOT NULL DEFAULT now()
+);
+
+-- One sellable unit: everything in one seller_line's bottle count, as one
+-- lot (no partial-case sales at launch -- v3). market_reference, vessel_price
+-- and seller_net are LOT TOTALS in `currency`, not per-bottle: the mockups'
+-- own figures only reconcile that way (HK$84,000 / HK$69,500 / HK$63,940 for
+-- six bottles of 2010 Rousseau Clos St Jacques is a plausible lot price;
+-- per-bottle it would be the most expensive Burgundy premier cru on earth).
+--
+-- display_producer/display_wine/vintage/bottle_ml/bottles are snapshotted at
+-- creation, the same discipline offer_sheet_reference's seller_offer_line
+-- already uses: what the seller and buyer were shown must stay reconstructible
+-- even if the wine's canonical record changes later.
+CREATE TABLE vessel_listing (
+    listing_id        uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    deal_id           uuid NOT NULL REFERENCES deal(deal_id),
+    line_id           uuid NOT NULL UNIQUE REFERENCES seller_line(line_id),
+    run_id            uuid REFERENCES benchmark_run(run_id),  -- provenance: which run priced this
+    mandate_id        uuid REFERENCES vessel_mandate(mandate_id),
+    drop_id           uuid REFERENCES vessel_drop(drop_id),
+
+    state             text NOT NULL CHECK (state IN
+                          ('RECOMMENDED','DECLINED','APPROVED','LISTED',
+                           'RESERVED','PAID','TRANSFERRING','SETTLED')),
+
+    display_producer  text NOT NULL,
+    display_wine      text NOT NULL,
+    vintage           int  NOT NULL,
+    release_code      text,                      -- 0019: '156e' and friends
+    bottle_ml         int  NOT NULL CHECK (bottle_ml > 0),
+    bottles           int  NOT NULL CHECK (bottles > 0),
+    stock_location    text NOT NULL CHECK (stock_location IN
+                          ('HK_BOND','UK_BOND','EU_BOND','DUTY_PAID_HK','OTHER')),
+    warehouse         text,
+    condition_notes   text,
+    provenance_notes  text,
+
+    -- Multi-currency, both first-class. fx_rate is HKD per 1 GBP, stored at
+    -- the moment of pricing and never reconverted at display or at read time.
+    currency          char(3) NOT NULL CHECK (currency IN ('HKD','GBP')),
+    fx_rate           numeric(18,8) CHECK (fx_rate > 0),
+    fx_source         text,
+    fx_rate_date      date,
+    CONSTRAINT vessel_listing_fx_recorded CHECK (
+        currency = 'GBP' OR
+        (fx_rate IS NOT NULL AND fx_source IS NOT NULL AND fx_rate_date IS NOT NULL)),
+
+    -- Pricing. The internal band is invisible to everyone outside VESSEL;
+    -- discount_applied is the number actually used, and it must fall inside
+    -- the band it claims (STRONG 10-15 / NORMAL 15-20 / CLEARANCE 20-25+).
+    market_reference  numeric(14,2) NOT NULL CHECK (market_reference > 0),
+    band              text NOT NULL CHECK (band IN ('STRONG','NORMAL','CLEARANCE')),
+    discount_applied  numeric(5,4) NOT NULL,
+    CONSTRAINT vessel_listing_discount_in_band CHECK (
+        (band = 'STRONG'     AND discount_applied >= 0.10 AND discount_applied < 0.15) OR
+        (band = 'NORMAL'     AND discount_applied >= 0.15 AND discount_applied < 0.20) OR
+        (band = 'CLEARANCE'  AND discount_applied >= 0.20)),
+    -- Rounded to a clean figure (nearest 500 HKD / nearest 50 GBP) and never
+    -- changed inside a drop -- app/vessel/engine.py is the single place that
+    -- arithmetic happens; this table only stores what it produced.
+    vessel_price      numeric(14,2) NOT NULL CHECK (vessel_price > 0),
+    seller_net        numeric(14,2) NOT NULL CHECK (seller_net > 0),
+
+    -- The evidence claim rule -- load-bearing, enforced here, not in a
+    -- template. A listing with zero sources is never created at all.
+    source_count         int NOT NULL CHECK (source_count >= 1),
+    vintage_band_passed   boolean NOT NULL DEFAULT false,
+    derived               boolean NOT NULL DEFAULT false,   -- 0016/0018 case derivation used
+    percentage_claim_pct  numeric(5,4),
+    CONSTRAINT vessel_listing_single_source_needs_band CHECK (
+        source_count >= 2 OR vintage_band_passed),
+    CONSTRAINT vessel_listing_claim_needs_two_sources CHECK (
+        percentage_claim_pct IS NULL OR source_count >= 2),
+
+    held_back    boolean NOT NULL DEFAULT false,  -- operator curation: qualifies, not offered this round
+    created_at   timestamptz NOT NULL DEFAULT now(),
+    approved_at  timestamptz,
+    listed_at    timestamptz,
+    settled_at   timestamptz,
+
+    CONSTRAINT vessel_listing_mandate_matches_state CHECK (
+        (state IN ('RECOMMENDED','DECLINED') AND mandate_id IS NULL) OR
+        (state NOT IN ('RECOMMENDED','DECLINED') AND mandate_id IS NOT NULL)),
+    CONSTRAINT vessel_listing_drop_matches_state CHECK (
+        (state IN ('RECOMMENDED','DECLINED','APPROVED') AND drop_id IS NULL) OR
+        (state NOT IN ('RECOMMENDED','DECLINED','APPROVED') AND drop_id IS NOT NULL))
+);
+
+CREATE INDEX vessel_listing_drop ON vessel_listing (drop_id) WHERE drop_id IS NOT NULL;
+CREATE INDEX vessel_listing_mandate ON vessel_listing (mandate_id) WHERE mandate_id IS NOT NULL;
+
+-- The commercial promise, frozen the moment a mandate exists. Lifecycle
+-- columns (state, drop_id, *_at) stay mutable; nothing a seller or buyer was
+-- shown a number for does.
+CREATE OR REPLACE FUNCTION vessel_forbid_price_change_once_approved() RETURNS trigger AS $$
+BEGIN
+    IF OLD.mandate_id IS NOT NULL AND (
+        NEW.market_reference IS DISTINCT FROM OLD.market_reference OR
+        NEW.band             IS DISTINCT FROM OLD.band OR
+        NEW.discount_applied IS DISTINCT FROM OLD.discount_applied OR
+        NEW.vessel_price     IS DISTINCT FROM OLD.vessel_price OR
+        NEW.seller_net       IS DISTINCT FROM OLD.seller_net OR
+        NEW.currency         IS DISTINCT FROM OLD.currency OR
+        NEW.source_count     IS DISTINCT FROM OLD.source_count OR
+        NEW.percentage_claim_pct IS DISTINCT FROM OLD.percentage_claim_pct OR
+        NEW.display_producer IS DISTINCT FROM OLD.display_producer OR
+        NEW.display_wine     IS DISTINCT FROM OLD.display_wine OR
+        NEW.vintage          IS DISTINCT FROM OLD.vintage OR
+        NEW.bottles          IS DISTINCT FROM OLD.bottles OR
+        NEW.mandate_id       IS DISTINCT FROM OLD.mandate_id
+    ) THEN
+        RAISE EXCEPTION
+            'listing % is approved: price and identity are frozen (decision 0020)',
+            OLD.listing_id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER vessel_listing_price_frozen
+    BEFORE UPDATE ON vessel_listing
+    FOR EACH ROW EXECUTE FUNCTION vessel_forbid_price_change_once_approved();
+
+-- One hold at a time, structurally. payment_reference is the key a buyer is
+-- told to quote; it is generated once, per reservation, and never reused.
+CREATE TABLE vessel_reservation (
+    reservation_id     uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    listing_id         uuid NOT NULL REFERENCES vessel_listing(listing_id),
+    state              text NOT NULL CHECK (state IN ('HELD','EXPIRED','FULFILLED','CANCELLED')),
+    payment_reference  text NOT NULL UNIQUE,
+    buyer_contact       text NOT NULL CHECK (buyer_contact <> ''),  -- email or phone; no buyer account system built
+    held_at             timestamptz NOT NULL DEFAULT now(),
+    expires_at          timestamptz NOT NULL,
+    proof_submitted_at  timestamptz,
+    fulfilled_at        timestamptz,
+    cancelled_at        timestamptz
+);
+
+-- "A database constraint, not application logic" (v3). Two concurrent BUYs
+-- on the same listing: one INSERT succeeds, the other hits this index and
+-- fails. test_one_live_reservation_per_listing.
+CREATE UNIQUE INDEX vessel_one_live_reservation_per_listing
+    ON vessel_reservation (listing_id) WHERE state = 'HELD';
+
+-- Every incoming payment, matched or not. Nothing ships on an unmatched one.
+CREATE TABLE vessel_payment (
+    payment_id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    reference               text NOT NULL,        -- as received; may not match anything
+    amount                  numeric(14,2) NOT NULL CHECK (amount > 0),
+    currency                char(3) NOT NULL CHECK (currency IN ('HKD','GBP')),
+    received_at             timestamptz NOT NULL,
+    matched_reservation_id  uuid REFERENCES vessel_reservation(reservation_id),
+    state                   text NOT NULL CHECK (state IN ('MATCHED','UNMATCHED')),
+    created_at              timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT vessel_payment_match_matches_state CHECK (
+        (state = 'MATCHED' AND matched_reservation_id IS NOT NULL) OR
+        (state = 'UNMATCHED' AND matched_reservation_id IS NULL))
+);
+
+CREATE INDEX vessel_payment_unmatched ON vessel_payment (reference) WHERE state = 'UNMATCHED';
+
+-- Behaviour, not a profile (v3/v4): viewed, bought, declined after viewing.
+-- "Time to act" is derived at read time from pairs of these rows, never stored.
+CREATE TABLE vessel_event (
+    event_id      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    listing_id    uuid NOT NULL REFERENCES vessel_listing(listing_id),
+    event_type    text NOT NULL CHECK (event_type IN ('VIEWED','BOUGHT','DECLINED_AFTER_VIEWING')),
+    buyer_contact text,                            -- null: an anonymous view
+    occurred_at   timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX vessel_event_listing ON vessel_event (listing_id, occurred_at);
+
+-- Why a line was not recommended, kept so the seller-approval screen's "why
+-- not the rest" counts are readable at any later visit, not only in the
+-- response of the operator action that computed them. Re-running
+-- recommend_lines() upserts this: a line that newly qualifies has its row
+-- deleted, one still excluded gets its reason refreshed.
+CREATE TABLE vessel_exclusion (
+    deal_id    uuid NOT NULL REFERENCES deal(deal_id),
+    line_id    uuid NOT NULL REFERENCES seller_line(line_id),
+    reason     text NOT NULL CHECK (reason IN
+                   ('NO_MARKET','THIN_EVIDENCE','BELOW_MINIMUM_VALUE',
+                    'IDENTITY_PENDING','BETTER_HELD')),
+    detail     text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (deal_id, line_id)
+);

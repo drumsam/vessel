@@ -158,10 +158,10 @@ INGEST → IDENTITY PROPOSAL → IDENTITY VERIFICATION → SNAPSHOT LOOKUP
 ## Testing
 
 ```bash
-python -m pytest -q                      # 307 pass, 111 skip; no network, no services
+python -m pytest -q                      # 323 pass, 123 skip; no network, no services
 docker compose up -d                     # Postgres + Redis, then:
 TEST_DATABASE_URL=postgresql://pricer:pricer@localhost:5432/pricer_test \
-TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q   # 418 pass
+TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q   # 446 pass
 python scripts/rerun_burgundy_proof.py   # expect READY 0  REVIEW 15  NO_MARKET 5
 python scripts/load_vintage_tiers.py    # the vintage register, from its CSV
 python scripts/case_premium_report.py   # what the collected pairs say CASE_PREMIUM is
@@ -253,6 +253,21 @@ Playwright smoke test drives the whole operator flow.
 
 Merchant specs and the control-set evidence are in `docs/research/`.
 
+`app/vessel/` is VESSEL Private Sale (decision 0020): a consignment
+marketplace, not the direct-purchase business the rest of this file
+describes — VESSEL lists a seller's own wine under a time-boxed mandate,
+sets the price, and takes a fee when it sells. It shares no table with
+`buyer_offer`/the chain, reads only `benchmark_run` and `vintage_band_check`
+from the engine, and does not touch `app/core/`. `engine.py` is the pricing
+and evidence rules (pure); `repo.py` is the persistence, including the
+partial-unique-index reservation lock and the two triggers that make a
+mandate and an approved listing's price immutable. Two FastAPI routers
+(`app/api/vessel.py`): one public (seller approval, drop, wine page, buy,
+proof of payment — no login exists for sellers or buyers, by the spec's own
+admission, not a developer's call), one behind the existing operator
+session (recommending lines, drops, payments, analytics). Four page routes
+in `web/app/vessel/` cover the five specified screens.
+
 Not built yet: the LWIN import (decision 0012 — waiting on the file), Albany and
 Vinum, the remaining merchant adapters, the auction evidence form (spec in
 `docs/research/`), AI provider implementations, the auction layer. A client-
@@ -265,5 +280,10 @@ derivation (decision 0018) does not wait on this and already covers every
 region with a wine's own region and colour recorded. Stock location/landed
 cost (multi-jurisdiction bond) and deal workflow at scale (bulk identity
 approval, value-ordered queues, partial offers) are specified, not built.
+VESSEL's drop one is built end to end (recommend, approve, drop, buy,
+reserve, pay); its own "drop two to five" work is not — automated payment
+matching, a scheduler for reservation timeouts, buyer/seller KYC, re-drop
+and re-price within a floor, and the transfer/settlement step that would
+write `vessel_listing.settled_at`.
 
 Known open questions are in `docs/decisions/` and in the Burgundy proof report.

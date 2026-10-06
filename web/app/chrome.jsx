@@ -32,7 +32,11 @@ export default function Chrome({ children }) {
     if (settled && session.status === "out" && pathname !== "/login") router.replace("/login");
   }, [settled, session.status, pathname, router]);
 
-  if (pathname === "/login") return <main>{children}</main>;
+  // VESSEL's seller- and buyer-facing screens have no operator session behind
+  // them at all (drop one: reachable by the link, like v3/v4 both leave it —
+  // KYC and a door policy are named as still-open operational items, not a
+  // developer's call to make silently). They never go through this gate.
+  if (pathname === "/login" || pathname.startsWith("/vessel")) return <main>{children}</main>;
   if (!settled) return <main><p className="muted">Loading…</p></main>;
   if (session.status === "out") return <main><p className="muted">Signing in…</p></main>;
   const operator = session.operator;

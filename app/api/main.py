@@ -19,6 +19,10 @@ from rq.exceptions import NoSuchJobError
 from rq.job import Job
 
 from app.api import auth, schemas as s
+from app.api.deps import current_operator, db, queue
+from app.api.deps import translate as _translate
+from app.api.vessel import operator_router as vessel_operator_router
+from app.api.vessel import router as vessel_router
 from app.core.enums import StockType
 from app.db import repo
 from app.market.parcel import SAME_PRICE_AS_ANOTHER_MERCHANT
@@ -39,41 +43,9 @@ app.add_middleware(
 
 JOB_TIMEOUT = 60 * 30
 
-
-def db() -> Iterator[psycopg.Connection]:
-    """One transaction per request; rolled back if the handler raises."""
-    with transaction() as conn:
-        yield conn
-
-
-def queue() -> Queue:
-    return get_queue()
-
-
-def current_operator(pricer_session: Optional[str] = Cookie(default=None),
-                     conn: psycopg.Connection = Depends(db)) -> dict:
-    """The signed-in operator, or 401. Every route but /health and /session
-    depends on this, and every "who" field is filled from it."""
-    operator = auth.session_operator(conn, pricer_session)
-    if operator is None:
-        raise HTTPException(401, "sign in required")
-    return operator
-
-
-#: Every route below is signed-in only. /health and /session are not.
+#: Every route below is signed-in only. /health, /session and VESSEL's
+#: public (seller- and buyer-facing) routes are not — see app/api/vessel.py.
 protected = APIRouter(dependencies=[Depends(current_operator)])
-
-
-def _translate(e: Exception) -> HTTPException:
-    if isinstance(e, repo.AmbiguousProducer):
-        return HTTPException(409, {"error": str(e), "candidates": e.candidates})
-    if isinstance(e, repo.Conflict):
-        return HTTPException(409, str(e))
-    if isinstance(e, psycopg.errors.UniqueViolation):
-        return HTTPException(409, e.diag.message_detail or str(e))
-    if isinstance(e, psycopg.errors.ForeignKeyViolation):
-        return HTTPException(422, e.diag.message_detail or str(e))
-    raise e
 
 
 # ----------------------------------------------------------------- health
@@ -581,3 +553,5 @@ def sign_out(response: Response, pricer_session: Optional[str] = Cookie(default=
 
 
 app.include_router(protected)
+app.include_router(vessel_router)
+app.include_router(vessel_operator_router)
