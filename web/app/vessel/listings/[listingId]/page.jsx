@@ -53,10 +53,8 @@ export default function WinePage() {
         <p className="muted" style={{ marginBottom: 2 }}>{listing.reference_label}</p>
         <p style={{ margin: 0 }}>{money(listing.market_reference, listing.currency)}</p>
         <h2 style={{ margin: "10px 0 0" }}>{money(listing.vessel_price, listing.currency)}</h2>
-        {listing.percentage_claim_pct && (
-          <p className="muted" style={{ marginTop: 2 }}>
-            {(Number(listing.percentage_claim_pct) * 100).toFixed(0)}% below current market
-          </p>
+        {listing.market_claim && (
+          <p className="muted" style={{ marginTop: 2 }}>{listing.market_claim}</p>
         )}
       </div>
 

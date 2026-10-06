@@ -29,8 +29,8 @@ buyer offer later issues, or the deal has drifted.
 
 ```sql
 CREATE TABLE seller_offer (
-    seller_offer_id   bigserial PRIMARY KEY,
-    deal_id           bigint      NOT NULL REFERENCES deal(deal_id),
+    seller_offer_id   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    deal_id           uuid        NOT NULL REFERENCES deal(deal_id),
     reference         text        NOT NULL,          -- the seller's own list ref, e.g. 'WFS 260900'
     seller_name       text        NULL,              -- shown only if the seller wants it
     stock_location    text        NOT NULL,          -- UK_BOND | HK_BOND | EU_BOND | DUTY_PAID_UK | OTHER
@@ -45,15 +45,15 @@ CREATE TABLE seller_offer (
     issued_by         text        NOT NULL,
     expires_at        timestamptz GENERATED ALWAYS AS
                         (issued_at + (valid_days || ' days')::interval) STORED,
-    superseded_by     bigint      NULL REFERENCES seller_offer(seller_offer_id),
+    superseded_by     uuid        NULL REFERENCES seller_offer(seller_offer_id),
     CONSTRAINT landed_cost_complete CHECK (
         (landed_cost_basis IS NULL) = (landed_cost_gbp IS NULL))
 );
 
 CREATE TABLE seller_offer_line (
-    seller_offer_line_id bigserial PRIMARY KEY,
-    seller_offer_id   bigint      NOT NULL REFERENCES seller_offer(seller_offer_id) ON DELETE CASCADE,
-    line_id           bigint      NOT NULL REFERENCES seller_line(line_id),
+    seller_offer_line_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    seller_offer_id   uuid        NOT NULL REFERENCES seller_offer(seller_offer_id) ON DELETE CASCADE,
+    line_id           uuid        NOT NULL REFERENCES seller_line(line_id),
     display_producer  text        NOT NULL,          -- as the document prints it
     display_wine      text        NOT NULL,
     vintage           integer     NOT NULL,
@@ -85,6 +85,11 @@ CREATE TABLE seller_offer_line (
 Those two CHECKs are the point of the table: **a priced line cannot exist without
 a market figure and at least one source, and an unpriced line cannot exist
 without a reason the seller can read.**
+
+*(Corrected 7 October 2026: an earlier draft of this spec had `bigserial`/
+`bigint` keys. `deal.deal_id`, `seller_line.line_id` and every other key in
+this schema are `uuid`; the spec was wrong, the schema is right, and the DDL
+above now matches it.)*
 
 ## Rules the document must obey
 

@@ -43,10 +43,16 @@ def recommend(deal_id: UUID, body: s.RecommendIn, conn: psycopg.Connection = Dep
     try:
         with conn.transaction():
             listings, excluded = repo.recommend_lines(
-                conn, str(deal_id), currency=body.currency, fx_rate=body.fx_rate,
+                conn, str(deal_id), currency=body.currency,
+                fx_hkd_per_gbp=body.fx_hkd_per_gbp,
                 fx_source=body.fx_source, fx_rate_date=body.fx_rate_date,
                 stock_location=body.stock_location, warehouse=body.warehouse,
-                line_choices={str(c.line_id): {"band": c.band, "discount": c.discount}
+                line_choices={str(c.line_id): {
+                                 "band": c.band, "discount": c.discount,
+                                 "reference_market": c.reference_market,
+                                 "hk_reference_price": c.hk_reference_price,
+                                 "hk_source_count": c.hk_source_count,
+                                 "hk_evidence": c.hk_evidence}
                              for c in body.line_choices},
                 held_back=frozenset(str(i) for i in body.held_back_line_ids),
                 **kwargs)
@@ -179,9 +185,29 @@ def record_payment(body: s.PaymentIn, conn: psycopg.Connection = Depends(db)):
 @operator_router.post("/reservations/expire-overdue", response_model=list[str])
 def expire_overdue(conn: psycopg.Connection = Depends(db)):
     """No scheduler exists yet; an operator (or an external cron hitting this
-    with a service credential) sweeps overdue holds back to LISTED."""
+    with a service credential) sweeps overdue holds back to LISTED. A
+    reservation that has already submitted proof of payment is never swept
+    here — see `needing_confirmation`/`cancel_reservation` below."""
     with conn.transaction():
         return repo.expire_overdue_reservations(conn, as_of=_now())
+
+
+@operator_router.get("/reservations/needing-confirmation",
+                     response_model=list[s.ReservationNeedingConfirmationOut])
+def needing_confirmation(conn: psycopg.Connection = Depends(db)):
+    """HELD, past its one proof-of-payment extension, unresolved either way:
+    an operator confirms by recording the payment (if it did land late) or
+    cancelling (`POST .../cancel`) — never a second automatic extension."""
+    return repo.reservations_needing_confirmation(conn, as_of=_now())
+
+
+@operator_router.post("/reservations/{reservation_id}/cancel", response_model=s.ReservationOut)
+def cancel_reservation(reservation_id: UUID, conn: psycopg.Connection = Depends(db)):
+    try:
+        with conn.transaction():
+            return repo.cancel_reservation(conn, str(reservation_id), as_of=_now())
+    except LookupError as e:
+        raise HTTPException(404, str(e))
 
 
 # ----------------------------------------------------------------- analytics

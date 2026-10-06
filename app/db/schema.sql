@@ -737,6 +737,39 @@ CREATE TABLE vessel_drop (
 -- creation, the same discipline offer_sheet_reference's seller_offer_line
 -- already uses: what the seller and buyer were shown must stay reconstructible
 -- even if the wine's canonical record changes later.
+-- One row per market a line's reference has been captured in — append-only,
+-- like vessel_mandate: a market's price changing is a new row, never an
+-- edit to one a listing may already point to. "A listing needs a named
+-- reference market, not one implicit one" (decision 0020 revision, 7
+-- October 2026) — UK_IN_BOND and HK_RETAIL, from
+-- docs/research/hk-vs-uk-market-reference.md (median HK retail +22% over
+-- UK In Bond, 9 matched pairs, range -21% to +46%).
+CREATE TABLE vessel_reference (
+    reference_id    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    line_id         uuid NOT NULL REFERENCES seller_line(line_id),
+    market          text NOT NULL CHECK (market IN ('UK_IN_BOND','HK_RETAIL')),
+    reference_price numeric(14,2) NOT NULL CHECK (reference_price > 0),
+    currency        char(3) NOT NULL CHECK (currency IN ('HKD','GBP')),
+    source_count    int NOT NULL CHECK (source_count >= 1),
+    evidence        jsonb NOT NULL DEFAULT '[]'::jsonb,
+    captured_at     timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX vessel_reference_line_market
+    ON vessel_reference (line_id, market, captured_at DESC);
+
+CREATE OR REPLACE FUNCTION vessel_forbid_reference_mutation() RETURNS trigger AS $$
+BEGIN
+    RAISE EXCEPTION
+        'vessel_reference is append-only: a changed price is a new captured row, never an edit (reference_id %)',
+        COALESCE(OLD.reference_id, NEW.reference_id);
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER vessel_reference_no_update
+    BEFORE UPDATE OR DELETE ON vessel_reference
+    FOR EACH ROW EXECUTE FUNCTION vessel_forbid_reference_mutation();
+
 CREATE TABLE vessel_listing (
     listing_id        uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     deal_id           uuid NOT NULL REFERENCES deal(deal_id),
@@ -761,15 +794,18 @@ CREATE TABLE vessel_listing (
     condition_notes   text,
     provenance_notes  text,
 
-    -- Multi-currency, both first-class. fx_rate is HKD per 1 GBP, stored at
-    -- the moment of pricing and never reconverted at display or at read time.
+    -- Multi-currency, both first-class. fx_hkd_per_gbp is named for its
+    -- direction on purpose (decision 0020 revision, 7 October 2026) — a
+    -- bare "fx_rate" is exactly how a 100x conversion error happens
+    -- unnoticed. Stored at the moment of pricing, never reconverted at
+    -- display or at read time.
     currency          char(3) NOT NULL CHECK (currency IN ('HKD','GBP')),
-    fx_rate           numeric(18,8) CHECK (fx_rate > 0),
+    fx_hkd_per_gbp    numeric(18,8) CHECK (fx_hkd_per_gbp > 0),
     fx_source         text,
     fx_rate_date      date,
     CONSTRAINT vessel_listing_fx_recorded CHECK (
         currency = 'GBP' OR
-        (fx_rate IS NOT NULL AND fx_source IS NOT NULL AND fx_rate_date IS NOT NULL)),
+        (fx_hkd_per_gbp IS NOT NULL AND fx_source IS NOT NULL AND fx_rate_date IS NOT NULL)),
 
     -- Pricing. The internal band is invisible to everyone outside VESSEL;
     -- discount_applied is the number actually used, and it must fall inside
@@ -793,8 +829,11 @@ CREATE TABLE vessel_listing (
     vintage_band_passed   boolean NOT NULL DEFAULT false,
     derived               boolean NOT NULL DEFAULT false,   -- 0016/0018 case derivation used
     percentage_claim_pct  numeric(5,4),
+    -- No HK-specific sanity check exists the way app/market/vintage_band.py
+    -- exists for UK In Bond, so the single-source exception is UK only
+    -- (decision 0020 revision, 7 October 2026).
     CONSTRAINT vessel_listing_single_source_needs_band CHECK (
-        source_count >= 2 OR vintage_band_passed),
+        source_count >= 2 OR (reference_market = 'UK_IN_BOND' AND vintage_band_passed)),
     CONSTRAINT vessel_listing_claim_needs_two_sources CHECK (
         percentage_claim_pct IS NULL OR source_count >= 2),
 
@@ -803,6 +842,14 @@ CREATE TABLE vessel_listing (
     approved_at  timestamptz,
     listed_at    timestamptz,
     settled_at   timestamptz,
+
+    -- Which market this listing was priced from, named rather than implicit
+    -- (decision 0020 revision, 7 October 2026) — reference_id is the exact
+    -- vessel_reference row consulted, for provenance.
+    reference_market text NOT NULL,
+    CONSTRAINT vessel_listing_reference_market_known CHECK (
+        reference_market IN ('UK_IN_BOND','HK_RETAIL')),
+    reference_id     uuid REFERENCES vessel_reference(reference_id),
 
     CONSTRAINT vessel_listing_mandate_matches_state CHECK (
         (state IN ('RECOMMENDED','DECLINED') AND mandate_id IS NULL) OR
@@ -833,7 +880,9 @@ BEGIN
         NEW.display_wine     IS DISTINCT FROM OLD.display_wine OR
         NEW.vintage          IS DISTINCT FROM OLD.vintage OR
         NEW.bottles          IS DISTINCT FROM OLD.bottles OR
-        NEW.mandate_id       IS DISTINCT FROM OLD.mandate_id
+        NEW.mandate_id       IS DISTINCT FROM OLD.mandate_id OR
+        NEW.reference_market IS DISTINCT FROM OLD.reference_market OR
+        NEW.reference_id     IS DISTINCT FROM OLD.reference_id
     ) THEN
         RAISE EXCEPTION
             'listing % is approved: price and identity are frozen (decision 0020)',

@@ -11,21 +11,30 @@ from uuid import UUID
 from pydantic import Field, model_validator
 
 from app.api.schemas import Money, _In, _Out
+from app.vessel.engine import market_claim_sentence
+from app.vessel.engine import reference_label as _reference_label
 
 VesselCurrency = Literal["HKD", "GBP"]
 Band = Literal["STRONG", "NORMAL", "CLEARANCE"]
 StockLocation = Literal["HK_BOND", "UK_BOND", "EU_BOND", "DUTY_PAID_HK", "OTHER"]
+ReferenceMarket = Literal["UK_IN_BOND", "HK_RETAIL"]
 
 
 class LineChoiceIn(_In):
     line_id: UUID
     band: Band = "NORMAL"
     discount: Optional[Decimal] = Field(default=None, ge=0, lt=1)
+    reference_market: ReferenceMarket = "UK_IN_BOND"
+    #: Required when reference_market is HK_RETAIL: there is no adapter for
+    #: this market yet, so the operator enters what they found by hand.
+    hk_reference_price: Optional[Decimal] = Field(default=None, gt=0)
+    hk_source_count: Optional[int] = Field(default=None, ge=1)
+    hk_evidence: list[str] = []
 
 
 class RecommendIn(_In):
     currency: VesselCurrency = "HKD"
-    fx_rate: Optional[Decimal] = Field(default=None, gt=0)      # HKD per 1 GBP
+    fx_hkd_per_gbp: Optional[Decimal] = Field(default=None, gt=0)
     fx_source: Optional[str] = None
     fx_rate_date: Optional[date] = None
     stock_location: StockLocation = "HK_BOND"
@@ -51,7 +60,7 @@ class ListingOut(_Out):
     stock_location: str
     warehouse: Optional[str]
     currency: str
-    fx_rate: Optional[Decimal]
+    fx_hkd_per_gbp: Optional[Decimal]
     fx_source: Optional[str]
     market_reference: Money
     band: str
@@ -68,16 +77,28 @@ class ListingOut(_Out):
     #: Set only by the drop-page read, from the fulfilling reservation.
     sold_at: Optional[datetime] = None
 
+    #: Named, never implicit (decision 0020 revision, 7 October 2026).
+    reference_market: ReferenceMarket
+    reference_id: Optional[UUID] = None
+
     #: Display convenience, derived rather than stored: "Market reference" or
-    #: "Indicative reference" depending on source_count — the evidence claim
-    #: rule made visible rather than left for the template to work out.
+    #: "Indicative reference" (market-qualified for anything other than
+    #: UK_IN_BOND) depending on source_count — the evidence claim rule made
+    #: visible rather than left for the template to work out.
     reference_label: str = ""
+
+    #: "34% below the best Hong Kong retail offer we can find" — None
+    #: exactly when percentage_claim_pct is None (invariant 15: absent, not
+    #: blank). Composed server-side so every screen prints the same words.
+    market_claim: Optional[str] = None
 
     @model_validator(mode="after")
     def _set_reference_label(self) -> "ListingOut":
         if not self.reference_label:
-            self.reference_label = (
-                "Market reference" if self.source_count >= 2 else "Indicative reference")
+            self.reference_label = _reference_label(self.reference_market, self.source_count)
+        if self.market_claim is None:
+            self.market_claim = market_claim_sentence(
+                self.reference_market, self.percentage_claim_pct)
         return self
 
 
@@ -166,6 +187,23 @@ class PaymentOut(_Out):
     currency: str
     state: str
     matched_reservation_id: Optional[UUID]
+
+
+class ReservationNeedingConfirmationOut(_Out):
+    """The operator's queue: HELD, past its one proof-of-payment extension,
+    unresolved by payment either way."""
+    reservation_id: UUID
+    listing_id: UUID
+    state: str
+    payment_reference: str
+    held_at: datetime
+    expires_at: datetime
+    proof_submitted_at: Optional[datetime]
+    display_producer: str
+    display_wine: str
+    vintage: int
+    vessel_price: Money
+    currency: str
 
 
 class SellThroughRowOut(_Out):

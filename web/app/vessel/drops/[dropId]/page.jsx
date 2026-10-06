@@ -50,8 +50,7 @@ export default function Drop() {
               </div>
               <div>
                 <strong>{money(l.vessel_price, l.currency)}</strong>
-                {l.percentage_claim_pct &&
-                  <span className="muted"> · {(Number(l.percentage_claim_pct) * 100).toFixed(0)}% below market</span>}
+                {l.market_claim && <span className="muted"> · {l.market_claim}</span>}
               </div>
               {sold ? (
                 <p className="tag stop" style={{ marginTop: 10 }}>

@@ -69,13 +69,15 @@ CREATE TABLE vessel_listing (
     condition_notes   text,
     provenance_notes  text,
 
+    -- fx_hkd_per_gbp is named for its direction on purpose: a bare
+    -- "fx_rate" is exactly how a 100x conversion error happens unnoticed.
     currency          char(3) NOT NULL CHECK (currency IN ('HKD','GBP')),
-    fx_rate           numeric(18,8) CHECK (fx_rate > 0),
+    fx_hkd_per_gbp    numeric(18,8) CHECK (fx_hkd_per_gbp > 0),
     fx_source         text,
     fx_rate_date      date,
     CONSTRAINT vessel_listing_fx_recorded CHECK (
         currency = 'GBP' OR
-        (fx_rate IS NOT NULL AND fx_source IS NOT NULL AND fx_rate_date IS NOT NULL)),
+        (fx_hkd_per_gbp IS NOT NULL AND fx_source IS NOT NULL AND fx_rate_date IS NOT NULL)),
 
     market_reference  numeric(14,2) NOT NULL CHECK (market_reference > 0),
     band              text NOT NULL CHECK (band IN ('STRONG','NORMAL','CLEARANCE')),

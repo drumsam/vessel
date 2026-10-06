@@ -95,21 +95,31 @@ re-enforced at the database: `vessel_listing_discount_in_band` CHECK ties
 `discount_applied` to the `band` it is stored against, so the two can never
 read differently from each other.
 
-## Two numbers nothing in the spec pinned down
+## Two numbers nothing in the spec pinned down — both resolved, 7 October 2026
 
 **FX direction.** "Both first-class... with the FX rate and source stored
-on the listing at the moment of pricing" does not say which way the rate
-points. `fx_rate` is **HKD per 1 GBP**, matching how a Hong-Kong-based desk
-naturally quotes it, and every conversion in `app/vessel/engine.py` says so
-in a docstring. Worth a second pair of eyes before the first real rate is
-typed in.
+on the listing at the moment of pricing" did not say which way the rate
+points, and the column was named `fx_rate` — flagged above as "worth a
+second pair of eyes before the first real rate is typed in." Doug's call:
+a bare `fx_rate` is exactly how a 100x conversion error happens unnoticed.
+Renamed structurally rather than left as a comment: the column is now
+`vessel_listing.fx_hkd_per_gbp` (migration 0016, written this way from the
+start since it had not shipped anywhere beyond this session), and every
+parameter in `app/vessel/engine.py` and `app/vessel/repo.py` follows —
+`fx_rate` does not appear anywhere in `app/vessel/`.
 
 **How long proof of payment extends the hold.** v4: "submitting proof of
-payment extends the hold automatically" — no length given.
-`submit_proof_of_payment()` grants the **same hold window again**, from the
-moment proof is submitted (30 minutes or 2 hours, by the listing's own
-threshold). A reasonable reading, not a specified one — confirm before
-drop one goes live with real money.
+payment extends the hold automatically" — no length given. Originally built
+as "the same hold window again," flagged as a reading rather than a
+specification. Doug's call: **one** extension, a fixed **2 hours**, then an
+operator confirms — never a second automatic extension, and never the
+original `hold_duration()` again. `submit_proof_of_payment()` now refuses a
+second call on the same reservation (`AlreadyExtended`), and
+`expire_overdue_reservations()` skips any reservation that has already used
+its extension — a timer no longer resolves it, `cancel_reservation()` or
+`record_payment()` does. `reservations_needing_confirmation()` is the
+operator's queue for exactly this state: HELD, past its one extension,
+unresolved either way.
 
 ## What "drop one" does not include, by the specs' own build order
 
@@ -136,14 +146,13 @@ nothing here contradicts that:
 ## Contradictions found, reported rather than fixed quietly
 
 1. **`docs/research/offer-document-spec.md`'s `seller_offer`/
-   `seller_offer_line` use `bigserial`/`bigint` primary and foreign keys.**
-   Every table this schema already has — `deal`, `seller_line`, `wine`, and
-   now `vessel_listing` — uses `uuid`. A literal build of that spec's DDL
-   would fail at the first foreign key (`deal_id bigint REFERENCES
-   deal(deal_id)`, where `deal.deal_id` is `uuid`). Not built in this
-   decision — the spec is background for VESSEL's exclusion-reason wording
-   only, and the mismatch is simply left here as a flag for whoever builds
-   it: the convention is `uuid`.
+   `seller_offer_line` used `bigserial`/`bigint` primary and foreign keys**
+   against a schema where every other table — `deal`, `seller_line`,
+   `wine`, now `vessel_listing` — is `uuid`. Confirmed 7 October: the spec
+   was wrong, the schema is right. Corrected directly in the spec document
+   rather than left as a flag; `seller_offer`/`seller_offer_line` are still
+   not built (unaffected by VESSEL), but the DDL anyone builds them from
+   now matches the rest of the schema.
 2. **v3's own reservation example names the unique index
    `one_live_reservation_per_line`** while indexing `reservation(listing_id)` —
    v3 uses "line" and "listing" for the same thing inconsistently in one

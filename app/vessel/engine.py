@@ -61,6 +61,13 @@ HOLD_THRESHOLD_HKD = Decimal("50000")
 HOLD_SHORT = timedelta(minutes=30)
 HOLD_LONG = timedelta(hours=2)
 
+#: Submitting proof of payment extends the hold ONCE, by this fixed amount —
+#: never the original hold_duration() again, and never a second time.
+#: Capped in code (app/vessel/repo.submit_proof_of_payment): after this
+#: extension lapses unpaid, a timer no longer resolves it, an operator does
+#: (revision, 7 October 2026).
+PROOF_OF_PAYMENT_EXTENSION = timedelta(hours=2)
+
 
 def round_to_clean_figure(value: Decimal, currency: str) -> Decimal:
     """HK$69,473 -> HK$69,500. A computed price that looks computed invites
@@ -72,24 +79,26 @@ def round_to_clean_figure(value: Decimal, currency: str) -> Decimal:
     return (value / step).quantize(Decimal("1"), rounding=ROUNDING) * step
 
 
-def hkd_equivalent(amount: Decimal, currency: str, fx_rate: Optional[Decimal]) -> Decimal:
-    """fx_rate is HKD per 1 GBP, stored on the listing at pricing time. This
-    is a business-rule conversion (which hold window, which minimum applies),
-    never a display conversion — the stored currency and amount are what is
-    shown, always."""
+def hkd_equivalent(amount: Decimal, currency: str, fx_hkd_per_gbp: Optional[Decimal]) -> Decimal:
+    """`fx_hkd_per_gbp` is named for its direction on purpose — a bare
+    "fx_rate" is exactly how a 100x conversion error happens unnoticed
+    (revision, 7 October 2026). Stored on the listing at pricing time. This
+    is a business-rule conversion (which hold window, which minimum
+    applies), never a display conversion — the stored currency and amount
+    are what is shown, always."""
     if currency == "HKD":
         return amount
-    if not fx_rate:
+    if not fx_hkd_per_gbp:
         raise CannotList(f"no FX rate to convert {currency} to HKD")
-    return amount * fx_rate
+    return amount * fx_hkd_per_gbp
 
 
-def gbp_equivalent(amount: Decimal, currency: str, fx_rate: Optional[Decimal]) -> Decimal:
+def gbp_equivalent(amount: Decimal, currency: str, fx_hkd_per_gbp: Optional[Decimal]) -> Decimal:
     if currency == "GBP":
         return amount
-    if not fx_rate:
+    if not fx_hkd_per_gbp:
         raise CannotList(f"no FX rate to convert {currency} to GBP")
-    return amount / fx_rate
+    return amount / fx_hkd_per_gbp
 
 
 def resolve_discount(band: str, discount: Optional[Decimal] = None) -> Decimal:
@@ -129,21 +138,36 @@ def price_listing(market_reference: Decimal, *, band: str, currency: str,
     return VesselPrice(vessel_price=vessel_price, seller_net=seller_net)
 
 
-def meets_minimum_value(vessel_price: Decimal, currency: str, fx_rate: Optional[Decimal],
+def meets_minimum_value(vessel_price: Decimal, currency: str, fx_hkd_per_gbp: Optional[Decimal],
                         *, minimum_gbp: Decimal = MIN_LISTING_VALUE_GBP) -> bool:
-    return gbp_equivalent(vessel_price, currency, fx_rate) >= minimum_gbp
+    return gbp_equivalent(vessel_price, currency, fx_hkd_per_gbp) >= minimum_gbp
 
 
-def hold_duration(vessel_price: Decimal, currency: str, fx_rate: Optional[Decimal]) -> timedelta:
-    hkd = hkd_equivalent(vessel_price, currency, fx_rate)
+def hold_duration(vessel_price: Decimal, currency: str,
+                  fx_hkd_per_gbp: Optional[Decimal]) -> timedelta:
+    hkd = hkd_equivalent(vessel_price, currency, fx_hkd_per_gbp)
     return HOLD_SHORT if hkd < HOLD_THRESHOLD_HKD else HOLD_LONG
+
+
+#: Named reference markets a listing may price from (decision 0020 revision,
+#: 7 October 2026, from docs/research/hk-vs-uk-market-reference.md — the
+#: median and range it reports, median HK retail +22% over UK In Bond, 9
+#: matched pairs, range -21% to +46%, are reported directly in this
+#: decision's documentation, not encoded here: the discount a listing
+#: actually uses still comes from the operator's band choice, same as UK
+#: In Bond. "A listing needs a named reference market, not one implicit
+#: one" — UK_IN_BOND was always the market; it just was not named before.
+MARKET_LABELS: dict[str, str] = {"UK_IN_BOND": "UK In Bond", "HK_RETAIL": "Hong Kong retail"}
+DEFAULT_MARKET = "UK_IN_BOND"
 
 
 @dataclass(frozen=True)
 class EvidenceClaim:
     """What a listing may say about its own evidence (the load-bearing rule).
 
-    `can_list` is False exactly when source_count is 0, or it is 1 and the
+    `can_list` is False exactly when source_count is 0, or it is 1 and
+    either the market is not UK_IN_BOND (no HK-equivalent single-source
+    sanity check exists yet — refused rather than guessed at) or the
     vintage-band sanity check did not both run and pass for this line's one
     comp. `percentage_claim_pct` is set only with two or more sources — the
     database repeats this as a CHECK constraint so the rule cannot be
@@ -155,20 +179,48 @@ class EvidenceClaim:
     reason: Optional[str] = None             # set when can_list is False
 
 
+def reference_label(market: str, source_count: int) -> str:
+    """UK_IN_BOND keeps its original, unqualified wording — every listing
+    built before markets were named used exactly this text, and nothing
+    about naming the market retroactively changes what they said. Any other
+    market names itself: "Hong Kong retail reference"."""
+    if market == DEFAULT_MARKET:
+        return "Market reference" if source_count >= 2 else "Indicative reference"
+    label = MARKET_LABELS.get(market, market)
+    return f"{label} reference" if source_count >= 2 else f"Indicative {label} reference"
+
+
+def market_claim_sentence(market: str, percentage_claim_pct: Optional[Decimal]) -> Optional[str]:
+    """"34% below the best Hong Kong retail offer we can find" — the exact
+    page-claim shape from the request. None when there is no percentage
+    claim to make (invariant 15: absent, not blank)."""
+    if percentage_claim_pct is None:
+        return None
+    pct = int((percentage_claim_pct * 100).to_integral_value(rounding=ROUNDING))
+    label = MARKET_LABELS.get(market, market)
+    return f"{pct}% below the best {label} offer we can find"
+
+
 def evidence_claim(source_count: int, *, vintage_band_passed: bool,
+                   market: str = DEFAULT_MARKET,
                    market_reference: Optional[Decimal] = None,
                    vessel_price: Optional[Decimal] = None) -> EvidenceClaim:
     if source_count <= 0:
         return EvidenceClaim(False, "", None, "no market: zero independent sources")
     if source_count == 1:
+        if market != DEFAULT_MARKET:
+            return EvidenceClaim(
+                False, "", None,
+                f"thin evidence: one {MARKET_LABELS.get(market, market)} source, and no "
+                "sanity check like the UK In Bond vintage band exists yet for this market")
         if not vintage_band_passed:
             return EvidenceClaim(
                 False, "", None,
                 "thin evidence: one source, and the vintage-band sanity check "
                 "did not pass for it")
-        return EvidenceClaim(True, "Indicative reference", None)
+        return EvidenceClaim(True, reference_label(market, 1), None)
     pct = None
     if market_reference is not None and vessel_price is not None and market_reference > 0:
         pct = ((market_reference - vessel_price) / market_reference).quantize(
             Decimal("0.0001"), rounding=ROUNDING)
-    return EvidenceClaim(True, "Market reference", pct)
+    return EvidenceClaim(True, reference_label(market, source_count), pct)

@@ -108,6 +108,39 @@ def test_single_source_failing_vintage_band_cannot_be_listed():
     assert two.can_list is True and two.percentage_claim_pct == Decimal("0.2000")
 
 
+def test_hk_retail_single_source_is_refused_with_no_sanity_check():
+    """No HK-equivalent of the UK vintage-band check exists yet, so a single
+    Hong Kong retail source never lists, no matter how it would have fared
+    against a band — refusing rather than guessing (0020 revision)."""
+    claim = engine.evidence_claim(1, vintage_band_passed=True, market="HK_RETAIL")
+    assert claim.can_list is False
+    assert "HK_RETAIL" not in claim.reason   # names it in English, not the enum
+    assert "Hong Kong retail" in claim.reason
+
+
+def test_hk_retail_two_sources_names_the_market():
+    """"34% below the best Hong Kong retail offer we can find" — the page
+    claim the request asked for, composed once, server-side."""
+    claim = engine.evidence_claim(2, vintage_band_passed=False, market="HK_RETAIL",
+                                  market_reference=Decimal("100000"),
+                                  vessel_price=Decimal("66000"))
+    assert claim.can_list is True
+    assert claim.reference_label == "Hong Kong retail reference"
+    assert claim.percentage_claim_pct == Decimal("0.3400")
+    assert (engine.market_claim_sentence("HK_RETAIL", claim.percentage_claim_pct)
+            == "34% below the best Hong Kong retail offer we can find")
+
+
+def test_uk_in_bond_label_and_claim_are_unchanged_by_naming_the_market():
+    """Naming the market does not reword what UK In Bond already said —
+    every listing built before this revision used exactly this text."""
+    assert engine.reference_label("UK_IN_BOND", 2) == "Market reference"
+    assert engine.reference_label("UK_IN_BOND", 1) == "Indicative reference"
+    assert (engine.market_claim_sentence("UK_IN_BOND", Decimal("0.1700"))
+            == "17% below the best UK In Bond offer we can find")
+    assert engine.market_claim_sentence("UK_IN_BOND", None) is None
+
+
 def test_listing_below_minimum_value_is_refused():
     """GBP 400 equivalent, configurable. A GBP 350 listing fails the default;
     a HKD listing below the GBP-equivalent threshold fails through the FX
@@ -124,7 +157,7 @@ def test_listing_below_minimum_value_is_refused():
 def test_hold_duration_is_thirty_minutes_under_fifty_thousand_hkd():
     assert engine.hold_duration(Decimal("49999"), "HKD", None) == timedelta(minutes=30)
     assert engine.hold_duration(Decimal("50000"), "HKD", None) == timedelta(hours=2)
-    # A GBP listing is converted through its own fx_rate before the threshold
+    # A GBP listing is converted through its own fx_hkd_per_gbp before the threshold
     # is applied - never a separate, unstated GBP threshold. GBP 5,200 at 9.7
     # is HK$50,440; GBP 4,000 is HK$38,800.
     assert engine.hold_duration(Decimal("5200"), "GBP", Decimal("9.7")) == timedelta(hours=2)
@@ -218,20 +251,22 @@ def _seed_run(conn, line_id, *, uk_reference, comp_count, state="READY",
 
 
 def _priced_listing(conn, *, source_count=3, uk_reference=Decimal("1443.30"), quantity=6,
-                    band_low=Decimal("1200"), band_high=Decimal("1600")) -> dict:
+                    band_low=Decimal("1200"), band_high=Decimal("1600"),
+                    producer="Domaine Test") -> dict:
     """RECOMMENDED, in HKD at a NORMAL-band 17% discount. uk_reference is per
     bottle, GBP, as the benchmark always stores it; the default (times 6
-    bottles, times the 9.7 fx_rate below) lands the lot at the published
+    bottles, times the 9.7 fx_hkd_per_gbp below) lands the lot at the published
     mockup's own HK$84,000 — a coincidence worth keeping, not relied on by
     anything that reads this fixture."""
     from app.vessel import repo as vrepo
 
     operator_id = _operator(conn)
-    deal_id, line_id, wine_id = _deal_with_line(conn, operator_id, quantity=quantity)
+    deal_id, line_id, wine_id = _deal_with_line(conn, operator_id, quantity=quantity,
+                                                producer=producer)
     _seed_run(conn, line_id, uk_reference=uk_reference, comp_count=source_count,
              band_low=band_low, band_high=band_high)
     listings, excluded = vrepo.recommend_lines(
-        conn, deal_id, currency="HKD", fx_rate=Decimal("9.7"), fx_source="XE",
+        conn, deal_id, currency="HKD", fx_hkd_per_gbp=Decimal("9.7"), fx_source="XE",
         fx_rate_date=AS_OF.date(), stock_location="HK_BOND",
         line_choices={line_id: {"band": "NORMAL", "discount": Decimal("0.17")}})
     assert not excluded, excluded
@@ -307,7 +342,8 @@ def test_reservation_timeout_returns_listing_to_pool(conn):
 @pg
 def test_proof_of_payment_extends_hold(conn):
     """Nobody loses a wine to reconciliation lag: submitting proof moves the
-    deadline forward, automatically."""
+    deadline forward, automatically, by exactly one fixed 2-hour extension —
+    never the original hold_duration() again."""
     from app.vessel import repo as vrepo
 
     listing = _listed_listing(conn)
@@ -315,8 +351,10 @@ def test_proof_of_payment_extends_hold(conn):
                                         as_of=AS_OF)
     original_deadline = reservation["expires_at"]
 
+    submitted_at = AS_OF + timedelta(minutes=25)
     extended = vrepo.submit_proof_of_payment(conn, str(reservation["reservation_id"]),
-                                             as_of=AS_OF + timedelta(minutes=25))
+                                             as_of=submitted_at)
+    assert extended["expires_at"] == submitted_at + engine.PROOF_OF_PAYMENT_EXTENSION
     assert extended["expires_at"] > original_deadline
     assert extended["proof_submitted_at"] is not None
 
@@ -324,6 +362,89 @@ def test_proof_of_payment_extends_hold(conn):
     # have expired.
     assert vrepo.expire_overdue_reservations(conn, as_of=original_deadline + timedelta(seconds=1)) == []
     assert vrepo.get_listing(conn, str(listing["listing_id"]))["state"] == "RESERVED"
+
+
+@pg
+def test_proof_of_payment_extension_is_capped_at_one(conn):
+    """Capped in code: a reservation that already used its one extension
+    cannot be granted a second — an operator resolves it from here, never
+    another timer."""
+    from app.vessel import repo as vrepo
+
+    listing = _listed_listing(conn)
+    reservation = vrepo.reserve_listing(conn, str(listing["listing_id"]), buyer_contact="a@x.com",
+                                        as_of=AS_OF)
+    vrepo.submit_proof_of_payment(conn, str(reservation["reservation_id"]),
+                                  as_of=AS_OF + timedelta(minutes=25))
+
+    with pytest.raises(vrepo.AlreadyExtended):
+        vrepo.submit_proof_of_payment(conn, str(reservation["reservation_id"]),
+                                      as_of=AS_OF + timedelta(minutes=40))
+
+
+@pg
+def test_expire_overdue_skips_a_reservation_with_proof_submitted(conn):
+    """A reservation past even its extended deadline is NOT auto-expired once
+    proof has been submitted — it waits for an operator, not a sweep."""
+    from app.vessel import repo as vrepo
+
+    listing = _listed_listing(conn)
+    reservation = vrepo.reserve_listing(conn, str(listing["listing_id"]), buyer_contact="a@x.com",
+                                        as_of=AS_OF)
+    vrepo.submit_proof_of_payment(conn, str(reservation["reservation_id"]),
+                                  as_of=AS_OF + timedelta(minutes=25))
+
+    long_after = AS_OF + timedelta(hours=10)
+    assert vrepo.expire_overdue_reservations(conn, as_of=long_after) == []
+    assert conn.execute(
+        "SELECT state FROM vessel_reservation WHERE reservation_id = %s",
+        (reservation["reservation_id"],)).fetchone()["state"] == "HELD"
+
+
+@pg
+def test_reservations_needing_confirmation_lists_only_the_stuck_ones(conn):
+    """The operator's queue: HELD, past its one extension, unresolved either
+    way. A fresh HELD reservation (no proof yet) and one safely inside its
+    window do not belong on it."""
+    from app.vessel import repo as vrepo
+
+    stuck_listing = _listed_listing(conn)
+    stuck = vrepo.reserve_listing(conn, str(stuck_listing["listing_id"]), buyer_contact="a@x.com",
+                                  as_of=AS_OF)
+    extended = vrepo.submit_proof_of_payment(conn, str(stuck["reservation_id"]),
+                                             as_of=AS_OF + timedelta(minutes=25))
+
+    fresh_listing = _listed_listing(conn, producer="Domaine Autre")
+    vrepo.reserve_listing(conn, str(fresh_listing["listing_id"]), buyer_contact="b@x.com", as_of=AS_OF)
+
+    due = vrepo.reservations_needing_confirmation(conn, as_of=extended["expires_at"] + timedelta(seconds=1))
+    assert [r["reservation_id"] for r in due] == [stuck["reservation_id"]]
+
+    not_yet_due = vrepo.reservations_needing_confirmation(conn, as_of=extended["expires_at"] - timedelta(seconds=1))
+    assert not_yet_due == []
+
+
+@pg
+def test_cancel_reservation_releases_the_listing(conn):
+    """The operator's confirmation that payment did not, in fact, arrive:
+    CANCELLED, and the listing goes back to LISTED for a fresh buyer."""
+    from app.vessel import repo as vrepo
+
+    listing = _listed_listing(conn)
+    reservation = vrepo.reserve_listing(conn, str(listing["listing_id"]), buyer_contact="a@x.com",
+                                        as_of=AS_OF)
+    vrepo.submit_proof_of_payment(conn, str(reservation["reservation_id"]),
+                                  as_of=AS_OF + timedelta(minutes=25))
+
+    cancelled = vrepo.cancel_reservation(conn, str(reservation["reservation_id"]),
+                                         as_of=AS_OF + timedelta(hours=3))
+    assert cancelled["state"] == "CANCELLED"
+    assert cancelled["cancelled_at"] is not None
+    assert vrepo.get_listing(conn, str(listing["listing_id"]))["state"] == "LISTED"
+
+    second = vrepo.reserve_listing(conn, str(listing["listing_id"]), buyer_contact="c@x.com",
+                                   as_of=AS_OF + timedelta(hours=3))
+    assert second["state"] == "HELD"
 
 
 @pg
@@ -354,7 +475,7 @@ def test_single_source_failing_vintage_band_cannot_be_listed_pg(conn):
     _seed_run(conn, line_id, uk_reference=Decimal("14000"), comp_count=1,
              band_low=None, band_high=None)             # the band never ran
     listings, excluded = vrepo.recommend_lines(
-        conn, deal_id, currency="HKD", fx_rate=Decimal("9.7"), fx_source="XE",
+        conn, deal_id, currency="HKD", fx_hkd_per_gbp=Decimal("9.7"), fx_source="XE",
         fx_rate_date=AS_OF.date(), stock_location="HK_BOND")
     assert listings == []
     [one] = excluded
@@ -381,7 +502,7 @@ def test_listing_below_minimum_value_is_refused_pg(conn):
     deal_id, line_id, _ = _deal_with_line(conn, operator_id, quantity=6)
     _seed_run(conn, line_id, uk_reference=Decimal("50"), comp_count=3)
     listings, excluded = vrepo.recommend_lines(
-        conn, deal_id, currency="GBP", fx_rate=None, fx_source=None, fx_rate_date=None,
+        conn, deal_id, currency="GBP", fx_hkd_per_gbp=None, fx_source=None, fx_rate_date=None,
         stock_location="UK_BOND")
     assert listings == []
     [one] = excluded
@@ -480,7 +601,7 @@ def test_mandate_covers_only_the_approved_lines_and_declines_the_rest(conn):
         _seed_run(conn, line_id, uk_reference=Decimal("14000"), comp_count=3,
                  band_low=Decimal("12000"), band_high=Decimal("16000"))
     listings, excluded = vrepo.recommend_lines(
-        conn, deal_id, currency="HKD", fx_rate=Decimal("9.7"), fx_source="XE",
+        conn, deal_id, currency="HKD", fx_hkd_per_gbp=Decimal("9.7"), fx_source="XE",
         fx_rate_date=AS_OF.date(), stock_location="HK_BOND")
     assert not excluded and len(listings) == 2
 
@@ -509,7 +630,7 @@ def test_why_not_recommended_counts_by_reason(conn):
     # no_market_line gets no run at all - never searched, no evidence.
 
     listings, excluded = vrepo.recommend_lines(
-        conn, deal_id, currency="GBP", fx_rate=None, fx_source=None, fx_rate_date=None,
+        conn, deal_id, currency="GBP", fx_hkd_per_gbp=None, fx_source=None, fx_rate_date=None,
         stock_location="UK_BOND")
     assert listings == []
     counts = vrepo.why_not_recommended(excluded)
@@ -523,7 +644,126 @@ def test_why_not_recommended_counts_by_reason(conn):
     # listing: the stale exclusion is removed, not left to contradict it.
     _seed_run(conn, no_market_line, uk_reference=Decimal("500"), comp_count=2)
     listings2, _ = vrepo.recommend_lines(
-        conn, deal_id, currency="GBP", fx_rate=None, fx_source=None, fx_rate_date=None,
+        conn, deal_id, currency="GBP", fx_hkd_per_gbp=None, fx_source=None, fx_rate_date=None,
         stock_location="UK_BOND")
     assert len(listings2) == 1
     assert vrepo.excluded_summary(conn, deal_id) == {vrepo.THIN_EVIDENCE: 1}
+
+
+# ======================================================== multi-market reference
+
+
+@pg
+def test_hk_retail_listing_is_priced_from_the_operator_entered_figure(conn):
+    """No UK benchmark run at all - HK_RETAIL prices entirely from the
+    manually entered reference, named on the listing and captured as its
+    own vessel_reference row for provenance."""
+    from app.vessel import repo as vrepo
+
+    op = _operator(conn)
+    deal_id, line_id, _ = _deal_with_line(conn, op, quantity=6)
+    # Deliberately no _seed_run: HK_RETAIL does not need a UK benchmark run.
+
+    listings, excluded = vrepo.recommend_lines(
+        conn, deal_id, currency="HKD", fx_hkd_per_gbp=Decimal("9.7"), fx_source="XE",
+        fx_rate_date=AS_OF.date(), stock_location="HK_BOND",
+        line_choices={line_id: {
+            "band": "NORMAL", "discount": Decimal("0.17"),
+            "reference_market": "HK_RETAIL",
+            "hk_reference_price": Decimal("100000.00"), "hk_source_count": 2,
+            "hk_evidence": ["https://example.hk/listing-a", "https://example.hk/listing-b"]}})
+    assert not excluded, excluded
+    [listing] = listings
+    assert listing["reference_market"] == "HK_RETAIL"
+    assert listing["market_reference"] == Decimal("100000.00")
+    assert listing["source_count"] == 2
+    assert listing["reference_id"] is not None
+
+    reference = conn.execute("SELECT * FROM vessel_reference WHERE reference_id = %s",
+                             (listing["reference_id"],)).fetchone()
+    assert reference["market"] == "HK_RETAIL"
+    assert str(reference["line_id"]) == line_id
+    assert reference["evidence"] == ["https://example.hk/listing-a", "https://example.hk/listing-b"]
+
+
+@pg
+def test_hk_retail_without_a_manual_price_is_excluded_not_guessed(conn):
+    """"A listing needs a named reference market" cuts both ways: naming
+    HK_RETAIL without supplying what it needs excludes the line, same as
+    any other missing evidence - never a silent fall-back to UK."""
+    from app.vessel import repo as vrepo
+
+    op = _operator(conn)
+    deal_id, line_id, _ = _deal_with_line(conn, op)
+
+    listings, excluded = vrepo.recommend_lines(
+        conn, deal_id, currency="HKD", fx_hkd_per_gbp=Decimal("9.7"), fx_source="XE",
+        fx_rate_date=AS_OF.date(), stock_location="HK_BOND",
+        line_choices={line_id: {"reference_market": "HK_RETAIL"}})
+    assert listings == []
+    [one] = excluded
+    assert one.reason == vrepo.NO_MARKET
+
+
+@pg
+def test_hk_retail_single_source_is_excluded_at_the_database_too(conn):
+    """The Python gate (evidence_claim) refuses this before a row is ever
+    built, but the CHECK constraint is the one that cannot be bypassed by a
+    future code path that forgets evidence_claim exists - direct SQL proves
+    it, same discipline as test_no_percentage_claim_on_single_source_listing_pg."""
+    listing = _priced_listing(conn, source_count=2)   # any valid UK_IN_BOND row to clone from
+    with pytest.raises(psycopg.errors.CheckViolation):
+        conn.execute(
+            """UPDATE vessel_listing
+                  SET reference_market = 'HK_RETAIL', source_count = 1, vintage_band_passed = true
+                WHERE listing_id = %s""",
+            (listing["listing_id"],))
+
+
+@pg
+def test_a_line_can_carry_both_a_uk_and_an_hk_reference(conn):
+    """"Allow more than one reference per line" - the same line gets a
+    UK_IN_BOND listing recommended once; a second, independent HK_RETAIL
+    vessel_reference capture for the same line is not blocked by it (the
+    uniqueness VESSEL enforces is one LISTING per line, never one reference
+    per line)."""
+    from app.vessel import repo as vrepo
+
+    op = _operator(conn)
+    deal_id, line_id, _ = _deal_with_line(conn, op, quantity=6)
+    _seed_run(conn, line_id, uk_reference=Decimal("1443.30"), comp_count=3,
+             band_low=Decimal("1200"), band_high=Decimal("1600"))
+
+    listings, excluded = vrepo.recommend_lines(
+        conn, deal_id, currency="HKD", fx_hkd_per_gbp=Decimal("9.7"), fx_source="XE",
+        fx_rate_date=AS_OF.date(), stock_location="HK_BOND",
+        line_choices={line_id: {"band": "NORMAL", "discount": Decimal("0.17")}})
+    assert not excluded, excluded
+    [listing] = listings
+    assert listing["reference_market"] == "UK_IN_BOND"
+
+    # An independent HK capture for the SAME line, recorded after the fact -
+    # carried as its own row, not merged into or replacing the UK one.
+    hk_reference = conn.execute(
+        """INSERT INTO vessel_reference (line_id, market, reference_price, currency,
+                                         source_count, evidence)
+           VALUES (%s, 'HK_RETAIL', 100000.00, 'HKD', 2, '["https://example.hk/x"]')
+           RETURNING *""", (line_id,)).fetchone()
+    assert hk_reference["market"] == "HK_RETAIL"
+
+    both = conn.execute("SELECT market FROM vessel_reference WHERE line_id = %s ORDER BY market",
+                        (line_id,)).fetchall()
+    assert {r["market"] for r in both} == {"UK_IN_BOND", "HK_RETAIL"}
+
+
+@pg
+def test_vessel_reference_is_append_only(conn):
+    """No UPDATE, no DELETE, ever - mirrors vessel_mandate's own
+    immutability trigger: a changed price is a new captured row."""
+    listing = _priced_listing(conn)
+    with pytest.raises(psycopg.errors.RaiseException):
+        conn.execute("UPDATE vessel_reference SET reference_price = 1.00 WHERE reference_id = %s",
+                     (listing["reference_id"],))
+    with pytest.raises(psycopg.errors.RaiseException):
+        conn.execute("DELETE FROM vessel_reference WHERE reference_id = %s",
+                     (listing["reference_id"],))
