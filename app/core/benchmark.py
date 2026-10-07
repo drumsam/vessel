@@ -17,8 +17,13 @@ added. The adapter contract may evolve; this must not.
      comparable may be DERIVED from another case size, at the measured case
      premium. Such a comp ranks behind every
      exact-unit comp, is used only when fewer than two merchants hold the
-     seller's own unit, and always flags the line DERIVED_FROM_CASE. Magnums and
-     half bottles never convert, in either direction.
+     seller's own unit, and always FLAGS the line DERIVED_FROM_CASE, whether
+     or not that flag goes on to gate it (decision 0023: it stops gating,
+     never stops being shown, once two or more merchants' comps agree with
+     their own quality-matched neighbouring vintages — `SellerLine.
+     derivation_confirmed`, set by the caller from the vintage band, same
+     discipline as `derive_units` itself). One comp never qualifies for the
+     exemption. Magnums and half bottles never convert, in either direction.
      A brokerage INDICATION is excluded by the KIND screen in the same way and
      returned as corroboration: a price nobody has offered stock at cannot be a
      Floor, a Reference or a Median. See docs/decisions/0013.
@@ -52,7 +57,8 @@ refusal is applied again when a figure is stored.
 
 One other figure is rounded here: a comparable DERIVED across case sizes, at
 the point of derivation (decision 0016). It is not an observed price, which is
-why it may be rounded at all — and why it always carries DERIVED_FROM_CASE.
+why it may be rounded at all — and why it always carries DERIVED_FROM_CASE,
+gating or not (decision 0023).
 
 The system's other two rounding points are outside this module and are named in
 docs/decisions/0007: FX conversion of a non-GBP cost, and the final sell price.
@@ -224,7 +230,17 @@ class BenchmarkResult:
     def state(self) -> State:
         if not self.merchant_bests:
             return State.NO_MARKET
-        return State.REVIEW if (self.flags & REVIEW_FLAGS) else State.READY
+        gating = self.flags & REVIEW_FLAGS
+        # DERIVED_FROM_CASE stops gating once two or more merchants' comps
+        # agree with their own quality-matched neighbouring vintages
+        # (decision 0023) — the exemption the line.derivation_confirmed
+        # docstring describes. One comp never qualifies, confirmed or not:
+        # "trusts source agreement, not the constant" needs a second source
+        # to agree WITH. The flag itself is untouched and still shown.
+        if (Flag.DERIVED_FROM_CASE in gating and self.comp_count >= 2
+                and self.line.derivation_confirmed):
+            gating = gating - {Flag.DERIVED_FROM_CASE}
+        return State.REVIEW if gating else State.READY
 
 
 def _is_fresh(o: Offer, as_of: datetime) -> bool:

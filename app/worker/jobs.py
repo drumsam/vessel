@@ -31,6 +31,7 @@ from app.adapters.lea_sandeman import LIST_URL as LS_URL, LeaSandemanAdapter
 from app.adapters.lw_trading import API_URL as LW_URL, LayWheelerTradingAdapter
 from app.core.benchmark import benchmark
 from app.core.enums import Reject
+from app.core.flags import Flag
 from app.core.models import Offer
 from app.db import repo
 from app.db.connection import transaction
@@ -370,6 +371,17 @@ def _benchmark_with_band(conn: psycopg.Connection, line, res: repo.Resolution,
         line = replace(line, inherited_flags=frozenset(line.inherited_flags) | flags)
         offers = without_high_outliers(res.offers, check) if check.high_outliers else res.offers
         result = benchmark(line, offers, as_of=when)
+
+    # DERIVED_FROM_CASE stops gating once 2+ comps agree with the band —
+    # decided here, from the band's own result, never inside the core
+    # (decision 0023). The band must have actually run (a tier exists for
+    # this region) and found nothing to exclude or flag either side: a
+    # high outlier already means the comps did not agree, and a kept low
+    # outlier already gates independently through LOW_COMP_OUT_OF_BAND, so
+    # neither case needs a second opinion from this flag.
+    if (Flag.DERIVED_FROM_CASE in result.flags and check.band_low is not None
+            and not check.high_outliers and not check.low_outliers):
+        result.line = replace(result.line, derivation_confirmed=True)
 
     run_id = str(repo.save_benchmark(conn, result, res, region=region))
     repo.save_vintage_band(conn, run_id, check, res)

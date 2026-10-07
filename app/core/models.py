@@ -94,6 +94,18 @@ class SellerLine:
     #: False everywhere it is not set, which is the exact-unit rule of 0001.
     derive_units: bool = False
 
+    #: Whether this line's own comps were checked against their quality-matched
+    #: neighbouring vintages and agreed, cleanly, with nothing excluded or
+    #: flagged either side (decision 0023). The CALLER sets it, from the
+    #: vintage band's own result, exactly as derive_units is set from the
+    #: wine's region: the core does not know what a vintage band is and never
+    #: will. False everywhere it is not set. Confirming agreement does not
+    #: raise DERIVED_FROM_CASE — it is still added, for display, whenever a
+    #: comp was derived — it only stops that one flag from gating a line
+    #: whose comp_count is 2 or more; a single comp still goes to a person
+    #: regardless of this field.
+    derivation_confirmed: bool = False
+
     @property
     def unit(self) -> CommercialUnit:
         return unit_for(self.pack_size)

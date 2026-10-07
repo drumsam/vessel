@@ -1,6 +1,15 @@
 """Flag vocabulary and the single definition of what forces operator review.
 
-One rule, one place. If a flag is in REVIEW_FLAGS the line cannot be READY.
+One rule, one place. If a flag is in REVIEW_FLAGS the line cannot be READY —
+with exactly one named exception, decided in `BenchmarkResult.state`
+(`app/core/benchmark.py`), not here: DERIVED_FROM_CASE stops gating once two
+or more merchants' comps agree with their own quality-matched neighbouring
+vintages (decision 0023, `SellerLine.derivation_confirmed`). The set below is
+unchanged by that exception — DERIVED_FROM_CASE is still a member, still
+gates a single-comp line, and is still shown on every line it was ever added
+to. The exception lives where it is checked, so this file keeps being the one
+place the MEMBERSHIP is defined, even though membership alone no longer
+decides every line's state.
 """
 from __future__ import annotations
 from decimal import Decimal
@@ -37,7 +46,10 @@ class Flag(str, Enum):
     DEEP_DISCOUNT = "DEEP_DISCOUNT"
 
 
-#: A line carrying any of these cannot be READY. Reviewed 2026-09-24.
+#: A line carrying any of these cannot be READY, with one named exception
+#: decided in `BenchmarkResult.state`, not here: DERIVED_FROM_CASE stops
+#: gating a line with 2+ comps once they agree with the vintage band
+#: (decision 0023). Reviewed 2026-09-24, exception added 7 October 2026.
 #: ONE_COMP is here because a single merchant is not a market — a benchmark
 #: resting on one comp is exactly the case an operator must look at.
 #: The two band flags are here by Doug's decision of 24 September: a line where
@@ -107,10 +119,18 @@ FORMAT_INCOHERENCE = Decimal("0.30")
 #: The SPREAD is the real finding, and it is why nothing else about 0016
 #: changed: a quarter of the pairs sit more than 5% from parity and the tails
 #: run to -30% and +15%. No constant can be right about an individual wine, so a
-#: derived comparable always carries DERIVED_FROM_CASE — a review flag — and
-#: always ranks behind a real offer at the seller's own unit.
+#: derived comparable always carries DERIVED_FROM_CASE and always ranks behind
+#: a real offer at the seller's own unit.
 #:
-#: See docs/research/case-premium-measurement.md and decision 0016.
+#: That same reasoning is why decision 0023 trusts SOURCE AGREEMENT rather
+#: than this constant: a line with two or more comps that independently agree
+#: with their own quality-matched neighbouring vintages has evidence this
+#: specific wine's derived price is right, regardless of what CASE_PREMIUM
+#: says about wines in general. DERIVED_FROM_CASE stops gating on that
+#: evidence; it never stops being added, and one comp is never enough to
+#: supply it.
+#:
+#: See docs/research/case-premium-measurement.md and decisions 0016, 0023.
 CASE_PREMIUM = Decimal("1.00")
 
 #: Derivation is 750ml only. Magnums and above carry a scarcity premium that has

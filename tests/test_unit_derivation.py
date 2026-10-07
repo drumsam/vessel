@@ -17,6 +17,10 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
+import csv
+from dataclasses import replace
+from pathlib import Path
+
 from app.core.benchmark import benchmark, derive_price
 from app.core.enums import DutyStatus, PriceKind, Reject, State, StockType
 from app.core.flags import CASE_PREMIUM, REVIEW_FLAGS, Flag
@@ -24,6 +28,15 @@ from app.core.models import Offer, SellerLine
 from app.market.units import (
     MEASURED_REGIONS, PREMIUM_CAVEAT, PREMIUM_EVIDENCE, case_pairs, derivation_allowed,
     derivation_note, is_measured_region)
+from app.market.vintage_band import band_flags, check_vintage_band, without_high_outliers
+
+REGISTER = Path(__file__).parents[1] / "docs/research/vintage-tiers.csv"
+
+
+def tiers(region: str = "BURGUNDY_RED") -> dict[int, int]:
+    with REGISTER.open(newline="", encoding="utf-8") as fh:
+        return {int(r["vintage"]): int(r["tier"])
+                for r in csv.DictReader(fh) if r["region"] == region}
 
 AS_OF = datetime(2026, 9, 23, 12, 0, tzinfo=timezone.utc)
 MUGNERET = "w-mugneret-gibourg-vosne"
@@ -395,3 +408,107 @@ def test_the_measurement_never_touches_a_price():
     assert result.comp_count == 1 and result.uk_floor == Decimal("1182.00")
     # The exact-unit 6-pack is the comp; the loose bottle is not derived over it.
     assert result.derived == [] and Flag.DERIVED_FROM_CASE not in result.flags
+
+
+# ===================================== decision 0023: source agreement, not the constant
+#
+# "Your flags.py comment argues against trusting the constant, and I agree -
+# the rule trusts source agreement, not the constant" - Doug, 7 October 2026.
+# DERIVED_FROM_CASE stops GATING (never stops being shown) once 2+ merchants'
+# comps agree with their own quality-matched neighbouring vintages. One comp
+# never qualifies, confirmed or not.
+
+RED = tiers()
+
+#: Bordeaux Index's own price curve for this wine and unit (same fixture as
+#: test_vintage_band.py's BI_NEIGHBOURS): a working band, 2016-2018.
+NEIGHBOURS_2020 = [
+    offer("bordeaux-index", "1489.00", pack_size=6, vintage=2016, merchant="Bordeaux Index"),
+    offer("bordeaux-index", "1543.00", pack_size=6, vintage=2016, merchant="Bordeaux Index"),
+    offer("bordeaux-index", "1489.00", pack_size=6, vintage=2017, merchant="Bordeaux Index"),
+    offer("bordeaux-index", "1520.00", pack_size=6, vintage=2017, merchant="Bordeaux Index"),
+    offer("bordeaux-index", "1223.00", pack_size=6, vintage=2018, merchant="Bordeaux Index"),
+]
+#: band_low=1223, band_high=1516 -> high edge 2046.60, low edge 794.95.
+
+
+def _benchmark_then_band(ln: SellerLine, comps: list[Offer], neighbours: list[Offer]):
+    """The real pipeline's own sequence (app.worker.jobs._benchmark_with_band,
+    and scripts/rerun_burgundy_proof.py): benchmark, check the band, maybe
+    re-benchmark without an excluded high outlier, then confirm derivation
+    agreement onto the line the result carries. Exercised here exactly as
+    the two real call sites exercise it, so a change to either drifts from
+    this test too."""
+    result = benchmark(ln, comps, as_of=AS_OF)
+    check = check_vintage_band(ln, result.comparables, neighbour_offers=neighbours,
+                              other_format_offers=(), as_of=AS_OF, tiers=RED)
+    flags = band_flags(check)
+    if flags or check.high_outliers:
+        ln = replace(ln, inherited_flags=flags)
+        kept = without_high_outliers(comps, check) if check.high_outliers else comps
+        result = benchmark(ln, kept, as_of=AS_OF)
+    if (Flag.DERIVED_FROM_CASE in result.flags and check.band_low is not None
+            and not check.high_outliers and not check.low_outliers):
+        result.line = replace(result.line, derivation_confirmed=True)
+    return result, check
+
+
+def test_two_comps_that_agree_with_the_band_stop_gating():
+    """One exact 6-pack ask, one derived from a loose bottle at the same
+    rate, both comfortably inside the 2016-2018 band (£794.95-£2,046.60):
+    DERIVED_FROM_CASE is still on the result, for display, but no longer
+    forces review — comp_count 2, and the band agrees."""
+    exact = offer("bordeaux-index", "1800.00", pack_size=6, vintage=2020, merchant="Bordeaux Index")
+    loose = offer("lea-sandeman", "295.00", pack_size=1, vintage=2020, merchant="Lea & Sandeman")
+    result, check = _benchmark_then_band(line(vintage=2020), [exact, loose], NEIGHBOURS_2020)
+
+    assert result.comp_count == 2
+    assert Flag.DERIVED_FROM_CASE in result.flags           # still shown
+    assert check.band_low == Decimal("1223.00") and check.high_outliers == [] and check.low_outliers == []
+    assert result.line.derivation_confirmed is True
+    assert result.state is State.READY                      # the actual point of 0023
+
+
+def test_one_derived_comp_never_qualifies_even_with_a_clean_band():
+    """"It stays gating with one comp" - stated explicitly, tested literally:
+    a single derived comp inside a perfectly clean band still goes to a
+    person, because there is no second source for it to agree WITH.
+    derivation_confirmed may still be True — it records only that the band
+    agreed, a fact independent of comp count; comp_count >= 2 is state's
+    own, separate condition, and it is THAT which must hold the line."""
+    loose = offer("lea-sandeman", "295.00", pack_size=1, vintage=2020, merchant="Lea & Sandeman")
+    result, check = _benchmark_then_band(line(vintage=2020), [loose], NEIGHBOURS_2020)
+
+    assert result.comp_count == 1
+    assert Flag.DERIVED_FROM_CASE in result.flags
+    assert check.band_low is not None and check.high_outliers == [] and check.low_outliers == []
+    assert result.state is State.REVIEW
+
+
+def test_a_high_outlier_refuses_the_exemption_it_would_otherwise_earn():
+    """2+ comps, but one is thrown out as too dear by the band: the comps did
+    not agree, so confirmation is refused even though comp_count was 2
+    going in. The line stays in review through COMP_EXCLUDED_VINTAGE_BAND
+    on its own merits, same as it always has."""
+    exact = offer("bordeaux-index", "1800.00", pack_size=6, vintage=2020, merchant="Bordeaux Index")
+    dear_loose = offer("lea-sandeman", "500.00", pack_size=1, vintage=2020, merchant="Lea & Sandeman")
+    result, check = _benchmark_then_band(line(vintage=2020), [exact, dear_loose], NEIGHBOURS_2020)
+
+    assert check.high_outliers != []
+    assert result.line.derivation_confirmed is False
+    assert result.state is State.REVIEW
+
+
+def test_no_band_refuses_the_exemption_rather_than_assuming_agreement():
+    """No tier for this region at all (invariant 18: no band, no flag) means
+    there is nothing to confirm agreement against - the exemption stays
+    refused, the same conservative default as the single-comp case, not a
+    free pass because nobody could check."""
+    exact = offer("bordeaux-index", "1800.00", pack_size=6, vintage=2020, merchant="Bordeaux Index")
+    loose = offer("lea-sandeman", "295.00", pack_size=1, vintage=2020, merchant="Lea & Sandeman")
+    result, check = _benchmark_then_band(line(vintage=2020), [exact, loose], [])  # no neighbours at all
+
+    assert result.comp_count == 2
+    assert check.band_low is None                            # band did not run
+    assert result.line.derivation_confirmed is False
+    assert result.state is State.REVIEW

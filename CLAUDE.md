@@ -46,9 +46,14 @@ The invariants, in short:
    records the pairs it meets so every region's evidence accumulates. Derived
    comps rank behind every exact-unit comp, are used only when fewer than two
    merchants hold the seller's own unit, and always flag the line
-   `DERIVED_FROM_CASE`, so a person sees them. Magnums and half bottles never
-   convert, either way. The core is told which lines qualify; it does not know
-   what a region is. See `docs/decisions/0016`, `0018`.
+   `DERIVED_FROM_CASE`, so a person sees them — except that the flag stops
+   *gating* (never stops being shown) once 2+ merchants' comps agree with
+   their own quality-matched neighbouring vintages (decision 0023: "trusts
+   source agreement, not the constant"); one comp never qualifies, and
+   neither does a line whose region has no vintage band at all. Magnums and
+   half bottles never convert, either way. The core is told which lines
+   qualify; it does not know what a region is. See `docs/decisions/0016`,
+   `0018`, `0023`.
 3. Depth counts merchants, not listings.
 4. Floor = lowest merchant-best · Reference = second-lowest (or the only one,
    flagged `ONE_COMP`) · Median = median of merchant-bests.
@@ -121,8 +126,11 @@ The invariants, in short:
 operator *review*: it is about evidence quality and commercial flags never go in
 it. `COMP_EXCLUDED_VINTAGE_BAND` and `LOW_COMP_OUT_OF_BAND` are in it (0015):
 they reach a run through `inherited_flags`, so the band can hold a line in
-review and can never release one. The buyer *export* is a separate gate; see
-invariant 12 and decision 0008.
+review and can never release one. `DERIVED_FROM_CASE` is the one named
+exception to "membership alone decides" (decision 0023): still a member,
+still gates a single comp, but `BenchmarkResult.state` — not this set —
+stops it gating a 2+-comp line once the band confirms agreement. The buyer
+*export* is a separate gate; see invariant 12 and decision 0008.
 
 A benchmark run is self-contained: it records every contributing capture and
 every offer exactly as used, so snapshots can be pruned without touching history.
@@ -158,10 +166,10 @@ INGEST → IDENTITY PROPOSAL → IDENTITY VERIFICATION → SNAPSHOT LOOKUP
 ## Testing
 
 ```bash
-python -m pytest -q                      # 337 pass, 148 skip; no network, no services
+python -m pytest -q                      # 341 pass, 148 skip; no network, no services
 docker compose up -d                     # Postgres + Redis, then:
 TEST_DATABASE_URL=postgresql://pricer:pricer@localhost:5432/pricer_test \
-TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q   # 485 pass
+TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q   # 489 pass
 python scripts/rerun_burgundy_proof.py   # expect READY 0  REVIEW 15  NO_MARKET 5
 python scripts/load_vintage_tiers.py    # the vintage register, from its CSV
 python scripts/case_premium_report.py   # what the collected pairs say CASE_PREMIUM is
