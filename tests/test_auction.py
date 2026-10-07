@@ -1,6 +1,6 @@
 """Operator-entered auction evidence: the pure derivation (offline) and the
 machinery (Postgres). Spec: docs/research/auction-evidence-form-spec.md.
-Decision 0023.
+Decision 0024.
 
 House style as in test_traps.py and test_vessel.py: name the rule and the
 size of the error the test prevents.
@@ -289,7 +289,7 @@ def test_house_not_in_allowed_list_is_refused(conn):
     from app.auction.evidence import InvalidAuctionEvidence
     operator_id = _operator(conn)
     wine_id = _wine(conn)
-    with pytest.raises(InvalidAuctionEvidence, match="0023"):
+    with pytest.raises(InvalidAuctionEvidence, match="0024"):
         _lot(conn, operator_id, wine_id, auction_house="SOTHEBYS")
 
     # And the database agrees, for any path that skips the Python guard.
@@ -305,7 +305,7 @@ def test_house_not_in_allowed_list_is_refused(conn):
 
 @pg
 def test_heritage_and_zachys_are_allowed_hand_entry_only(conn):
-    """Decision 0023: added over their own personal/non-commercial terms, on
+    """Decision 0024: added over their own personal/non-commercial terms, on
     Doug's explicit instruction. This proves they are allowed in the one
     mechanism that exists — hand entry — and nothing else; there is no
     scraper anywhere in this codebase for either house."""

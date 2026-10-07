@@ -361,7 +361,7 @@ const AUCTION_FORM_DEFAULT = {
   condition_notes: "", condition_flagged: false,
 };
 
-/** A health check, never a price (decision 0023): hand-entered from a
+/** A health check, never a price (decision 0024): hand-entered from a
  *  public results page, with a mandatory source URL. Never a scraper. */
 function AuctionEvidence({ health, lots, busy, onAdd, onRetract }) {
   const [open, setOpen] = useState(false);

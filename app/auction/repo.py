@@ -40,7 +40,7 @@ def record_auction_evidence(conn: psycopg.Connection, *, wine_id: str, vintage: 
     """
     if auction_house not in ALLOWED_HOUSES:
         raise InvalidAuctionEvidence(
-            f"{auction_house!r} is not an approved auction house (decision 0023); "
+            f"{auction_house!r} is not an approved auction house (decision 0024); "
             f"approved: {', '.join(sorted(ALLOWED_HOUSES))}")
     if not source_url.startswith("https://"):
         raise InvalidAuctionEvidence("Source URL is required — evidence without a source cannot be checked")

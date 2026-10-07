@@ -282,14 +282,14 @@ lines, drops, payments, seller-receipt confirmation, the commission
 invoice, analytics). Four page routes in `web/app/vessel/` cover the five
 specified screens.
 
-`app/auction/` is operator-entered auction evidence (decision 0023), never
+`app/auction/` is operator-entered auction evidence (decision 0024), never
 a scraper: a person reads a public lot page and types six facts in, with a
 mandatory source URL. It is a health check, never a price — it never sets,
 moves or substitutes for the UK Floor, Reference or Median, and nothing
 under `app/core/` or `app/pricing/` imports it, checked statically, not by
 convention. The closed house list is `BONHAMS`, `CHRISTIES`, `HERITAGE`,
 `ZACHYS` — the last two added over their own stated personal/non-commercial
-terms, on Doug's explicit instruction; said out loud in decision 0023, not
+terms, on Doug's explicit instruction; said out loud in decision 0024, not
 done quietly. Nothing here scrapes any of the four houses' sites; Heritage's
 terms separately and additionally prohibit automated collection outright,
 which this does not touch. `auction_result` (`0001_baseline`) is an earlier,

@@ -1,4 +1,4 @@
-# 0023 — Operator-entered auction evidence: Bonhams, Christie's, Heritage, Zachys
+# 0024 — Operator-entered auction evidence: Bonhams, Christie's, Heritage, Zachys
 
 **Status:** accepted, 7 October 2026. Builds the auction layer CLAUDE.md has
 named as "not built yet" since this file began; follows

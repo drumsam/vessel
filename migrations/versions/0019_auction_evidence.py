@@ -1,6 +1,6 @@
 """Operator-entered auction evidence: Bonhams, Christie's, Heritage, Zachys.
 
-Decision 0023. Spec: docs/research/auction-evidence-form-spec.md, corrected
+Decision 0024. Spec: docs/research/auction-evidence-form-spec.md, corrected
 on the same two points this session already corrected elsewhere: uuid, not
 bigserial (every other table in this schema is uuid — decision 0020 already
 made this exact fix for seller_offer); and entered_by/retracted_by are
@@ -17,7 +17,7 @@ The closed house list widens the spec's original two (BONHAMS, CHRISTIES)
 to four: HERITAGE and ZACHYS are added on Doug's explicit instruction,
 7 October 2026, over the terms audit's own finding that both houses
 restrict use to personal/non-commercial — said out loud, not done quietly
-(decision 0023). This stays hand-entry only, never a scraper: nothing here
+(decision 0024). This stays hand-entry only, never a scraper: nothing here
 automates collection from any of the four houses' sites.
 
 Revision ID: 0019_auction_evidence

@@ -29,7 +29,7 @@ CENT = Decimal("0.01")
 
 #: Closed list. The spec's own audit cleared BONHAMS and CHRISTIES by their
 #: terms; HERITAGE and ZACHYS are here over their stated restriction, on
-#: Doug's explicit instruction (decision 0023). Adding a fifth house needs
+#: Doug's explicit instruction (decision 0024). Adding a fifth house needs
 #: the same: a decision record, not a quiet edit here.
 ALLOWED_HOUSES: frozenset[str] = frozenset({"BONHAMS", "CHRISTIES", "HERITAGE", "ZACHYS"})
 
