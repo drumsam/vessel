@@ -158,10 +158,10 @@ INGEST → IDENTITY PROPOSAL → IDENTITY VERIFICATION → SNAPSHOT LOOKUP
 ## Testing
 
 ```bash
-python -m pytest -q                      # 327 pass, 140 skip; no network, no services
+python -m pytest -q                      # 337 pass, 148 skip; no network, no services
 docker compose up -d                     # Postgres + Redis, then:
 TEST_DATABASE_URL=postgresql://pricer:pricer@localhost:5432/pricer_test \
-TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q   # 467 pass
+TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q   # 485 pass
 python scripts/rerun_burgundy_proof.py   # expect READY 0  REVIEW 15  NO_MARKET 5
 python scripts/load_vintage_tiers.py    # the vintage register, from its CSV
 python scripts/case_premium_report.py   # what the collected pairs say CASE_PREMIUM is
@@ -282,9 +282,22 @@ lines, drops, payments, seller-receipt confirmation, the commission
 invoice, analytics). Four page routes in `web/app/vessel/` cover the five
 specified screens.
 
+`app/auction/` is operator-entered auction evidence (decision 0023), never
+a scraper: a person reads a public lot page and types six facts in, with a
+mandatory source URL. It is a health check, never a price — it never sets,
+moves or substitutes for the UK Floor, Reference or Median, and nothing
+under `app/core/` or `app/pricing/` imports it, checked statically, not by
+convention. The closed house list is `BONHAMS`, `CHRISTIES`, `HERITAGE`,
+`ZACHYS` — the last two added over their own stated personal/non-commercial
+terms, on Doug's explicit instruction; said out loud in decision 0023, not
+done quietly. Nothing here scrapes any of the four houses' sites; Heritage's
+terms separately and additionally prohibit automated collection outright,
+which this does not touch. `auction_result` (`0001_baseline`) is an earlier,
+unused design for the same idea, imported by nothing; left in place because
+baseline is frozen, not because it is live.
+
 Not built yet: the LWIN import (decision 0012 — waiting on the file), Albany and
-Vinum, the remaining merchant adapters, the auction evidence form (spec in
-`docs/research/`), AI provider implementations, the auction layer. A client-
+Vinum, the remaining merchant adapters, AI provider implementations. A client-
 and buyer-facing exported document (HTML/PDF) is specified
 (`docs/research/` build brief, 5 October 2026) but not built: it needs a
 design decision this file does not make alone. The vintage register covers

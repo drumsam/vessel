@@ -225,6 +225,77 @@ class RunSummary(_Out):
 LineState = Literal["IDENTITY_NOT_APPROVED", "NOT_SEARCHED", "READY", "REVIEW", "NO_MARKET"]
 
 
+AuctionHouse = Literal["BONHAMS", "CHRISTIES", "HERITAGE", "ZACHYS"]
+AmountBasis = Literal["HAMMER", "BUYER_PREMIUM_INCLUSIVE"]
+
+
+class AuctionEvidenceIn(_In):
+    """One lot, hand-entered from a public results page. wine_id, vintage
+    and bottle_ml come from the line's own approved identity server-side —
+    this form does not carry them, so a mismatched paste cannot attach
+    evidence to the wrong wine."""
+    auction_house: AuctionHouse
+    sale_date: date
+    lot_ref: str = Field(min_length=1)
+    source_url: str = Field(min_length=1, pattern=r"^https://")
+    bottles_in_lot: int = Field(gt=0)
+    currency: Currency
+    amount: PositiveMoney
+    amount_basis: AmountBasis
+    premium_rate: Optional[Decimal] = Field(default=None, gt=0, lt=1)
+    fx_rate: Optional[Decimal] = Field(default=None, gt=0)
+    fx_source: Optional[str] = None
+    is_mixed_lot: bool = False
+    condition_notes: Optional[str] = None
+    condition_flagged: bool = False
+
+
+class AuctionEvidenceOut(_Out):
+    auction_evidence_id: UUID
+    wine_id: UUID
+    vintage: int
+    bottle_ml: int
+    bottles_in_lot: int
+    auction_house: str
+    sale_date: date
+    lot_ref: str
+    source_url: str
+    currency: str
+    amount: Money
+    amount_basis: str
+    premium_rate: Optional[Decimal]
+    #: Absent when the lot is non-GBP and no FX rate was given — never
+    #: estimated, shown to the operator as "FX unavailable".
+    hammer_gbp: Optional[Money]
+    fx_rate: Optional[Decimal]
+    fx_source: Optional[str]
+    is_mixed_lot: bool
+    condition_notes: Optional[str]
+    condition_flagged: bool
+    quarantined: bool
+    entered_by: OperatorRef
+    entered_at: datetime
+    retracted_at: Optional[datetime]
+    retracted_by: Optional[OperatorRef]
+    retraction_reason: Optional[str]
+
+
+class AuctionRetractIn(_In):
+    reason: str = Field(min_length=1)
+
+
+class AuctionHealthOut(_Out):
+    """The read side (spec): a count, a median, a date range and the source
+    links — never a figure that could be mistaken for a price."""
+    lot_count: int
+    median_per_bottle_gbp: Optional[Money]
+    earliest_sale_date: Optional[date]
+    latest_sale_date: Optional[date]
+    source_urls: list[str]
+    flag: Optional[Literal["AUCTION_BELOW_REFERENCE"]]
+    note: Optional[str]
+
+
 class AcknowledgementOut(_Out):
     ack_id: UUID
     flags: list[str]

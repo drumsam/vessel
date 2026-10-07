@@ -8,6 +8,8 @@ import { Flags } from "../../state";
 export default function LineDetail({ lineId, line, onChange }) {
   const [run, setRun] = useState(null);
   const [wines, setWines] = useState([]);
+  const [auctionHealth, setAuctionHealth] = useState(null);
+  const [auctionLots, setAuctionLots] = useState([]);
   const [identity, setIdentity] = useState({
     wine_id: line?.wine_id || "", vintage: line?.vintage || "",
     bottle_ml: line?.bottle_ml || 750, pack_size: line?.pack_size || 1,
@@ -19,8 +21,38 @@ export default function LineDetail({ lineId, line, onChange }) {
   const load = useCallback(() => {
     api.get(`/lines/${lineId}/benchmark`).then(setRun).catch(() => setRun(null));
     api.get("/wines").then(setWines).catch(() => {});
+    api.get(`/lines/${lineId}/auction-health`).then(setAuctionHealth).catch(() => setAuctionHealth(null));
+    api.get(`/lines/${lineId}/auction-evidence`).then(setAuctionLots).catch(() => setAuctionLots([]));
   }, [lineId]);
   useEffect(load, [load]);
+
+  async function addAuctionEvidence(body) {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(`/lines/${lineId}/auction-evidence`, body);
+      load();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function retractAuctionEvidence(auctionEvidenceId) {
+    const reason = window.prompt("Why is this lot being retracted? Kept, not deleted.");
+    if (!reason) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(`/auction-evidence/${auctionEvidenceId}/retract`, { reason });
+      load();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function save(event) {
     event.preventDefault();
@@ -248,6 +280,9 @@ export default function LineDetail({ lineId, line, onChange }) {
           </div>
         </>
       )}
+
+      <AuctionEvidence health={auctionHealth} lots={auctionLots} busy={busy}
+                       onAdd={addAuctionEvidence} onRetract={retractAuctionEvidence} />
     </div>
   );
 }
@@ -312,6 +347,244 @@ function VintageBand({ band, onReinstate, busy }) {
           {new Date(x.reinstated_at).toLocaleDateString("en-GB")} — {x.reinstated_reason}
         </p>
       ))}
+    </div>
+  );
+}
+
+
+const AUCTION_HOUSES = ["BONHAMS", "CHRISTIES", "HERITAGE", "ZACHYS"];
+
+const AUCTION_FORM_DEFAULT = {
+  auction_house: "BONHAMS", sale_date: "", lot_ref: "", source_url: "",
+  bottles_in_lot: "", currency: "GBP", amount: "", amount_basis: "HAMMER",
+  premium_rate: "", fx_rate: "", fx_source: "", is_mixed_lot: false,
+  condition_notes: "", condition_flagged: false,
+};
+
+/** A health check, never a price (decision 0023): hand-entered from a
+ *  public results page, with a mandatory source URL. Never a scraper. */
+function AuctionEvidence({ health, lots, busy, onAdd, onRetract }) {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState(AUCTION_FORM_DEFAULT);
+  const [formError, setFormError] = useState(null);
+
+  async function submit(event) {
+    event.preventDefault();
+    if (!form.source_url.trim()) {
+      setFormError("Source URL is required — evidence without a source cannot be checked.");
+      return;
+    }
+    if (form.amount_basis === "BUYER_PREMIUM_INCLUSIVE" && !form.premium_rate) {
+      setFormError("Premium rate is required when the price includes buyer's premium.");
+      return;
+    }
+    setFormError(null);
+    await onAdd({
+      auction_house: form.auction_house, sale_date: form.sale_date, lot_ref: form.lot_ref,
+      source_url: form.source_url, bottles_in_lot: Number(form.bottles_in_lot),
+      currency: form.currency, amount: form.amount, amount_basis: form.amount_basis,
+      premium_rate: form.amount_basis === "BUYER_PREMIUM_INCLUSIVE"
+        ? String(Number(form.premium_rate) / 100) : null,
+      fx_rate: form.currency === "GBP" ? null : (form.fx_rate || null),
+      fx_source: form.currency === "GBP" ? null : (form.fx_source || null),
+      is_mixed_lot: form.is_mixed_lot, condition_notes: form.condition_notes || null,
+      condition_flagged: form.condition_flagged,
+    });
+    setForm(AUCTION_FORM_DEFAULT);
+    setOpen(false);
+  }
+
+  const longPaste = form.condition_notes.length > 280;
+
+  return (
+    <div style={{ marginTop: 12 }}>
+      <h2>Auction evidence</h2>
+      <p className="muted" style={{ fontSize: 13 }}>
+        A health check, not a price — it never sets, moves or substitutes for the Floor,
+        Reference or Median, and never appears on a client document.
+      </p>
+
+      {health && (
+        health.lot_count === 0 ? (
+          <p className="muted">{health.note || "No auction evidence entered for this wine yet."}</p>
+        ) : (
+          <>
+            <p>
+              {health.lot_count} lot(s) · median {money(health.median_per_bottle_gbp)}/btl hammer
+              {health.earliest_sale_date && health.latest_sale_date && (
+                health.earliest_sale_date === health.latest_sale_date
+                  ? ` · ${health.earliest_sale_date}`
+                  : ` · ${health.earliest_sale_date} to ${health.latest_sale_date}`
+              )}
+            </p>
+            {health.note && <p className="muted">{health.note}</p>}
+            {health.flag && (
+              <p className="notice" style={{ fontSize: 13 }}>
+                Median auction hammer sits more than 10% below the UK Reference — advice,
+                never a gate and never a price.
+              </p>
+            )}
+          </>
+        )
+      )}
+
+      {lots.length > 0 && (
+        <div className="scroll" style={{ marginTop: 8 }}>
+          <table>
+            <thead>
+              <tr>
+                <th>House</th><th>Sale date</th><th>Lot</th><th className="num">Bottles</th>
+                <th className="num">Hammer GBP</th><th>Source</th><th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {lots.map((l) => (
+                <tr key={l.auction_evidence_id} style={{ opacity: l.retracted_at ? 0.5 : 1 }}>
+                  <td>{l.auction_house}</td>
+                  <td>{l.sale_date}</td>
+                  <td>{l.lot_ref}{l.quarantined && <div className="muted">quarantined</div>}</td>
+                  <td className="num">{l.bottles_in_lot}</td>
+                  <td className="num">{l.hammer_gbp ? money(l.hammer_gbp) : "FX unavailable"}</td>
+                  <td><a href={l.source_url} target="_blank" rel="noreferrer">lot page</a></td>
+                  <td>
+                    {l.retracted_at ? (
+                      <span className="muted" style={{ fontSize: 12 }}>
+                        retracted by {l.retracted_by?.display_name} — {l.retraction_reason}
+                      </span>
+                    ) : (
+                      <button type="button" className="small" disabled={busy}
+                              onClick={() => onRetract(l.auction_evidence_id)}>
+                        Retract
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {!open ? (
+        <button type="button" className="small" style={{ marginTop: 8 }} onClick={() => setOpen(true)}>
+          Add auction evidence
+        </button>
+      ) : (
+        <form onSubmit={submit} className="card" style={{ marginTop: 8 }}>
+          {formError && <div className="notice bad">{formError}</div>}
+          <div className="row">
+            <div>
+              <label htmlFor="house">House</label>
+              <select id="house" value={form.auction_house}
+                      onChange={(e) => setForm({ ...form, auction_house: e.target.value })}>
+                {AUCTION_HOUSES.map((h) => <option key={h} value={h}>{h}</option>)}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="sale_date">Sale date</label>
+              <input id="sale_date" type="date" required value={form.sale_date}
+                     onChange={(e) => setForm({ ...form, sale_date: e.target.value })} />
+            </div>
+            <div className="grow">
+              <label htmlFor="lot_ref">Lot ref</label>
+              <input id="lot_ref" required value={form.lot_ref}
+                     onChange={(e) => setForm({ ...form, lot_ref: e.target.value })} />
+            </div>
+          </div>
+          <label htmlFor="source_url">Source URL</label>
+          <input id="source_url" type="url" required placeholder="https://..."
+                 value={form.source_url}
+                 onChange={(e) => setForm({ ...form, source_url: e.target.value })} />
+
+          <div className="row" style={{ marginTop: 10 }}>
+            <div style={{ width: 110 }}>
+              <label htmlFor="bottles">Lot size (btl)</label>
+              <input id="bottles" inputMode="numeric" required value={form.bottles_in_lot}
+                     onChange={(e) => setForm({ ...form, bottles_in_lot: e.target.value })} />
+            </div>
+            <div style={{ width: 110 }}>
+              <label htmlFor="currency">Currency</label>
+              <input id="currency" required value={form.currency}
+                     onChange={(e) => setForm({ ...form, currency: e.target.value.toUpperCase() })} />
+            </div>
+            <div className="grow">
+              <label htmlFor="amount">Amount</label>
+              <input id="amount" inputMode="decimal" required value={form.amount}
+                     onChange={(e) => setForm({ ...form, amount: e.target.value })} />
+            </div>
+            <div>
+              <label htmlFor="basis">Basis</label>
+              <select id="basis" value={form.amount_basis}
+                      onChange={(e) => setForm({ ...form, amount_basis: e.target.value })}>
+                <option value="HAMMER">Hammer</option>
+                <option value="BUYER_PREMIUM_INCLUSIVE">Including premium</option>
+              </select>
+            </div>
+            {form.amount_basis === "BUYER_PREMIUM_INCLUSIVE" && (
+              <div style={{ width: 110 }}>
+                <label htmlFor="premium">Premium %</label>
+                <input id="premium" inputMode="decimal" required value={form.premium_rate}
+                       onChange={(e) => setForm({ ...form, premium_rate: e.target.value })} />
+              </div>
+            )}
+          </div>
+
+          {form.currency !== "GBP" && (
+            <div className="row" style={{ marginTop: 10 }}>
+              <div>
+                <label htmlFor="fx_rate">FX rate to GBP</label>
+                <input id="fx_rate" inputMode="decimal" value={form.fx_rate}
+                       onChange={(e) => setForm({ ...form, fx_rate: e.target.value })} />
+              </div>
+              <div className="grow">
+                <label htmlFor="fx_source">FX source</label>
+                <input id="fx_source" value={form.fx_source}
+                       onChange={(e) => setForm({ ...form, fx_source: e.target.value })} />
+              </div>
+            </div>
+          )}
+          <p className="muted" style={{ fontSize: 12 }}>
+            Leave FX blank if you don&rsquo;t have a rate for this date — the lot is still
+            recorded, just not converted. Never a guess.
+          </p>
+
+          <div className="row" style={{ marginTop: 10 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <input type="checkbox" checked={form.is_mixed_lot}
+                     onChange={(e) => setForm({ ...form, is_mixed_lot: e.target.checked })} />
+              Mixed lot
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <input type="checkbox" checked={form.condition_flagged}
+                     onChange={(e) => setForm({ ...form, condition_flagged: e.target.checked })} />
+              Condition noted
+            </label>
+          </div>
+          {form.is_mixed_lot && (
+            <p className="muted" style={{ fontSize: 12 }}>
+              Mixed lots are recorded but excluded from the health check.
+            </p>
+          )}
+
+          <label htmlFor="condition_notes">Condition, in your own words</label>
+          <textarea id="condition_notes" rows={2} value={form.condition_notes}
+                    onChange={(e) => setForm({ ...form, condition_notes: e.target.value })} />
+          {longPaste && (
+            <p className="notice" style={{ fontSize: 12 }}>
+              Record the facts in your own words. Catalogue descriptions are the auction
+              house&rsquo;s copyright.
+            </p>
+          )}
+
+          <div className="row" style={{ marginTop: 10 }}>
+            <button type="submit" disabled={busy}>Save lot</button>
+            <button type="button" className="small" disabled={busy}
+                    onClick={() => { setOpen(false); setForm(AUCTION_FORM_DEFAULT); setFormError(null); }}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
     </div>
   );
 }

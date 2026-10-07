@@ -23,6 +23,8 @@ from app.api.deps import current_operator, db, queue
 from app.api.deps import translate as _translate
 from app.api.vessel import operator_router as vessel_operator_router
 from app.api.vessel import router as vessel_router
+from app.auction import repo as auction_repo
+from app.auction.evidence import InvalidAuctionEvidence
 from app.core.enums import StockType
 from app.db import repo
 from app.market.parcel import SAME_PRICE_AS_ANOTHER_MERCHANT
@@ -318,6 +320,84 @@ def get_line_pricing(line_id: UUID, conn: psycopg.Connection = Depends(db)):
     if pricing is None:
         raise HTTPException(404, "line has not been priced")
     return _pricing_out(conn, pricing)
+
+
+# --------------------------------------------------------------- auction evidence
+
+
+@protected.post("/lines/{line_id}/auction-evidence", response_model=s.AuctionEvidenceOut)
+def add_auction_evidence(line_id: UUID, body: s.AuctionEvidenceIn,
+                         conn: psycopg.Connection = Depends(db),
+                         operator: dict = Depends(current_operator)):
+    """A person reading a public results page and typing in six facts, with
+    a mandatory source URL — never a scraper. wine_id/vintage/bottle_ml come
+    from the line's own approved identity, never from the request body."""
+    line = repo.get_line(conn, str(line_id))
+    if line is None:
+        raise HTTPException(404, "line not found")
+    if line["wine_id"] is None:
+        raise HTTPException(422, "line has no approved identity yet")
+    try:
+        with conn.transaction():
+            row = auction_repo.record_auction_evidence(
+                conn, wine_id=str(line["wine_id"]), vintage=line["vintage"],
+                bottle_ml=line["bottle_ml"], bottles_in_lot=body.bottles_in_lot,
+                auction_house=body.auction_house, sale_date=body.sale_date,
+                lot_ref=body.lot_ref, source_url=body.source_url, currency=body.currency,
+                amount=body.amount, amount_basis=body.amount_basis,
+                premium_rate=body.premium_rate, fx_rate=body.fx_rate, fx_source=body.fx_source,
+                is_mixed_lot=body.is_mixed_lot, condition_notes=body.condition_notes,
+                condition_flagged=body.condition_flagged,
+                entered_by=operator["operator_id"])
+    except InvalidAuctionEvidence as e:
+        raise HTTPException(422, str(e))
+    except psycopg.Error as e:
+        raise _translate(e)
+    return _op(conn, row, "entered_by", "retracted_by")
+
+
+@protected.get("/lines/{line_id}/auction-evidence", response_model=list[s.AuctionEvidenceOut])
+def get_line_auction_evidence(line_id: UUID, include_retracted: bool = False,
+                              conn: psycopg.Connection = Depends(db)):
+    line = repo.get_line(conn, str(line_id))
+    if line is None:
+        raise HTTPException(404, "line not found")
+    if line["wine_id"] is None:
+        return []
+    rows = auction_repo.evidence_for_wine(conn, str(line["wine_id"]), line["vintage"],
+                                          line["bottle_ml"], include_retracted=include_retracted)
+    return _ops(conn, rows, "entered_by", "retracted_by")
+
+
+@protected.post("/auction-evidence/{auction_evidence_id}/retract",
+                response_model=s.AuctionEvidenceOut)
+def retract_auction_evidence(auction_evidence_id: UUID, body: s.AuctionRetractIn,
+                             conn: psycopg.Connection = Depends(db),
+                             operator: dict = Depends(current_operator)):
+    try:
+        with conn.transaction():
+            row = auction_repo.retract_auction_evidence(
+                conn, str(auction_evidence_id), retracted_by=operator["operator_id"],
+                reason=body.reason)
+    except LookupError as e:
+        raise HTTPException(404, str(e))
+    except InvalidAuctionEvidence as e:
+        raise HTTPException(422, str(e))
+    return _op(conn, row, "entered_by", "retracted_by")
+
+
+@protected.get("/lines/{line_id}/auction-health", response_model=s.AuctionHealthOut)
+def get_line_auction_health(line_id: UUID, conn: psycopg.Connection = Depends(db)):
+    """Opened from a line in the review queue. Works for a NO_MARKET line
+    too — the note says plainly that auction evidence is not a price."""
+    run = repo.latest_run(conn, str(line_id))
+    uk_reference_per_bottle = Decimal(str(run["uk_reference"])) if run and run["uk_reference"] else None
+    try:
+        health = auction_repo.line_auction_health(
+            conn, str(line_id), uk_reference_per_bottle=uk_reference_per_bottle)
+    except LookupError as e:
+        raise HTTPException(422, str(e))
+    return health
 
 
 # ------------------------------------------------------------ LWIN conflicts
