@@ -493,7 +493,7 @@ CREATE TABLE benchmark_comp (
     run_id         uuid NOT NULL REFERENCES benchmark_run(run_id) ON DELETE CASCADE,
     offer_pk       uuid REFERENCES offer(offer_pk) ON DELETE SET NULL,
     role           text NOT NULL CHECK (role IN ('comparable','merchant_best','cross_unit',
-                                                 'indication','rejected')),
+                                                 'indication','bid','last_trade','rejected')),
     reject_reason  text,
     offer_snapshot jsonb NOT NULL,
     UNIQUE (run_id, offer_pk, role),

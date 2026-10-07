@@ -26,7 +26,12 @@ added. The adapter contract may evolve; this must not.
      exemption. Magnums and half bottles never convert, in either direction.
      A brokerage INDICATION is excluded by the KIND screen in the same way and
      returned as corroboration: a price nobody has offered stock at cannot be a
-     Floor, a Reference or a Median. See docs/decisions/0013.
+     Floor, a Reference or a Median. See docs/decisions/0013. A two-sided
+     market's BID and LAST_TRADE are excluded by the same screen for the same
+     reason and returned the same way (decision 0026): a bid is demand, not
+     stock on offer, and a last trade is a historical fact, not a live ask —
+     neither is ever a Floor, a Reference or a Median, however much better
+     the evidence is than an ordinary ask. See docs/decisions/0026.
   4. Market depth is counted in MERCHANTS. A merchant that lists the same wine
      twice never becomes its own second-lowest reference.
   5. Floor = lowest merchant-best. Reference = second-lowest merchant-best, or
@@ -112,6 +117,32 @@ class IndicationEvidence:
     """
     offer: Offer
     variance_vs_reference: Optional[Decimal]     # (indication - reference) / reference
+
+
+@dataclass(frozen=True)
+class BidEvidence:
+    """A two-sided market's best bid: executable demand, not an ask (decision
+    0026). Corroboration, never a price — the KIND screen excludes it from
+    Floor, Reference and Median exactly as it excludes an INDICATION — but a
+    real counterparty has committed to this one, which an indication never
+    has. Shown to the operator, never on a client document.
+    """
+    offer: Offer
+    variance_vs_reference: Optional[Decimal]
+
+
+@dataclass(frozen=True)
+class LastTradeEvidence:
+    """Money that actually changed hands, with its date (decision 0026): the
+    strongest single number a two-sided market publishes, because it is the
+    only one that is provably not aspirational. Still never a price here —
+    corroboration only. Not screened for freshness the way an ASK or a BID
+    is: its whole value is as a dated historical fact, and the date is
+    carried so staleness is visible to the operator rather than hidden by a
+    cutoff that would simply drop it.
+    """
+    offer: Offer
+    variance_vs_reference: Optional[Decimal]
 
 
 @dataclass(frozen=True)
@@ -204,6 +235,11 @@ class BenchmarkResult:
     rejections: list[Rejection] = field(default_factory=list)
     cross_unit: list[CrossUnitEvidence] = field(default_factory=list)
     indications: list[IndicationEvidence] = field(default_factory=list)
+    #: A two-sided market's best bid and last executed trade (decision
+    #: 0026) — corroboration, same discipline as indications: never Floor,
+    #: Reference or Median, never a client document.
+    bids: list[BidEvidence] = field(default_factory=list)
+    last_trades: list[LastTradeEvidence] = field(default_factory=list)
     #: Comparables derived across case sizes, and used: empty unless the exact
     #: unit had fewer than two merchants (decision 0016).
     derived: list[DerivedComp] = field(default_factory=list)
@@ -308,6 +344,48 @@ def _is_indication(line: SellerLine, o: Offer, as_of: datetime) -> bool:
     )
 
 
+def _is_bid(line: SellerLine, o: Offer, as_of: datetime) -> bool:
+    """Right wine, vintage, format and duty status, and a live two-sided
+    market's best bid (decision 0026). Buyability is not required: a bid
+    is demand, the opposite direction from stock on offer, so "is this
+    buyable" does not describe it the way it describes an ask."""
+    return (
+        o.price_kind is PriceKind.BID
+        and o.wine_id == line.wine_id
+        and not o.is_mixed_lot
+        and o.vintage == line.vintage
+        and o.bottle_ml == line.bottle_ml
+        and o.pack_size == line.pack_size
+        and o.duty_status is DutyStatus.IN_BOND
+        and o.currency == GBP
+        and o.price is not None
+        and o.price > Decimal("0")
+        and o.price == o.price.quantize(CENT)
+        and _is_fresh(o, as_of)
+    )
+
+
+def _is_last_trade(line: SellerLine, o: Offer, as_of: datetime) -> bool:
+    """Right wine, vintage, format and duty status, and a dated record of
+    money that actually changed hands (decision 0026). Freshness is NOT
+    checked: a last trade's value is as a dated historical fact, and an
+    old one (BI's own Krug GC 1x150cl last traded January 2025) is still
+    shown, with its date, rather than silently dropped."""
+    return (
+        o.price_kind is PriceKind.LAST_TRADE
+        and o.wine_id == line.wine_id
+        and not o.is_mixed_lot
+        and o.vintage == line.vintage
+        and o.bottle_ml == line.bottle_ml
+        and o.pack_size == line.pack_size
+        and o.duty_status is DutyStatus.IN_BOND
+        and o.currency == GBP
+        and o.price is not None
+        and o.price > Decimal("0")
+        and o.price == o.price.quantize(CENT)
+    )
+
+
 def _is_cross_unit(line: SellerLine, o: Offer, as_of: datetime) -> bool:
     """Right wine, right vintage, right bottle size, wrong commercial unit —
     and otherwise a valid, fresh In Bond ask."""
@@ -339,6 +417,8 @@ def benchmark(line: SellerLine, offers: Iterable[Offer], *, as_of: datetime) -> 
     result.flags |= line.inherited_flags
 
     indications: list[Offer] = []
+    bids: list[Offer] = []
+    last_trades: list[Offer] = []
     derivable: list[Offer] = []
     for o in offers:
         reason = _screen(line, o, as_of)
@@ -360,6 +440,10 @@ def benchmark(line: SellerLine, offers: Iterable[Offer], *, as_of: datetime) -> 
             # first. Either way it is still corroboration, and the predicate
             # itself admits nothing but an INDICATION.
             indications.append(o)
+        elif _is_bid(line, o, as_of):
+            bids.append(o)
+        elif _is_last_trade(line, o, as_of):
+            last_trades.append(o)
 
     # --- depth in merchants, not listings -------------------------------
     best: dict[str, Offer] = {}
@@ -408,14 +492,27 @@ def benchmark(line: SellerLine, offers: Iterable[Offer], *, as_of: datetime) -> 
     if any(o.offer_id in derived_ids for o in result.merchant_bests):
         result.flags.add(Flag.DERIVED_FROM_CASE)
 
-    def with_variance(reference: Optional[Decimal]) -> list[IndicationEvidence]:
-        return [IndicationEvidence(offer=o,
-                                   variance_vs_reference=((o.price - reference) / reference)
-                                   if reference else None)
-                for o in sorted(indications, key=lambda x: x.price)]
+    def with_variance(evidence_cls, offers_list, reference: Optional[Decimal]):
+        return [evidence_cls(offer=o,
+                            variance_vs_reference=((o.price - reference) / reference)
+                            if reference else None)
+                for o in sorted(offers_list, key=lambda x: x.price)]
+
+    # A two-sided market's own bid and ask disagreeing by too much (decision
+    # 0026) — informational, computed per merchant, before the early return,
+    # so it is caught even on an otherwise NO_MARKET line (no ask at all,
+    # only a bid, is not this case; this is specifically "both exist, and
+    # disagree").
+    asks_by_merchant = {o.merchant_id: o for o in result.comparables}
+    for b in bids:
+        ask = asks_by_merchant.get(b.merchant_id)
+        if ask is not None and b.price > 0 and (ask.price - b.price) / b.price > Decimal(str(WIDE_SPREAD_THRESHOLD)):
+            result.flags.add(Flag.TWO_SIDED_WIDE_SPREAD)
 
     if not result.merchant_bests:
-        result.indications = with_variance(None)
+        result.indications = with_variance(IndicationEvidence, indications, None)
+        result.bids = with_variance(BidEvidence, bids, None)
+        result.last_trades = with_variance(LastTradeEvidence, last_trades, None)
         result.flags.add(Flag.NO_MARKET)
         return result
 
@@ -437,7 +534,9 @@ def benchmark(line: SellerLine, offers: Iterable[Offer], *, as_of: datetime) -> 
 
     result.oldest_comp_age = as_of - min(o.captured_at for o in result.merchant_bests)
 
-    result.indications = with_variance(result.uk_reference)
+    result.indications = with_variance(IndicationEvidence, indications, result.uk_reference)
+    result.bids = with_variance(BidEvidence, bids, result.uk_reference)
+    result.last_trades = with_variance(LastTradeEvidence, last_trades, result.uk_reference)
 
     covering = [o for o in result.merchant_bests
                 if o.offered_units is None or o.offered_units >= line.quantity]

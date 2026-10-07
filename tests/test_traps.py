@@ -29,7 +29,7 @@ from app.adapters.lw_trading import (
     parse_price)
 from app.core.benchmark import benchmark as _benchmark
 from app.core.enums import ConditionFlag, DutyStatus, PriceKind, Reject, State, StockType
-from app.core.flags import MAX_OFFER_AGE_DAYS, REVIEW_FLAGS, Flag
+from app.core.flags import MAX_OFFER_AGE_DAYS, REVIEW_FLAGS, WIDE_SPREAD_THRESHOLD, Flag
 from app.core.models import Offer, SellerLine
 from app.market.parcel import SAME_PRICE_AS_ANOTHER_MERCHANT, price_coincidences
 from app.worker.politeness import allowed, crawl_delay
@@ -775,6 +775,119 @@ def test_an_indication_for_something_else_is_not_corroboration(kw):
     """Corroboration has to be of the same thing, or it corroborates nothing."""
     r = benchmark(line(), [indication(**kw), offer(merchant_id="farr")])
     assert r.indications == []
+
+
+# ------------------------------- Bordeaux Index LiveTrade: bid, offer, last
+# trade
+#
+# docs/research/bi-livetrade-champagne-findings.md, 7 October 2026. Krug
+# 167e: bid £908, offer £977, last trade £904 (14/09/2026) — a real,
+# liquid two-sided market. Krug 162e: bid £660 against offer £1,596 on the
+# same 6x75cl listing, a 142% spread — two people a long way apart, not a
+# market a midpoint could honestly summarise. See docs/decisions/0026.
+
+def bid(**kw) -> Offer:
+    base = dict(offer_id="bi-bid:1", merchant_id="bordeaux-index", merchant="Bordeaux Index",
+               price=Decimal("908.00"), price_kind=PriceKind.BID)
+    base.update(kw)
+    return offer(**base)
+
+
+def last_trade(**kw) -> Offer:
+    base = dict(offer_id="bi-trade:1", merchant_id="bordeaux-index", merchant="Bordeaux Index",
+               price=Decimal("904.00"), price_kind=PriceKind.LAST_TRADE)
+    base.update(kw)
+    return offer(**base)
+
+
+def test_a_bid_can_never_become_the_uk_reference():
+    """Krug 167e: a £908 bid beside Farr's £950 and Bordeaux Index's own
+    £977 offer. The bid is real, executable demand — and still never prices
+    anything; only the two asks compete for Floor and Reference."""
+    r = benchmark(line(), [bid(price=Decimal("908.00")),
+                          offer(merchant_id="farr", price=Decimal("950.00")),
+                          offer(merchant_id="bordeaux-index", price=Decimal("977.00"))])
+    assert (r.uk_floor, r.uk_reference) == (Decimal("950.00"), Decimal("977.00"))
+    assert r.comp_count == 2
+    assert all(o.price_kind is PriceKind.ASK for o in r.merchant_bests)
+
+
+def test_a_bid_alone_is_no_market():
+    """Demand with nobody selling into it is not a market to price from."""
+    r = benchmark(line(), [bid()])
+    assert r.state is State.NO_MARKET
+    assert r.uk_reference is None and r.comp_count == 0
+
+
+def test_a_bid_is_surfaced_as_corroboration_with_its_variance():
+    r = benchmark(line(), [bid(price=Decimal("908.00")),
+                          offer(merchant_id="farr", price=Decimal("950.00")),
+                          offer(merchant_id="bordeaux-index", price=Decimal("977.00"))])
+    [evidence] = r.bids
+    assert evidence.offer.price == Decimal("908.00")
+    assert evidence.variance_vs_reference == (Decimal("908") - Decimal("977")) / Decimal("977")
+
+
+def test_a_last_trade_is_surfaced_as_corroboration_with_its_date():
+    """"The strongest single number on the page" — shown, with the date
+    money actually changed hands, never priced from."""
+    r = benchmark(line(), [last_trade(price=Decimal("904.00"), captured_at=AS_OF),
+                          offer(merchant_id="farr", price=Decimal("950.00")),
+                          offer(merchant_id="bordeaux-index", price=Decimal("977.00"))])
+    [evidence] = r.last_trades
+    assert evidence.offer.price == Decimal("904.00")
+    assert evidence.offer.captured_at == AS_OF
+    assert all(o.price_kind is not PriceKind.LAST_TRADE for o in r.merchant_bests)
+
+
+def test_a_stale_last_trade_is_still_shown_not_dropped():
+    """BI's own Krug GC 1x150cl last traded January 2025 — long outside the
+    14-day ASK freshness window. A last trade is a historical fact, not a
+    live ask: freshness does not screen it out, the date simply says so."""
+    old_trade = last_trade(price=Decimal("900.00"), captured_at=AS_OF - timedelta(days=400))
+    r = benchmark(line(), [old_trade, offer(merchant_id="farr", price=Decimal("950.00"))])
+    assert len(r.last_trades) == 1
+    assert r.last_trades[0].offer.captured_at == AS_OF - timedelta(days=400)
+
+
+def test_a_stale_bid_is_not_corroboration():
+    """Unlike a last trade, a bid is a currently-standing order — the same
+    freshness rule as an ask applies, because an old bid may no longer
+    stand."""
+    stale_bid = bid(price=Decimal("908.00"), captured_at=AS_OF - timedelta(days=30))
+    r = benchmark(line(), [stale_bid, offer(merchant_id="farr", price=Decimal("950.00"))])
+    assert r.bids == []
+
+
+def test_two_sided_wide_spread_is_flagged_but_never_gates():
+    """Krug 162e: bid £660, offer £1,596, same merchant, same 6x75cl listing
+    — a 142% spread. Flagged so an operator never reads the bid as
+    confirming the offer, and never a review flag: nothing here was ever
+    priced from either figure."""
+    r = benchmark(line(), [bid(price=Decimal("660.00")),
+                          offer(merchant_id="bordeaux-index", price=Decimal("1596.00")),
+                          offer(merchant_id="farr", price=Decimal("1600.00"))])
+    assert Flag.TWO_SIDED_WIDE_SPREAD in r.flags
+    assert Flag.TWO_SIDED_WIDE_SPREAD not in REVIEW_FLAGS
+    assert r.state is State.READY          # two asks, no other flag — never gates
+
+
+def test_a_tight_two_sided_market_is_not_flagged():
+    """Krug 167e: bid £908, offer £977 from the same merchant — a 7.6%
+    spread, a real liquid market, well under the threshold."""
+    assert (Decimal("977") - Decimal("908")) / Decimal("908") < Decimal(str(WIDE_SPREAD_THRESHOLD))
+    r = benchmark(line(), [bid(price=Decimal("908.00")),
+                          offer(merchant_id="bordeaux-index", price=Decimal("977.00"))])
+    assert Flag.TWO_SIDED_WIDE_SPREAD not in r.flags
+
+
+@pytest.mark.parametrize("kw", [
+    dict(vintage=2012), dict(pack_size=6, price=Decimal("5448.00")), dict(bottle_ml=1500),
+    dict(currency="EUR"), dict(duty_status=DutyStatus.DUTY_PAID),
+])
+def test_a_bid_for_something_else_is_not_corroboration(kw):
+    r = benchmark(line(), [bid(**kw), offer(merchant_id="farr")])
+    assert r.bids == []
 
 
 def test_fine_and_rare_counts_as_one_merchant_however_many_it_polled():

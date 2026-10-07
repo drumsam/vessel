@@ -235,6 +235,7 @@ export default function LineDetail({ lineId, line, onChange }) {
               </thead>
               <tbody>
                 {[...byRole("merchant_best"), ...byRole("cross_unit"),
+                  ...byRole("bid"), ...byRole("last_trade"),
                   ...byRole("indication"), ...byRole("rejected")].map((c, i) => (
                   <tr key={`${c.role}-${c.offer_pk || i}`}>
                     <td>{c.merchant}</td>
@@ -261,7 +262,20 @@ export default function LineDetail({ lineId, line, onChange }) {
                         </>
                       ) : c.role === "merchant_best" ? <span className="tag ready">priced</span>
                         : c.role === "cross_unit" ? <span className="tag">shown, not priced</span>
-                        : c.role === "indication" ? (
+                        : c.role === "bid" ? (
+                          <>
+                            <span className="tag">bid, not priced</span>
+                            <div className="muted">{variance(c.variance_vs_reference)} vs Reference</div>
+                          </>
+                        ) : c.role === "last_trade" ? (
+                          <>
+                            <span className="tag">last trade, not priced</span>
+                            <div className="muted">
+                              {variance(c.variance_vs_reference)} vs Reference ·{" "}
+                              {new Date(c.captured_at).toLocaleDateString("en-GB")}
+                            </div>
+                          </>
+                        ) : c.role === "indication" ? (
                           <>
                             <span className="tag">indication, not priced</span>
                             <div className="muted">

@@ -576,8 +576,9 @@ def offer_snapshot(o: Offer, merchant_offer_id: str,
         "condition_notes": o.condition_notes, "source_url": o.source_url,
         "captured_at": o.captured_at.isoformat() if o.captured_at else None,
         "per_bottle": str(per_bottle) if per_bottle is not None else None,
-        # indication only: how far the brokerage's view sat from the Reference
-        # at the moment of the run. Context, never a price (decision 0013).
+        # indication, bid or last_trade only: how far that figure sat from
+        # the Reference at the moment of the run. Context, never a price
+        # (decisions 0013, 0026).
         "variance_vs_reference": (str(variance_vs_reference.quantize(RATE))
                                   if variance_vs_reference is not None else None),
         "merchant_count": (o.raw or {}).get("market", {}).get("merchantCount"),
@@ -616,6 +617,9 @@ def save_benchmark(conn: psycopg.Connection, result: BenchmarkResult,
         rows += [(c.offer, "cross_unit", None, c.per_bottle, None) for c in result.cross_unit]
         rows += [(i.offer, "indication", None, None, i.variance_vs_reference)
                  for i in result.indications]
+        rows += [(b.offer, "bid", None, None, b.variance_vs_reference) for b in result.bids]
+        rows += [(t.offer, "last_trade", None, None, t.variance_vs_reference)
+                 for t in result.last_trades]
         rows += [(r.offer, "rejected", r.reason.value, None, None) for r in result.rejections]
 
         # A derived comparable has no offer row of its own — it is a figure, not

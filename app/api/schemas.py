@@ -600,7 +600,8 @@ class DerivedFromOut(_Out):
 class CompOut(_Out):
     """One offer as the benchmark saw it, read from the run itself. offer_pk is
     null once the snapshot it came from has been pruned; nothing else changes."""
-    role: Literal["comparable", "merchant_best", "cross_unit", "indication", "rejected"]
+    role: Literal["comparable", "merchant_best", "cross_unit", "indication",
+                 "bid", "last_trade", "rejected"]
     reject_reason: Optional[str]
     offer_pk: Optional[UUID]
     merchant_id: str
@@ -613,8 +614,9 @@ class CompOut(_Out):
     #: cross_unit only: price / pack_size as computed by the core. Display
     #: arithmetic, not money: it is never rounded and never priced.
     per_bottle: Optional[Decimal] = None
-    #: indication only: how far a brokerage's view sat from the Reference, and
-    #: how many merchants it says it aggregated. Context, never a price.
+    #: indication, bid or last_trade only: how far that figure sat from the
+    #: Reference, and how many merchants an indication says it aggregated.
+    #: Context, never a price.
     variance_vs_reference: Optional[Decimal] = None
     merchant_count: Optional[int] = None
     #: Set when `price` above was DERIVED across case sizes (decision 0016).
@@ -631,6 +633,9 @@ class CompOut(_Out):
     condition_flags: list[str]
     condition_notes: Optional[str]
     source_url: Optional[str]
+    #: last_trade only, on the page to show: a historical fact's own date is
+    #: what makes it checkable rather than assumed current (decision 0026).
+    captured_at: Optional[datetime] = None
     captured_at: Optional[datetime]
 
 

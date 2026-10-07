@@ -61,6 +61,12 @@ The invariants, in short:
    mixed lot. Every rejection is retained with its reason. A brokerage
    `INDICATION` is not an ASK and never prices; it is kept as corroboration
    beside cross-unit evidence, with its variance from the Reference. See 0013.
+   A two-sided market's `BID` (executable demand) and `LAST_TRADE` (money
+   that actually changed hands) are excluded the same way and kept the same
+   way — never Floor, Reference or Median, however much better the evidence
+   is than an ordinary ask. A single merchant's own bid and ask disagreeing
+   by more than `WIDE_SPREAD_THRESHOLD` is flagged `TWO_SIDED_WIDE_SPREAD`,
+   informational like `WIDE_SPREAD` itself. See 0026.
 6. Zero comparables ⇒ `NO_MARKET`.
 7. Money is `Decimal` in Python and `numeric(14,2)` in Postgres. No float ever
    touches a price. Exactly four places round, all ROUND_HALF_EVEN to pence:
@@ -166,10 +172,10 @@ INGEST → IDENTITY PROPOSAL → IDENTITY VERIFICATION → SNAPSHOT LOOKUP
 ## Testing
 
 ```bash
-python -m pytest -q                      # 347 pass, 161 skip; no network, no services
+python -m pytest -q                      # 361 pass, 161 skip; no network, no services
 docker compose up -d                     # Postgres + Redis, then:
 TEST_DATABASE_URL=postgresql://pricer:pricer@localhost:5432/pricer_test \
-TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q   # 508 pass
+TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q   # 522 pass
 python scripts/rerun_burgundy_proof.py   # expect READY 0  REVIEW 15  NO_MARKET 5
 python scripts/load_vintage_tiers.py    # the vintage register, from its CSV
 python scripts/case_premium_report.py   # what the collected pairs say CASE_PREMIUM is

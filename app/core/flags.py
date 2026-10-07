@@ -24,6 +24,12 @@ class Flag(str, Enum):
     WIDE_SPREAD = "WIDE_SPREAD"
     NO_MARKET = "NO_MARKET"
     QUANTITY_SHORTFALL = "QUANTITY_SHORTFALL"
+    #: A two-sided market's own bid and ask for the same wine, vintage and
+    #: format disagree by more than WIDE_SPREAD_THRESHOLD (decision 0026,
+    #: from a live BI LiveTrade find: Krug 162e bid £660 against offer
+    #: £1,596 on the same 6x75cl listing). Informational, like WIDE_SPREAD
+    #: itself — see REVIEW_FLAGS below for why it is not there.
+    TWO_SIDED_WIDE_SPREAD = "TWO_SIDED_WIDE_SPREAD"
 
     # evidence-quality flags
     CONDITION_REVIEW = "CONDITION_REVIEW"
@@ -69,6 +75,13 @@ REVIEW_FLAGS: frozenset[Flag] = frozenset({
 #: WIDE_SPREAD is deliberately NOT a review flag. With two or more independent
 #: merchants the Reference is sound even when the tail is long; the spread is
 #: shown to the operator as context. Revisit if operators disagree in practice.
+#:
+#: TWO_SIDED_WIDE_SPREAD is the same kind of context, for a different shape of
+#: evidence: a bid is never a comparable (the KIND screen excludes it exactly
+#: like an INDICATION), so there is no arithmetic for a wide bid/ask spread to
+#: corrupt. It exists so the operator sees, named, that a market's own bid and
+#: ask disagree enough that neither should be read as confirming the other —
+#: not a gate, because nothing it touches was ever priced from it.
 
 #: Condition flags that make a comp questionable enough to force review.
 #: REPACK and NO_ORIGINAL_CASE are excluded on purpose: in the loose-bottle
