@@ -807,7 +807,10 @@ CREATE TABLE vessel_mandate (
     -- until someone needs it.
     settlement_mode  text NOT NULL DEFAULT 'AGENCY',
     CONSTRAINT vessel_mandate_settlement_mode_known CHECK (
-        settlement_mode IN ('AGENCY','PRINCIPAL'))
+        settlement_mode IN ('AGENCY','PRINCIPAL')),
+    -- "Ask every seller which warehouse they use" (decision 0025) -- one
+    -- field, no logic, a term of the mandate exactly like settlement_mode.
+    storage_facility text
 );
 
 CREATE OR REPLACE FUNCTION vessel_forbid_mandate_mutation() RETURNS trigger AS $$
@@ -1104,4 +1107,80 @@ CREATE TABLE vessel_exclusion (
     detail     text NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (deal_id, line_id)
+);
+
+-- ============================================== members and referrals (0025)
+
+-- VESSEL's buyers have never had an account (decision 0020's own
+-- admission). This is the lightweight one a referral loop needs: phone-
+-- identified, no password, the same "no login beyond an unguessable link"
+-- discipline the rest of VESSEL already uses. E.164 checked here and
+-- everywhere else a phone is written.
+CREATE TABLE member (
+    member_id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    phone              text NOT NULL UNIQUE CHECK (phone ~ '^\+[1-9][0-9]{6,14}$'),
+    display_name       text,
+    city               text,
+    -- "How do you store wine?" -- a lead for the NEXT seller, not a
+    -- service VESSEL offers this member. Free text, operator-read only.
+    storage_note       text,
+    invite_available   boolean NOT NULL DEFAULT false,
+    -- Not in Doug's five-field schema, added because rule 1 ("flips true
+    -- when a member's first purchase confirms") needs a place to record
+    -- this fact for every member, not only one who arrived by referral --
+    -- invite.first_purchase_at (below) answers a different question: did
+    -- the person THIS INVITE brought in buy, which is what pays the
+    -- inviter's reward.
+    first_purchase_at  timestamptz,
+    -- The reward (rule 5): access, never money.
+    early_access_until timestamptz,
+    created_at         timestamptz NOT NULL DEFAULT now()
+);
+
+-- Never stored long-term, never logged in the clear: request_login_code
+-- overwrites the one row for a phone, verify_login_code deletes it on a
+-- correct match or a used-up attempt. Proves the phone at invite
+-- acceptance; nothing here is a persistent session.
+CREATE TABLE member_login_code (
+    phone       text PRIMARY KEY CHECK (phone ~ '^\+[1-9][0-9]{6,14}$'),
+    code_hash   text NOT NULL,
+    expires_at  timestamptz NOT NULL,
+    attempts    int NOT NULL DEFAULT 0
+);
+
+CREATE TABLE invite (
+    code               text PRIMARY KEY,
+    inviter_id         uuid NOT NULL REFERENCES member(member_id),
+    invitee_phone      text UNIQUE CHECK (
+                          invitee_phone IS NULL OR invitee_phone ~ '^\+[1-9][0-9]{6,14}$'),
+    accepted_at        timestamptz,
+    first_purchase_at  timestamptz,
+    created_at         timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT invite_first_purchase_needs_acceptance CHECK (
+        first_purchase_at IS NULL OR accepted_at IS NOT NULL),
+    CONSTRAINT invite_first_purchase_needs_invitee CHECK (
+        first_purchase_at IS NULL OR invitee_phone IS NOT NULL)
+);
+
+-- "A member can never hold two open invites" (rule 1) -- a database
+-- constraint, not application logic, same discipline as VESSEL's own
+-- one-live-reservation-per-listing index.
+CREATE UNIQUE INDEX invite_one_open_per_inviter
+    ON invite (inviter_id) WHERE accepted_at IS NULL;
+
+-- The seller introduction: captured on the introducer's own mandate, at
+-- approval time. Doug makes the approach, so there is no automatic path
+-- from a lead to a future mandate -- resulting_mandate_id is set by hand,
+-- later, only if and when the lead becomes a seller. Paying the 1% is
+-- then a manual step reading this table; nothing here computes or
+-- schedules a payment.
+CREATE TABLE seller_introduction (
+    introduction_id        uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    captured_on_mandate_id uuid NOT NULL REFERENCES vessel_mandate(mandate_id),
+    lead_name              text NOT NULL,
+    lead_phone             text NOT NULL,
+    commission_rate        numeric(5,4) NOT NULL DEFAULT 0.01,
+    resulting_mandate_id   uuid REFERENCES vessel_mandate(mandate_id),
+    paid_at                timestamptz,
+    created_at             timestamptz NOT NULL DEFAULT now()
 );

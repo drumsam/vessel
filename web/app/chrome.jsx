@@ -36,7 +36,13 @@ export default function Chrome({ children }) {
   // them at all (drop one: reachable by the link, like v3/v4 both leave it —
   // KYC and a door policy are named as still-open operational items, not a
   // developer's call to make silently). They never go through this gate.
-  if (pathname === "/login" || pathname.startsWith("/vessel")) return <main>{children}</main>;
+  // /i/* (the invite landing/accept page) and /member/* (a member's own,
+  // link-only page) are the same discipline, extended as far as the
+  // referral programme needs it (decision 0025) — a member has no
+  // password and no session either.
+  if (pathname === "/login" || pathname.startsWith("/vessel")
+      || pathname.startsWith("/i/") || pathname.startsWith("/member"))
+    return <main>{children}</main>;
   if (!settled) return <main><p className="muted">Loading…</p></main>;
   if (session.status === "out") return <main><p className="muted">Signing in…</p></main>;
   const operator = session.operator;

@@ -23,6 +23,7 @@ from app.api.deps import current_operator, db, queue
 from app.api.deps import translate as _translate
 from app.api.vessel import operator_router as vessel_operator_router
 from app.api.vessel import router as vessel_router
+from app.api.member import router as member_router
 from app.auction import repo as auction_repo
 from app.auction.evidence import InvalidAuctionEvidence
 from app.core.enums import StockType
@@ -635,3 +636,4 @@ def sign_out(response: Response, pricer_session: Optional[str] = Cookie(default=
 app.include_router(protected)
 app.include_router(vessel_router)
 app.include_router(vessel_operator_router)
+app.include_router(member_router)

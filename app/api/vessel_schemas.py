@@ -118,6 +118,9 @@ class ApproveMandateIn(_In):
     #: A term of the mandate (decision 0022): AGENCY is the only mode
     #: actually used — PRINCIPAL is accepted but untested.
     settlement_mode: SettlementMode = "AGENCY"
+    #: "Ask every seller which warehouse they use" (decision 0025) — one
+    #: field, no logic, operator-read only.
+    storage_facility: Optional[str] = None
 
 
 class MandateNetOut(_Out):
@@ -134,6 +137,7 @@ class MandateOut(_Out):
     approved_by_name: str
     approved_at: datetime
     settlement_mode: SettlementMode
+    storage_facility: Optional[str] = None
     estimate: list[MandateNetOut] = []
 
 

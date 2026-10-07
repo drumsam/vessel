@@ -279,6 +279,7 @@ MANDATE_TEMPLATES = {"AGENCY": MANDATE_TEMPLATE_AGENCY, "PRINCIPAL": MANDATE_TEM
 def approve_mandate(conn: psycopg.Connection, deal_id: str, *, move_line_ids: list[str],
                     keep_line_ids: list[str], approved_by_name: str,
                     window_days: int = 30, settlement_mode: str = DEFAULT_SETTLEMENT_MODE,
+                    storage_facility: Optional[str] = None,
                     as_of: Optional[datetime] = None) -> dict:
     """The seller's one button. Everything it does happens together: write
     the mandate (never touched again), move every ticked listing to APPROVED
@@ -304,10 +305,10 @@ def approve_mandate(conn: psycopg.Connection, deal_id: str, *, move_line_ids: li
 
     mandate = conn.execute(
         """INSERT INTO vessel_mandate (deal_id, mandate_text, window_days, approved_by_name,
-                                       settlement_mode)
-           VALUES (%s, %s, %s, %s, %s) RETURNING *""",
+                                       settlement_mode, storage_facility)
+           VALUES (%s, %s, %s, %s, %s, %s) RETURNING *""",
         (deal_id, MANDATE_TEMPLATES[settlement_mode].format(days=window_days), window_days,
-         approved_by_name, settlement_mode),
+         approved_by_name, settlement_mode, storage_facility),
     ).fetchone()
 
     with conn.cursor() as cur:

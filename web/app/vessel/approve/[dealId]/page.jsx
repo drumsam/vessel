@@ -17,6 +17,7 @@ export default function SellerApproval() {
   const [data, setData] = useState(null);
   const [moved, setMoved] = useState({});          // listing_id -> true (MOVE) | false (KEEP)
   const [name, setName] = useState("");
+  const [storageFacility, setStorageFacility] = useState("");
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -45,7 +46,8 @@ export default function SellerApproval() {
       const move_line_ids = listings.filter((l) => moved[l.listing_id]).map((l) => l.line_id);
       const keep_line_ids = listings.filter((l) => !moved[l.listing_id]).map((l) => l.line_id);
       const mandate = await api.post(`/vessel/deals/${dealId}/approve`,
-        { move_line_ids, keep_line_ids, approved_by_name: name });
+        { move_line_ids, keep_line_ids, approved_by_name: name,
+          storage_facility: storageFacility.trim() || null });
       setResult(mandate);
     } catch (e) {
       setError(e.message);
@@ -89,6 +91,10 @@ export default function SellerApproval() {
         <label htmlFor="name">Your name, to approve</label>
         <input id="name" value={name} onChange={(e) => setName(e.target.value)} required
                style={{ marginBottom: 10 }} />
+        <label htmlFor="storage">Which warehouse do you store with?</label>
+        <input id="storage" value={storageFacility}
+               onChange={(e) => setStorageFacility(e.target.value)}
+               placeholder="e.g. Octavian, London City Bond" style={{ marginBottom: 10 }} />
         <p className="muted" style={{ fontSize: 13 }}>
           VESSEL may market the wines ticked &ldquo;Move&rdquo; for 30 days at a price of no less
           than the amount shown against each line. The buyer pays you directly, in full, on
@@ -116,6 +122,28 @@ export default function SellerApproval() {
 }
 
 function Approved({ result }) {
+  const [open, setOpen] = useState(false);
+  const [leadName, setLeadName] = useState("");
+  const [leadPhone, setLeadPhone] = useState("");
+  const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  async function introduce(event) {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(`/vessel/mandates/${result.mandate_id}/seller-introductions`,
+        { introducer_name: result.approved_by_name, lead_name: leadName, lead_phone: leadPhone });
+      setSent(true);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div style={{ maxWidth: 560, margin: "10vh auto" }} className="card">
       <h2>Approved</h2>
@@ -125,6 +153,29 @@ function Approved({ result }) {
           {row.lines} line(s), estimated net {money(row.net_total, row.currency)}
         </p>
       ))}
+
+      {sent ? (
+        <p className="muted" style={{ marginTop: 16 }}>Thank you — we&rsquo;ll be in touch with them directly.</p>
+      ) : !open ? (
+        <div className="notice" style={{ marginTop: 16 }}>
+          Know another cellar? If someone you introduce sells through VESSEL we pay you 1% of
+          their proceeds, and we cover their transfer and storage costs.
+          <div style={{ marginTop: 8 }}>
+            <button type="button" className="small" onClick={() => setOpen(true)}>Introduce someone</button>
+          </div>
+        </div>
+      ) : (
+        <form onSubmit={introduce} className="notice" style={{ marginTop: 16 }}>
+          {error && <div className="notice bad">{error}</div>}
+          <label htmlFor="lead_name">Their name</label>
+          <input id="lead_name" required value={leadName}
+                 onChange={(e) => setLeadName(e.target.value)} style={{ marginBottom: 10 }} />
+          <label htmlFor="lead_phone">Their phone</label>
+          <input id="lead_phone" required value={leadPhone} placeholder="+44..."
+                 onChange={(e) => setLeadPhone(e.target.value)} style={{ marginBottom: 10 }} />
+          <button type="submit" disabled={busy}>Send</button>
+        </form>
+      )}
     </div>
   );
 }

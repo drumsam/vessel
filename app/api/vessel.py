@@ -18,9 +18,11 @@ from uuid import UUID
 import psycopg
 from fastapi import APIRouter, Depends, HTTPException
 
+from app.api import member_schemas as ms
 from app.api import vessel_schemas as s
 from app.api.deps import current_operator, db, translate
 from app.db import repo as db_repo
+from app.member import repo as member_repo
 from app.vessel import engine, repo
 
 router = APIRouter(prefix="/vessel", tags=["vessel"])
@@ -87,13 +89,29 @@ def approve(deal_id: UUID, body: s.ApproveMandateIn, conn: psycopg.Connection = 
                 move_line_ids=[str(i) for i in body.move_line_ids],
                 keep_line_ids=[str(i) for i in body.keep_line_ids],
                 approved_by_name=body.approved_by_name, window_days=body.window_days,
-                settlement_mode=body.settlement_mode)
+                settlement_mode=body.settlement_mode, storage_facility=body.storage_facility)
     except ValueError as e:
         raise HTTPException(422, str(e))
     except psycopg.Error as e:
         raise translate(e)
     estimate = repo.mandate_estimate(conn, str(mandate["mandate_id"]))
     return s.MandateOut(**mandate, estimate=estimate)
+
+
+@operator_router.post("/mandates/{mandate_id}/seller-introductions",
+                      response_model=ms.SellerIntroductionOut)
+def create_seller_introduction(mandate_id: UUID, body: ms.SellerIntroductionIn,
+                               conn: psycopg.Connection = Depends(db)):
+    """"Know another cellar?" (decision 0025) — a name and a phone number,
+    captured against the mandate the seller just approved. Doug makes the
+    approach; nothing here contacts the lead or computes a payment."""
+    try:
+        with conn.transaction():
+            return member_repo.create_seller_introduction(
+                conn, str(mandate_id), introducer_name=body.introducer_name,
+                lead_name=body.lead_name, lead_phone=body.lead_phone)
+    except psycopg.errors.ForeignKeyViolation:
+        raise HTTPException(404, "mandate not found")
 
 
 @operator_router.get("/mandates/{mandate_id}/commission-invoice",
@@ -211,11 +229,20 @@ def confirm_seller_receipt(reservation_id: UUID, body: s.ConfirmSellerReceiptIn,
                            conn: psycopg.Connection = Depends(db)):
     """The AGENCY fulfilment path (decision 0022): an operator records that
     the seller confirmed the buyer paid them directly — who, and when,
-    never a boolean. VESSEL asserts nothing about funds it never held."""
+    never a boolean. VESSEL asserts nothing about funds it never held.
+
+    Also the one place a VESSEL sale actually confirms, which is why the
+    referral reward (decision 0025) is triggered from here rather than
+    from inside app/vessel/ itself — that package is otherwise untouched.
+    Most buyer_contact values are not members and confirm_first_purchase
+    is a no-op for them.
+    """
     try:
         with conn.transaction():
-            return repo.confirm_seller_receipt(
+            reservation = repo.confirm_seller_receipt(
                 conn, str(reservation_id), confirmed_by=body.confirmed_by, as_of=_now())
+            member_repo.confirm_first_purchase(conn, reservation["buyer_contact"])
+            return reservation
     except LookupError as e:
         raise HTTPException(404, str(e))
     except repo.AgencyMandate as e:
@@ -256,3 +283,10 @@ def cancel_reservation(reservation_id: UUID, conn: psycopg.Connection = Depends(
 @operator_router.get("/analytics/sell-through", response_model=list[s.SellThroughRowOut])
 def sell_through(conn: psycopg.Connection = Depends(db)):
     return repo.sell_through_report(conn)
+
+
+@operator_router.get("/analytics/referrals", response_model=ms.ReferralFunnelOut)
+def referral_funnel(conn: psycopg.Connection = Depends(db)):
+    """"Invitations sent; share accepted; share of accepted who buy within
+    60 days." One read-only query (decision 0025), no dashboard."""
+    return member_repo.referral_funnel(conn)

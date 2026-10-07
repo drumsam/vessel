@@ -166,10 +166,10 @@ INGEST → IDENTITY PROPOSAL → IDENTITY VERIFICATION → SNAPSHOT LOOKUP
 ## Testing
 
 ```bash
-python -m pytest -q                      # 341 pass, 148 skip; no network, no services
+python -m pytest -q                      # 347 pass, 161 skip; no network, no services
 docker compose up -d                     # Postgres + Redis, then:
 TEST_DATABASE_URL=postgresql://pricer:pricer@localhost:5432/pricer_test \
-TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q   # 489 pass
+TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q   # 508 pass
 python scripts/rerun_burgundy_proof.py   # expect READY 0  REVIEW 15  NO_MARKET 5
 python scripts/load_vintage_tiers.py    # the vintage register, from its CSV
 python scripts/case_premium_report.py   # what the collected pairs say CASE_PREMIUM is
@@ -303,6 +303,28 @@ terms separately and additionally prohibit automated collection outright,
 which this does not touch. `auction_result` (`0001_baseline`) is an earlier,
 unused design for the same idea, imported by nothing; left in place because
 baseline is frozen, not because it is live.
+
+`app/member/` is buyer referrals, the smallest version that works
+(decision 0025): `member` is VESSEL's first buyer account, phone-
+identified, no password — proved once by a one-time code at invite
+acceptance, never a persistent session. One open invite per member at a
+time (`invite_one_open_per_inviter`, a partial unique index, not
+application logic); first touch permanent (a phone that already accepted
+one invite cannot accept another); the reward is on a completed purchase
+only, never on signup, and it is access — `early_access_until`, 48 hours —
+never cash. `app/notify/provider.py` is the SMS seam, same discipline as
+`app/ai/provider.py`: `ConsoleNotifier` (logs the message) is the only
+provider wired up, since no real one has been chosen yet. Wired into
+VESSEL at exactly one point — `confirm_first_purchase` is called from
+`app/api/vessel.py`'s confirm-seller-receipt route, never from inside
+`app/vessel/` itself, which stays exactly as decision 0022 left it. A
+seller introduction (`seller_introduction`) captures a name and a phone
+against the introducer's own mandate; linking it to the lead's eventual
+mandate, and paying the 1%, is a manual step, not automated. Explicitly
+NOT built, named directly so nobody adds them later "out of tidiness":
+waitlist positions, status tiers, membership caps, cash credits, buyer
+ranking, the Thursday drop cadence, "My Cellar", or anything else from the
+parked growth/club document.
 
 Not built yet: the LWIN import (decision 0012 — waiting on the file), Albany and
 Vinum, the remaining merchant adapters, AI provider implementations. A client-
