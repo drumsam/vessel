@@ -57,6 +57,17 @@ def test_seller_net_is_eight_percent_below_vessel_price():
         assert p.seller_net == (p.vessel_price * Decimal("0.92")).quantize(Decimal("0.01"))
 
 
+def test_commission_due_is_the_exact_complement_of_seller_net():
+    """VESSEL's AGENCY invoice (decision 0022): commission + seller_net
+    always equals vessel_price exactly, because commission is read off
+    seller_net rather than independently rounded from VESSEL_FEE."""
+    p = engine.price_listing(Decimal("84000"), band="NORMAL", currency="HKD",
+                             discount=Decimal("0.17"))
+    commission = engine.commission_due(p.vessel_price, p.seller_net)
+    assert commission + p.seller_net == p.vessel_price
+    assert commission == Decimal("5560.00")   # 8% of HK$69,500
+
+
 def test_round_to_clean_figure_nearest_not_down():
     """v3 said 'rounded down'; v4 and the brief just say 'a clean figure'.
     Always-down would favour VESSEL over the seller for no stated reason, so
@@ -273,14 +284,18 @@ def _priced_listing(conn, *, source_count=3, uk_reference=Decimal("1443.30"), qu
     return listings[0]
 
 
-def _listed_listing(conn, **kwargs) -> dict:
-    """APPROVED, then LISTED in a drop — the state BUY requires."""
+def _listed_listing(conn, *, settlement_mode="AGENCY", **kwargs) -> dict:
+    """APPROVED, then LISTED in a drop — the state BUY requires. AGENCY by
+    default, since that is the only mode drop one actually uses; pass
+    settlement_mode="PRINCIPAL" for the tests that specifically exercise
+    record_payment's own matching logic."""
     from app.vessel import repo as vrepo
 
     listing = _priced_listing(conn, **kwargs)
     operator_id = _operator(conn)
     mandate = vrepo.approve_mandate(conn, listing["deal_id"], move_line_ids=[listing["line_id"]],
-                                    keep_line_ids=[], approved_by_name="A Seller", as_of=AS_OF)
+                                    keep_line_ids=[], approved_by_name="A Seller", as_of=AS_OF,
+                                    settlement_mode=settlement_mode)
     drop = vrepo.create_drop(conn, label="Drop one", drop_date=AS_OF.date(),
                              created_by=operator_id)
     vrepo.add_to_drop(conn, str(drop["drop_id"]), [str(listing["listing_id"])], as_of=AS_OF)
@@ -512,10 +527,12 @@ def test_listing_below_minimum_value_is_refused_pg(conn):
 @pg
 def test_unmatched_payment_does_not_confirm_a_sale(conn):
     """A reference nobody is holding ships nothing: no title moves before
-    cleared funds, no exceptions."""
+    cleared funds, no exceptions. record_payment's own matching logic —
+    exercised under PRINCIPAL, the only mode it is reachable from; AGENCY
+    refuses it structurally (test_record_payment_refuses_an_agency_reservation)."""
     from app.vessel import repo as vrepo
 
-    listing = _listed_listing(conn)
+    listing = _listed_listing(conn, settlement_mode="PRINCIPAL")
     vrepo.reserve_listing(conn, str(listing["listing_id"]), buyer_contact="a@x.com", as_of=AS_OF)
 
     payment = vrepo.record_payment(conn, reference="NOT-A-REAL-REF", amount=Decimal("69500.00"),
@@ -544,16 +561,16 @@ def test_unmatched_payment_does_not_confirm_a_sale(conn):
 @pg
 def test_sold_listing_stays_visible_in_drop(conn):
     """SOLD stays on the page, greyed, for the life of the drop - not
-    removed, not hidden."""
+    removed, not hidden. AGENCY (the default): fulfilled by the seller's
+    own confirmation, not a payment VESSEL received."""
     from app.vessel import repo as vrepo
 
     listing = _listed_listing(conn)
     drop_id = listing["drop_id"]
     reservation = vrepo.reserve_listing(conn, str(listing["listing_id"]), buyer_contact="a@x.com",
                                         as_of=AS_OF)
-    vrepo.record_payment(conn, reference=reservation["payment_reference"],
-                         amount=Decimal(listing["vessel_price"]), currency="HKD",
-                         received_at=AS_OF + timedelta(minutes=11))
+    vrepo.confirm_seller_receipt(conn, str(reservation["reservation_id"]), confirmed_by="A Seller",
+                                 as_of=AS_OF + timedelta(minutes=11))
 
     rows = vrepo.drop_listings(conn, str(drop_id))
     [row] = [r for r in rows if str(r["listing_id"]) == str(listing["listing_id"])]
@@ -767,3 +784,160 @@ def test_vessel_reference_is_append_only(conn):
     with pytest.raises(psycopg.errors.RaiseException):
         conn.execute("DELETE FROM vessel_reference WHERE reference_id = %s",
                      (listing["reference_id"],))
+
+
+# ============================================================ agency settlement
+
+
+@pg
+def test_approve_mandate_defaults_to_agency_settlement(conn):
+    """"The only mode Doug actually uses" - a plain approve, naming nothing
+    extra, settles as AGENCY."""
+    from app.vessel import repo as vrepo
+
+    listing = _priced_listing(conn)
+    mandate = vrepo.approve_mandate(conn, listing["deal_id"], move_line_ids=[listing["line_id"]],
+                                    keep_line_ids=[], approved_by_name="A Seller", as_of=AS_OF)
+    assert mandate["settlement_mode"] == "AGENCY"
+    assert "buyer pays you directly" in mandate["mandate_text"]
+
+
+@pg
+def test_confirm_seller_receipt_fulfils_an_agency_reservation(conn):
+    """The AGENCY path end to end: the seller confirms, VESSEL never
+    asserts it held the money, and the listing still reaches PAID."""
+    from app.vessel import repo as vrepo
+
+    listing = _listed_listing(conn)
+    reservation = vrepo.reserve_listing(conn, str(listing["listing_id"]), buyer_contact="a@x.com",
+                                        as_of=AS_OF)
+    confirmed_at = AS_OF + timedelta(minutes=20)
+    updated = vrepo.confirm_seller_receipt(conn, str(reservation["reservation_id"]),
+                                           confirmed_by="A Seller", as_of=confirmed_at)
+    assert updated["state"] == "FULFILLED"
+    assert updated["fulfilled_at"] == confirmed_at
+    assert updated["seller_confirmed_at"] == confirmed_at
+    assert updated["seller_confirmed_by"] == "A Seller"
+    assert vrepo.get_listing(conn, str(listing["listing_id"]))["state"] == "PAID"
+    # No vessel_payment row at all - VESSEL never touched any money.
+    assert conn.execute("SELECT count(*) AS n FROM vessel_payment").fetchone()["n"] == 0
+
+
+@pg
+def test_confirm_seller_receipt_needs_a_named_confirmer(conn):
+    """Who, and when - never a boolean. An empty name is refused before
+    anything is written, same discipline as approve_mandate's own name."""
+    from app.vessel import repo as vrepo
+
+    listing = _listed_listing(conn)
+    reservation = vrepo.reserve_listing(conn, str(listing["listing_id"]), buyer_contact="a@x.com",
+                                        as_of=AS_OF)
+    with pytest.raises(ValueError):
+        vrepo.confirm_seller_receipt(conn, str(reservation["reservation_id"]), confirmed_by="  ",
+                                     as_of=AS_OF)
+
+
+@pg
+def test_confirm_seller_receipt_cannot_be_called_twice(conn):
+    """FULFILLED is not HELD: a second confirmation on the same reservation
+    has nothing live to act on."""
+    from app.vessel import repo as vrepo
+
+    listing = _listed_listing(conn)
+    reservation = vrepo.reserve_listing(conn, str(listing["listing_id"]), buyer_contact="a@x.com",
+                                        as_of=AS_OF)
+    vrepo.confirm_seller_receipt(conn, str(reservation["reservation_id"]), confirmed_by="A Seller",
+                                 as_of=AS_OF)
+    with pytest.raises(LookupError):
+        vrepo.confirm_seller_receipt(conn, str(reservation["reservation_id"]),
+                                     confirmed_by="A Seller", as_of=AS_OF)
+
+
+@pg
+def test_record_payment_refuses_an_agency_reservation(conn):
+    """"No code path should be able to reach a 'we hold the money' state
+    from an AGENCY mandate" - record_payment refuses it in Python, with a
+    clear message, before any INSERT is attempted."""
+    from app.vessel import repo as vrepo
+
+    listing = _listed_listing(conn)   # AGENCY by default
+    reservation = vrepo.reserve_listing(conn, str(listing["listing_id"]), buyer_contact="a@x.com",
+                                        as_of=AS_OF)
+    with pytest.raises(vrepo.AgencyMandate):
+        vrepo.record_payment(conn, reference=reservation["payment_reference"],
+                             amount=Decimal(listing["vessel_price"]), currency="HKD",
+                             received_at=AS_OF)
+    assert conn.execute("SELECT count(*) AS n FROM vessel_payment").fetchone()["n"] == 0
+
+
+@pg
+def test_database_forbids_a_payment_match_to_an_agency_reservation(conn):
+    """The structural backstop, bypassing record_payment entirely: even a
+    direct INSERT cannot match a payment to an AGENCY reservation. Mirrors
+    vessel_forbid_mandate_mutation/vessel_forbid_price_change_once_approved/
+    vessel_forbid_reference_mutation - a fourth trigger doing the same job
+    for a cross-table invariant a same-table CHECK cannot see."""
+    from app.vessel import repo as vrepo
+
+    listing = _listed_listing(conn)   # AGENCY by default
+    reservation = vrepo.reserve_listing(conn, str(listing["listing_id"]), buyer_contact="a@x.com",
+                                        as_of=AS_OF)
+    with pytest.raises(psycopg.errors.RaiseException):
+        conn.execute(
+            """INSERT INTO vessel_payment (reference, amount, currency, received_at,
+                                           matched_reservation_id, state)
+               VALUES (%s, %s, 'HKD', %s, %s, 'MATCHED')""",
+            ("DIRECT-INSERT", listing["vessel_price"], AS_OF, reservation["reservation_id"]))
+
+
+@pg
+def test_commission_invoice_lists_completed_lines_per_mandate(conn):
+    """One invoice per mandate, not per sale: two completed lines under one
+    mandate, one still only APPROVED (never drawn into a drop) - the
+    invoice counts the two sold, not the one not yet offered to a buyer."""
+    from app.vessel import repo as vrepo
+
+    op = _operator(conn)
+    deal_id, (line_a, line_b, line_c), _ = _deal_with_lines(conn, op, [
+        {"cuvee": "Sold A"}, {"cuvee": "Sold B"}, {"cuvee": "Not Yet Listed"}])
+    for line_id in (line_a, line_b, line_c):
+        _seed_run(conn, line_id, uk_reference=Decimal("1443.30"), comp_count=3,
+                 band_low=Decimal("1200"), band_high=Decimal("1600"))
+    listings, excluded = vrepo.recommend_lines(
+        conn, deal_id, currency="HKD", fx_hkd_per_gbp=Decimal("9.7"), fx_source="XE",
+        fx_rate_date=AS_OF.date(), stock_location="HK_BOND")
+    assert not excluded and len(listings) == 3
+    by_line = {str(l["line_id"]): l for l in listings}
+
+    mandate = vrepo.approve_mandate(
+        conn, deal_id, move_line_ids=[line_a, line_b, line_c], keep_line_ids=[],
+        approved_by_name="A Seller", as_of=AS_OF)   # AGENCY by default
+
+    drop = vrepo.create_drop(conn, label="Drop one", drop_date=AS_OF.date(), created_by=op)
+    sold_ids = [str(by_line[line_a]["listing_id"]), str(by_line[line_b]["listing_id"])]
+    vrepo.add_to_drop(conn, str(drop["drop_id"]), sold_ids, as_of=AS_OF)
+
+    for listing_id in sold_ids:
+        reservation = vrepo.reserve_listing(conn, listing_id, buyer_contact="a@x.com", as_of=AS_OF)
+        vrepo.confirm_seller_receipt(conn, str(reservation["reservation_id"]),
+                                     confirmed_by="A Seller", as_of=AS_OF)
+
+    invoice = vrepo.commission_invoice(conn, str(mandate["mandate_id"]))
+    assert {str(l["listing_id"]) for l in invoice["lines"]} == set(sold_ids)
+    [total] = invoice["totals"]
+    assert total["currency"] == "HKD"
+    sold = [by_line[line_a], by_line[line_b]]
+    expected = sum(
+        (Decimal(str(l["vessel_price"])) - Decimal(str(l["seller_net"]))) for l in sold)
+    assert total["commission_total"] == expected
+
+
+@pg
+def test_commission_invoice_refuses_a_principal_mandate(conn):
+    """Nothing to invoice under PRINCIPAL: VESSEL already kept its fee
+    before paying the seller, so there is no commission owed afterward."""
+    from app.vessel import repo as vrepo
+
+    listing = _listed_listing(conn, settlement_mode="PRINCIPAL")
+    with pytest.raises(ValueError):
+        vrepo.commission_invoice(conn, str(listing["mandate_id"]))

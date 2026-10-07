@@ -86,13 +86,29 @@ def approve(deal_id: UUID, body: s.ApproveMandateIn, conn: psycopg.Connection = 
                 conn, str(deal_id),
                 move_line_ids=[str(i) for i in body.move_line_ids],
                 keep_line_ids=[str(i) for i in body.keep_line_ids],
-                approved_by_name=body.approved_by_name, window_days=body.window_days)
+                approved_by_name=body.approved_by_name, window_days=body.window_days,
+                settlement_mode=body.settlement_mode)
     except ValueError as e:
         raise HTTPException(422, str(e))
     except psycopg.Error as e:
         raise translate(e)
     estimate = repo.mandate_estimate(conn, str(mandate["mandate_id"]))
     return s.MandateOut(**mandate, estimate=estimate)
+
+
+@operator_router.get("/mandates/{mandate_id}/commission-invoice",
+                     response_model=s.CommissionInvoiceOut)
+def commission_invoice(mandate_id: UUID, conn: psycopg.Connection = Depends(db)):
+    """One invoice per mandate (decision 0022), listing every completed
+    line and the 8% VESSEL invoices the seller for it. AGENCY only — a
+    PRINCIPAL mandate has nothing to invoice, VESSEL already kept its fee
+    before paying the seller."""
+    try:
+        return repo.commission_invoice(conn, str(mandate_id))
+    except LookupError as e:
+        raise HTTPException(404, str(e))
+    except ValueError as e:
+        raise HTTPException(409, str(e))
 
 
 # -------------------------------------------------------------------- drops
@@ -176,10 +192,34 @@ def proof_of_payment(reservation_id: UUID, conn: psycopg.Connection = Depends(db
 def record_payment(body: s.PaymentIn, conn: psycopg.Connection = Depends(db)):
     """An operator entering what they saw land. Payment matching is manual in
     drop one (v3's build order puts automation in drops two to five); nothing
-    ships on an unmatched payment either way."""
-    with conn.transaction():
-        return repo.record_payment(conn, reference=body.reference, amount=body.amount,
-                                   currency=body.currency, received_at=body.received_at)
+    ships on an unmatched payment either way. The PRINCIPAL path only —
+    see `confirm_seller_receipt` for AGENCY, the mode drop one actually
+    uses."""
+    try:
+        with conn.transaction():
+            return repo.record_payment(conn, reference=body.reference, amount=body.amount,
+                                       currency=body.currency, received_at=body.received_at)
+    except repo.AgencyMandate as e:
+        raise HTTPException(409, str(e))
+    except psycopg.Error as e:
+        raise translate(e)
+
+
+@operator_router.post("/reservations/{reservation_id}/confirm-seller-receipt",
+                      response_model=s.ReservationOut)
+def confirm_seller_receipt(reservation_id: UUID, body: s.ConfirmSellerReceiptIn,
+                           conn: psycopg.Connection = Depends(db)):
+    """The AGENCY fulfilment path (decision 0022): an operator records that
+    the seller confirmed the buyer paid them directly — who, and when,
+    never a boolean. VESSEL asserts nothing about funds it never held."""
+    try:
+        with conn.transaction():
+            return repo.confirm_seller_receipt(
+                conn, str(reservation_id), confirmed_by=body.confirmed_by, as_of=_now())
+    except LookupError as e:
+        raise HTTPException(404, str(e))
+    except repo.AgencyMandate as e:
+        raise HTTPException(409, str(e))
 
 
 @operator_router.post("/reservations/expire-overdue", response_model=list[str])

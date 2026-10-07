@@ -138,6 +138,15 @@ def price_listing(market_reference: Decimal, *, band: str, currency: str,
     return VesselPrice(vessel_price=vessel_price, seller_net=seller_net)
 
 
+def commission_due(vessel_price: Decimal, seller_net: Decimal) -> Decimal:
+    """What VESSEL invoices under an AGENCY mandate (decision 0022): the
+    complement of seller_net, never independently rounded, so commission +
+    seller_net always equals vessel_price exactly — the buyer pays the
+    seller the full vessel_price directly, and this is the figure VESSEL
+    separately bills for."""
+    return vessel_price - seller_net
+
+
 def meets_minimum_value(vessel_price: Decimal, currency: str, fx_hkd_per_gbp: Optional[Decimal],
                         *, minimum_gbp: Decimal = MIN_LISTING_VALUE_GBP) -> bool:
     return gbp_equivalent(vessel_price, currency, fx_hkd_per_gbp) >= minimum_gbp

@@ -107,11 +107,17 @@ class RecommendOut(_Out):
     excluded_counts: dict[str, int]
 
 
+SettlementMode = Literal["AGENCY", "PRINCIPAL"]
+
+
 class ApproveMandateIn(_In):
     move_line_ids: list[UUID] = Field(min_length=1)
     keep_line_ids: list[UUID] = []
     approved_by_name: str = Field(min_length=1)
     window_days: int = Field(default=30, gt=0)
+    #: A term of the mandate (decision 0022): AGENCY is the only mode
+    #: actually used — PRINCIPAL is accepted but untested.
+    settlement_mode: SettlementMode = "AGENCY"
 
 
 class MandateNetOut(_Out):
@@ -127,7 +133,35 @@ class MandateOut(_Out):
     window_days: int
     approved_by_name: str
     approved_at: datetime
+    settlement_mode: SettlementMode
     estimate: list[MandateNetOut] = []
+
+
+class ConfirmSellerReceiptIn(_In):
+    confirmed_by: str = Field(min_length=1)
+
+
+class CommissionInvoiceLineOut(_Out):
+    listing_id: UUID
+    display_producer: str
+    display_wine: str
+    vintage: int
+    release_code: Optional[str]
+    currency: str
+    vessel_price: Money
+    seller_net: Money
+    commission: Money
+
+
+class CommissionInvoiceTotalOut(_Out):
+    currency: str
+    commission_total: Money
+
+
+class CommissionInvoiceOut(_Out):
+    mandate_id: UUID
+    lines: list[CommissionInvoiceLineOut]
+    totals: list[CommissionInvoiceTotalOut]
 
 
 class DropIn(_In):
@@ -158,6 +192,8 @@ class ReservationOut(_Out):
     held_at: datetime
     expires_at: datetime
     proof_submitted_at: Optional[datetime]
+    seller_confirmed_at: Optional[datetime] = None
+    seller_confirmed_by: Optional[str] = None
 
 
 class ReservationWithListingOut(ReservationOut):

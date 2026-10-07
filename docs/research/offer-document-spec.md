@@ -1,3 +1,11 @@
+> **SUPERSEDED — PRINCIPAL MODEL, NOT BUILT.** This spec is the
+> direct-purchase business (VESSEL buys the cellar at `buyer_discount`/
+> `margin_on_sale` and resells — principal trading). Decision 0022 (7
+> October 2026) chose agency instead for VESSEL: the buyer pays the seller
+> directly and VESSEL invoices an 8% commission, never holding the money.
+> `seller_offer`/`seller_offer_line` as specified below are not to be
+> built — not now, not "for tidiness" — unless Doug asks for them by name.
+
 # Spec — the seller offer document
 
 6 October 2026. Unblocks §4 of the cellar-to-offer brief. The rendered design

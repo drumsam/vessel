@@ -158,10 +158,10 @@ INGEST → IDENTITY PROPOSAL → IDENTITY VERIFICATION → SNAPSHOT LOOKUP
 ## Testing
 
 ```bash
-python -m pytest -q                      # 323 pass, 123 skip; no network, no services
+python -m pytest -q                      # 327 pass, 140 skip; no network, no services
 docker compose up -d                     # Postgres + Redis, then:
 TEST_DATABASE_URL=postgresql://pricer:pricer@localhost:5432/pricer_test \
-TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q   # 446 pass
+TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q   # 467 pass
 python scripts/rerun_burgundy_proof.py   # expect READY 0  REVIEW 15  NO_MARKET 5
 python scripts/load_vintage_tiers.py    # the vintage register, from its CSV
 python scripts/case_premium_report.py   # what the collected pairs say CASE_PREMIUM is
@@ -253,20 +253,34 @@ Playwright smoke test drives the whole operator flow.
 
 Merchant specs and the control-set evidence are in `docs/research/`.
 
-`app/vessel/` is VESSEL Private Sale (decision 0020): a consignment
-marketplace, not the direct-purchase business the rest of this file
-describes — VESSEL lists a seller's own wine under a time-boxed mandate,
-sets the price, and takes a fee when it sells. It shares no table with
-`buyer_offer`/the chain, reads only `benchmark_run` and `vintage_band_check`
-from the engine, and does not touch `app/core/`. `engine.py` is the pricing
-and evidence rules (pure); `repo.py` is the persistence, including the
-partial-unique-index reservation lock and the two triggers that make a
-mandate and an approved listing's price immutable. Two FastAPI routers
-(`app/api/vessel.py`): one public (seller approval, drop, wine page, buy,
-proof of payment — no login exists for sellers or buyers, by the spec's own
-admission, not a developer's call), one behind the existing operator
-session (recommending lines, drops, payments, analytics). Four page routes
-in `web/app/vessel/` cover the five specified screens.
+`app/vessel/` is VESSEL Private Sale (decision 0020): a side business, not
+a company being grown (decision 0022 — two to three cellars a year, the
+five-year growth and referral/club model parked, not pursued) — a
+consignment marketplace, not the direct-purchase business the rest of this
+file describes. VESSEL lists a seller's own wine under a time-boxed
+mandate, names which market it is priced against (`UK_IN_BOND` or
+`HK_RETAIL`, decision 0021 — a wine may carry a reference in both, and a
+listing says which one priced it), and takes a fee when it sells. It
+shares no table with `buyer_offer`/the chain, reads only `benchmark_run`
+and `vintage_band_check` from the engine, and does not touch `app/core/`.
+`engine.py` is the pricing and evidence rules (pure); `repo.py` is the
+persistence, including the partial-unique-index reservation lock and the
+triggers that make a mandate, an approved listing's price, and a captured
+market reference immutable. Settlement is a term of the mandate
+(`settlement_mode`, decision 0022): AGENCY by default — the buyer pays the
+seller directly and VESSEL invoices an 8% commission per mandate, never
+holding the money, structurally enforced by a trigger that forbids a
+matched payment under an AGENCY mandate — and PRINCIPAL, the original
+assumption, kept legal but unused and untested until someone needs it.
+`docs/research/offer-document-spec.md`'s `seller_offer`/`seller_offer_line`
+is a different, direct-purchase business and is marked superseded: not to
+be built unless asked for by name. Two FastAPI routers (`app/api/vessel.py`):
+one public (seller approval, drop, wine page, buy, proof of payment — no
+login exists for sellers or buyers, by the spec's own admission, not a
+developer's call), one behind the existing operator session (recommending
+lines, drops, payments, seller-receipt confirmation, the commission
+invoice, analytics). Four page routes in `web/app/vessel/` cover the five
+specified screens.
 
 Not built yet: the LWIN import (decision 0012 — waiting on the file), Albany and
 Vinum, the remaining merchant adapters, the auction evidence form (spec in

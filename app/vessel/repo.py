@@ -24,6 +24,7 @@ from app.vessel.engine import (
     MARKET_LABELS,
     MIN_LISTING_VALUE_GBP,
     PROOF_OF_PAYMENT_EXTENSION,
+    commission_due,
     evidence_claim,
     hold_duration,
     meets_minimum_value,
@@ -242,7 +243,28 @@ def recommended_listings(conn: psycopg.Connection, deal_id: str) -> list[dict]:
 # ----------------------------------------------------------------- mandate
 
 
-MANDATE_TEMPLATE = (
+SETTLEMENT_MODES = frozenset({"AGENCY", "PRINCIPAL"})
+DEFAULT_SETTLEMENT_MODE = "AGENCY"
+
+#: AGENCY (decision 0022, the only mode Doug actually uses): the buyer pays
+#: the seller directly, VESSEL never holds the money, and invoices an 8%
+#: commission on each wine once sold.
+MANDATE_TEMPLATE_AGENCY = (
+    "VESSEL may market these wines for {days} days at a price of no less "
+    "than the amount shown against each line. The buyer pays you directly, "
+    "in full, on collection; VESSEL invoices you an 8% commission on each "
+    "wine once it sells, rather than holding any part of the sale "
+    "ourselves. We handle release timing, presentation and price "
+    "positioning within that. We'll tell you what sold, when, and what "
+    "didn't. You warrant that the wine is yours to sell, free of any "
+    "charge or encumbrance, and agree to its remaining in bonded storage "
+    "while it is listed."
+)
+
+#: PRINCIPAL: the original assumption (VESSEL receives the buyer's funds,
+#: then pays the seller net) — unused and untested until someone needs it
+#: (decision 0022). Preserved verbatim from before the agency revision.
+MANDATE_TEMPLATE_PRINCIPAL = (
     "VESSEL may market these wines for {days} days at a net to you of no less "
     "than the amount shown against each line. We handle release timing, "
     "presentation and price positioning within that. We'll tell you what sold, "
@@ -251,14 +273,22 @@ MANDATE_TEMPLATE = (
     "storage while it is listed."
 )
 
+MANDATE_TEMPLATES = {"AGENCY": MANDATE_TEMPLATE_AGENCY, "PRINCIPAL": MANDATE_TEMPLATE_PRINCIPAL}
+
 
 def approve_mandate(conn: psycopg.Connection, deal_id: str, *, move_line_ids: list[str],
                     keep_line_ids: list[str], approved_by_name: str,
-                    window_days: int = 30, as_of: Optional[datetime] = None) -> dict:
+                    window_days: int = 30, settlement_mode: str = DEFAULT_SETTLEMENT_MODE,
+                    as_of: Optional[datetime] = None) -> dict:
     """The seller's one button. Everything it does happens together: write
     the mandate (never touched again), move every ticked listing to APPROVED
     under it, decline the rest. A line not named in either list is left
     exactly as it was — the seller saw only the lines offered to them.
+
+    `settlement_mode` is a term of the mandate, never per line (decision
+    0022): every listing under one mandate settles the same way. Defaults
+    to AGENCY — the only mode actually used; PRINCIPAL is accepted (the
+    database knows the value) but exercised nowhere in this codebase.
 
     `as_of` defaults to the real clock for callers that do not care (every
     API route); tests that need `listing.approved_at` to agree with a fake
@@ -268,12 +298,16 @@ def approve_mandate(conn: psycopg.Connection, deal_id: str, *, move_line_ids: li
         raise ValueError("a mandate needs a named approver")
     if not move_line_ids:
         raise ValueError("a mandate needs at least one line")
+    if settlement_mode not in SETTLEMENT_MODES:
+        raise ValueError(f"{settlement_mode!r} is not a recognised settlement mode")
     as_of = as_of or datetime.now(timezone.utc)
 
     mandate = conn.execute(
-        """INSERT INTO vessel_mandate (deal_id, mandate_text, window_days, approved_by_name)
-           VALUES (%s, %s, %s, %s) RETURNING *""",
-        (deal_id, MANDATE_TEMPLATE.format(days=window_days), window_days, approved_by_name),
+        """INSERT INTO vessel_mandate (deal_id, mandate_text, window_days, approved_by_name,
+                                       settlement_mode)
+           VALUES (%s, %s, %s, %s, %s) RETURNING *""",
+        (deal_id, MANDATE_TEMPLATES[settlement_mode].format(days=window_days), window_days,
+         approved_by_name, settlement_mode),
     ).fetchone()
 
     with conn.cursor() as cur:
@@ -302,6 +336,46 @@ def mandate_estimate(conn: psycopg.Connection, mandate_id: str) -> list[dict]:
         """SELECT currency, count(*) AS lines, sum(seller_net) AS net_total
              FROM vessel_listing WHERE mandate_id = %s GROUP BY currency""",
         (mandate_id,)).fetchall()
+
+
+#: Completed, in the sense that matters for a commission invoice: the sale
+#: happened, whatever stage of transfer/settlement it has since reached.
+COMPLETED_SALE_STATES = ("PAID", "TRANSFERRING", "SETTLED")
+
+
+def commission_invoice(conn: psycopg.Connection, mandate_id: str) -> dict:
+    """One invoice per mandate, not per sale (decision 0022) — at two to
+    three deals a year nobody wants an invoice per bottle. Every figure is
+    read from the listings themselves, same discipline as mandate_estimate:
+    nothing is stored on the invoice, so it can never disagree with them.
+    """
+    mandate = conn.execute("SELECT * FROM vessel_mandate WHERE mandate_id = %s",
+                           (mandate_id,)).fetchone()
+    if mandate is None:
+        raise LookupError(f"no mandate {mandate_id}")
+    if mandate["settlement_mode"] != "AGENCY":
+        raise ValueError(
+            f"mandate {mandate_id} settles as {mandate['settlement_mode']}: VESSEL already "
+            "deducted its fee before paying the seller, there is nothing to invoice")
+
+    rows = conn.execute(
+        """SELECT listing_id, display_producer, display_wine, vintage, release_code,
+                  currency, vessel_price, seller_net
+             FROM vessel_listing
+            WHERE mandate_id = %s AND state = ANY(%s)
+            ORDER BY display_producer, display_wine, vintage""",
+        (mandate_id, list(COMPLETED_SALE_STATES))).fetchall()
+
+    lines = []
+    totals: dict[str, Decimal] = {}
+    for row in rows:
+        commission = commission_due(Decimal(str(row["vessel_price"])),
+                                    Decimal(str(row["seller_net"])))
+        lines.append({**row, "commission": commission})
+        totals[row["currency"]] = totals.get(row["currency"], Decimal("0")) + commission
+
+    return {"mandate_id": mandate_id, "lines": lines,
+           "totals": [{"currency": c, "commission_total": t} for c, t in totals.items()]}
 
 
 # -------------------------------------------------------------------- drops
@@ -366,6 +440,14 @@ class AlreadyReserved(Exception):
 class AlreadyExtended(Exception):
     """Proof of payment has already been submitted once for this
     reservation. Capped in code: a second extension does not happen."""
+
+
+class AgencyMandate(Exception):
+    """A code path tried to record VESSEL as having received funds for a
+    reservation under an AGENCY mandate (decision 0022). Caught here, in
+    Python, with a clear message; the database's own trigger
+    (vessel_forbid_payment_match_for_agency) is the backstop for any path
+    that does not go through record_payment."""
 
 
 def _new_reference() -> str:
@@ -484,6 +566,40 @@ def cancel_reservation(conn: psycopg.Connection, reservation_id: str, *,
     return reservation
 
 
+def confirm_seller_receipt(conn: psycopg.Connection, reservation_id: str, *,
+                           confirmed_by: str, as_of: datetime) -> dict:
+    """The AGENCY fulfilment path (decision 0022): the buyer paid the seller
+    directly, and this is the seller telling VESSEL so — recorded as who
+    confirmed and when, never a boolean, and VESSEL asserts nothing about
+    funds it never held. `record_payment` is the PRINCIPAL equivalent; the
+    two are mutually exclusive by mandate, not by listing or by line."""
+    if not confirmed_by.strip():
+        raise ValueError("a confirmation needs a named confirmer")
+    reservation = conn.execute(
+        """SELECT r.*, l.listing_id, m.settlement_mode
+             FROM vessel_reservation r
+             JOIN vessel_listing l ON l.listing_id = r.listing_id
+             JOIN vessel_mandate m ON m.mandate_id = l.mandate_id
+            WHERE r.reservation_id = %s AND r.state = 'HELD'""", (reservation_id,)).fetchone()
+    if reservation is None:
+        raise LookupError(f"no live reservation {reservation_id}")
+    if reservation["settlement_mode"] != "AGENCY":
+        raise AgencyMandate(
+            f"reservation {reservation_id} is under a {reservation['settlement_mode']} "
+            "mandate: confirm_seller_receipt is the AGENCY path, use record_payment")
+    updated = conn.execute(
+        """UPDATE vessel_reservation
+              SET state = 'FULFILLED', fulfilled_at = %s,
+                  seller_confirmed_at = %s, seller_confirmed_by = %s
+            WHERE reservation_id = %s RETURNING *""",
+        (as_of, as_of, confirmed_by, reservation_id)).fetchone()
+    conn.execute("UPDATE vessel_listing SET state = 'PAID' WHERE listing_id = %s",
+                (reservation["listing_id"],))
+    record_event(conn, reservation["listing_id"], "BOUGHT",
+                buyer_contact=reservation["buyer_contact"])
+    return updated
+
+
 # ------------------------------------------------------------------ payment
 
 
@@ -492,12 +608,25 @@ def record_payment(conn: psycopg.Connection, *, reference: str, amount: Decimal,
     """Matching by reference AND amount AND currency: a reference nobody is
     holding, or money that is short, over, or in the wrong currency, is
     UNMATCHED and ships nothing — sent to a queue for a person, never
-    rounded or waved through. No title moves before cleared funds."""
+    rounded or waved through. No title moves before cleared funds.
+
+    This is the PRINCIPAL path: VESSEL asserting it received the buyer's
+    funds. Refused in Python for an AGENCY reservation (`AgencyMandate`),
+    backed by the database's own trigger
+    (`vessel_forbid_payment_match_for_agency`) for any path that reaches the
+    INSERT some other way.
+    """
     reservation = conn.execute(
         """SELECT r.*, l.listing_id, l.currency AS listing_currency,
-                  l.vessel_price AS listing_price
-             FROM vessel_reservation r JOIN vessel_listing l ON l.listing_id = r.listing_id
+                  l.vessel_price AS listing_price, m.settlement_mode
+             FROM vessel_reservation r
+             JOIN vessel_listing l ON l.listing_id = r.listing_id
+             JOIN vessel_mandate m ON m.mandate_id = l.mandate_id
             WHERE r.payment_reference = %s AND r.state = 'HELD'""", (reference,)).fetchone()
+    if reservation is not None and reservation["settlement_mode"] == "AGENCY":
+        raise AgencyMandate(
+            f"reservation {reservation['reservation_id']} is under an AGENCY mandate: "
+            "VESSEL never holds funds for it, use confirm_seller_receipt instead")
     matched = bool(
         reservation
         and reservation["listing_currency"] == currency

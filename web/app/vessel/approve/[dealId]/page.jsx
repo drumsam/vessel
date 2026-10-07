@@ -90,11 +90,13 @@ export default function SellerApproval() {
         <input id="name" value={name} onChange={(e) => setName(e.target.value)} required
                style={{ marginBottom: 10 }} />
         <p className="muted" style={{ fontSize: 13 }}>
-          VESSEL may market the wines ticked &ldquo;Move&rdquo; for 30 days at a net to you of no
-          less than the amount shown against each line. We handle release timing, presentation and
-          price positioning within that. We&rsquo;ll tell you what sold, when, and what
-          didn&rsquo;t. You warrant that the wine is yours to sell, free of any charge or
-          encumbrance, and agree to its remaining in bonded storage while it is listed.
+          VESSEL may market the wines ticked &ldquo;Move&rdquo; for 30 days at a price of no less
+          than the amount shown against each line. The buyer pays you directly, in full, on
+          collection; VESSEL invoices you an 8% commission on each wine once it sells, rather than
+          holding any part of the sale ourselves. We handle release timing, presentation and price
+          positioning within that. We&rsquo;ll tell you what sold, when, and what didn&rsquo;t. You
+          warrant that the wine is yours to sell, free of any charge or encumbrance, and agree to
+          its remaining in bonded storage while it is listed.
         </p>
         <button type="button" disabled={busy || !name.trim()} onClick={approve}>
           Approve {listings.filter((l) => moved[l.listing_id]).length} wines

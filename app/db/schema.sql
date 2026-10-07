@@ -702,7 +702,15 @@ CREATE TABLE vessel_mandate (
     mandate_text     text NOT NULL,              -- the rendered paragraph, verbatim
     window_days      int  NOT NULL DEFAULT 30 CHECK (window_days > 0),
     approved_by_name text NOT NULL CHECK (approved_by_name <> ''),
-    approved_at      timestamptz NOT NULL DEFAULT now()
+    approved_at      timestamptz NOT NULL DEFAULT now(),
+    -- A term of the mandate, not of any one line under it (decision 0022):
+    -- AGENCY (default) -- the buyer pays the seller directly, VESSEL
+    -- invoices an 8% commission on completed sales, VESSEL never holds
+    -- funds. PRINCIPAL -- the original assumption, unused and untested
+    -- until someone needs it.
+    settlement_mode  text NOT NULL DEFAULT 'AGENCY',
+    CONSTRAINT vessel_mandate_settlement_mode_known CHECK (
+        settlement_mode IN ('AGENCY','PRINCIPAL'))
 );
 
 CREATE OR REPLACE FUNCTION vessel_forbid_mandate_mutation() RETURNS trigger AS $$
@@ -908,7 +916,15 @@ CREATE TABLE vessel_reservation (
     expires_at          timestamptz NOT NULL,
     proof_submitted_at  timestamptz,
     fulfilled_at        timestamptz,
-    cancelled_at        timestamptz
+    cancelled_at        timestamptz,
+    -- Who confirmed receipt, and when -- never a boolean (decision 0022),
+    -- set together or not at all. The AGENCY fulfilment path: the seller
+    -- confirms the buyer paid them directly, VESSEL asserts nothing about
+    -- funds it never held.
+    seller_confirmed_at timestamptz,
+    seller_confirmed_by text,
+    CONSTRAINT vessel_reservation_seller_confirmation_complete CHECK (
+        (seller_confirmed_at IS NULL) = (seller_confirmed_by IS NULL))
 );
 
 -- "A database constraint, not application logic" (v3). Two concurrent BUYs
@@ -933,6 +949,37 @@ CREATE TABLE vessel_payment (
 );
 
 CREATE INDEX vessel_payment_unmatched ON vessel_payment (reference) WHERE state = 'UNMATCHED';
+
+-- "No code path should be able to reach a 'we hold the money' state from an
+-- AGENCY mandate" (decision 0022). A CHECK constraint cannot see across
+-- vessel_payment -> vessel_reservation -> vessel_listing -> vessel_mandate;
+-- a trigger is this schema's own established mechanism for a cross-table
+-- invariant (vessel_forbid_mandate_mutation, vessel_forbid_price_change_once_approved,
+-- vessel_forbid_reference_mutation do the same job for theirs). Safe because
+-- vessel_mandate is immutable: the looked-up settlement_mode never goes stale.
+CREATE OR REPLACE FUNCTION vessel_forbid_payment_match_for_agency() RETURNS trigger AS $$
+DECLARE
+    mode text;
+BEGIN
+    IF NEW.matched_reservation_id IS NOT NULL THEN
+        SELECT m.settlement_mode INTO mode
+          FROM vessel_reservation r
+          JOIN vessel_listing l ON l.listing_id = r.listing_id
+          JOIN vessel_mandate m ON m.mandate_id = l.mandate_id
+         WHERE r.reservation_id = NEW.matched_reservation_id;
+        IF mode = 'AGENCY' THEN
+            RAISE EXCEPTION
+                'reservation % is under an AGENCY mandate: VESSEL never holds funds for it, record the seller''s confirmation instead (confirm_seller_receipt)',
+                NEW.matched_reservation_id;
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER vessel_payment_forbid_agency_match
+    BEFORE INSERT OR UPDATE ON vessel_payment
+    FOR EACH ROW EXECUTE FUNCTION vessel_forbid_payment_match_for_agency();
 
 -- Behaviour, not a profile (v3/v4): viewed, bought, declined after viewing.
 -- "Time to act" is derived at read time from pairs of these rows, never stored.
