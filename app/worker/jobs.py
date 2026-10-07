@@ -23,6 +23,8 @@ import psycopg
 
 from app.adapters.base import Adapter, Candidate, Rejected, whole_pence
 from app.adapters.bordeaux_index import LIST_URL as BI_URL, BordeauxIndexAdapter
+from app.adapters.bordeaux_index_livetrade import (
+    MARKETPLACE_URL as BI_LIVETRADE_URL, BordeauxIndexLiveTradeAdapter)
 from app.adapters.farr import FEED_URL as FARR_URL, FarrAdapter
 from app.adapters.fine_and_rare import (
     PRODUCER_INDEX_URL as FRW_URL, FineAndRareAdapter)
@@ -99,6 +101,13 @@ TARGETED: dict[str, Targeted] = {
     # Searched by producer term; robots asks for ten seconds between requests.
     "lw-trading": Targeted(LayWheelerTradingAdapter, LW_URL,
                            ("search",) + SLUG_PARAMS, _by_search),
+    # A two-sided marketplace, not a listing page — bid, offer and last trade,
+    # read separately from "bordeaux-index" above because the search mechanism
+    # and raw shape differ entirely. This id is bookkeeping only: every Offer
+    # it produces is published under merchant_id "bordeaux-index" (decision
+    # 0026) — the same company, never a second comp. See the adapter module.
+    "bordeaux-index-livetrade": Targeted(BordeauxIndexLiveTradeAdapter, BI_LIVETRADE_URL,
+                                         ("search",) + SLUG_PARAMS, _by_search),
 }
 
 
@@ -157,9 +166,12 @@ def ingest(conn: psycopg.Connection, snapshot_id: str, adapter: Adapter,
                 rejected += 1
                 continue
             lwin7 = None if out.lwin7 in untrusted else out.lwin7
-            wine_id = registry.resolve_candidate(out.producer_text, out.cuvee_text, lwin7)
+            wine_id = registry.resolve_candidate(out.producer_text, out.cuvee_text, lwin7,
+                                                 out.release_code)
             if wine_id is None:
                 detail = f"{out.producer_text!r} / {out.cuvee_text!r}"
+                if out.release_code:
+                    detail += f" / release code {out.release_code!r}"
                 if out.lwin7:
                     detail += f" / LWIN-7 {out.lwin7}"
                     if out.lwin7 in untrusted:

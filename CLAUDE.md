@@ -172,10 +172,10 @@ INGEST → IDENTITY PROPOSAL → IDENTITY VERIFICATION → SNAPSHOT LOOKUP
 ## Testing
 
 ```bash
-python -m pytest -q                      # 361 pass, 161 skip; no network, no services
+python -m pytest -q                      # 377 pass, 161 skip; no network, no services
 docker compose up -d                     # Postgres + Redis, then:
 TEST_DATABASE_URL=postgresql://pricer:pricer@localhost:5432/pricer_test \
-TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q   # 522 pass
+TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q   # 538 pass
 python scripts/rerun_burgundy_proof.py   # expect READY 0  REVIEW 15  NO_MARKET 5
 python scripts/load_vintage_tiers.py    # the vintage register, from its CSV
 python scripts/case_premium_report.py   # what the collected pairs say CASE_PREMIUM is
@@ -228,11 +228,28 @@ position, ask for a trade feed rather than scraping.
 
 ## Current state
 
-Done: deterministic core, identity resolver, six verified adapters — Farr,
-Goedhuis Waddesdon and Lea & Sandeman (sweep), Bordeaux Index, FINE+RARE and
-Lay & Wheeler Trading (search) — Postgres schema, AI provider interface,
-FastAPI service (`app/api/`), Alembic migrations (`migrations/`), RQ worker
-(`app/worker/`) for snapshot collection and deterministic benchmark.
+Done: deterministic core, identity resolver, seven verified adapters — Farr,
+Goedhuis Waddesdon and Lea & Sandeman (sweep), Bordeaux Index, FINE+RARE,
+Lay & Wheeler Trading and Bordeaux Index LiveTrade (search) — Postgres schema,
+AI provider interface, FastAPI service (`app/api/`), Alembic migrations
+(`migrations/`), RQ worker (`app/worker/`) for snapshot collection and
+deterministic benchmark.
+
+Bordeaux Index LiveTrade (`app/adapters/bordeaux_index_livetrade.py`,
+decision 0027) reads the two-sided marketplace the sibling adapter's listing
+pages do not: bid, offer and last trade, structured JSON already embedded in
+the search page's own markup (no scraping of display text, no Playwright —
+confirmed server-rendered live). Registered as its own merchant,
+`bordeaux-index-livetrade`, for collection bookkeeping only — every `Offer`
+it produces is published under `merchant_id` `bordeaux-index`, the sibling
+adapter's own row, deliberately: LiveTrade and the regular listing pages are
+one company, and two rows both saying "Bordeaux Index" must never count as
+two merchants (invariant 4). Also fixed in passing: `app/worker/jobs.py`'s
+`ingest()` was not passing `Candidate.release_code` through to
+`resolve_candidate` at all, for any adapter — decision 0019 built the field
+and the resolver support, nobody had wired the one call site. LiveTrade is
+the first adapter to populate it (Krug's Grande Cuvée editions), which is
+what exposed the gap.
 
 Pricing rules are in `app/pricing/pricer.py` (decision 0007): margin, discount,
 precedence and the commercial flags, all pure and tested. The precedence ends
