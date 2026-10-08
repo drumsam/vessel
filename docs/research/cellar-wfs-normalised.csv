@@ -1,0 +1,562 @@
+line_id,raw_producer,raw_wine,raw_colour,raw_size,raw_vintage,bottles,vintage,bottle_ml,pack_size,region_guess,vintage_note,raw_row
+C001,Bollinger,Blanc de Noirs PN VZ 16,C,B,PN VZ16,9,1000,750,1,Champagne,non-standard: PN VZ16,Bollinger | Blanc de Noirs PN VZ 16 | C | B | PN VZ16 | 9
+C002,Ch. Angélus,St.Emilion,R,B,1997,1,1997,750,1,Bordeaux,,Ch. Angélus | St.Emilion | R | B | 1997 | 1
+C003,Ch. Angélus,St.Emilion,R,B,2000,2,2000,750,1,Bordeaux,,Ch. Angélus | St.Emilion | R | B | 2000 | 2
+C004,Ch. Angélus,St.Emilion,R,B,2001,1,2001,750,1,Bordeaux,,Ch. Angélus | St.Emilion | R | B | 2001 | 1
+C005,Ch. Angélus,St.Emilion,R,B,2004,1,2004,750,1,Bordeaux,,Ch. Angélus | St.Emilion | R | B | 2004 | 1
+C006,Ch. Angélus,St.Emilion,R,B,2005,2,2005,750,1,Bordeaux,,Ch. Angélus | St.Emilion | R | B | 2005 | 2
+C007,Ch. Calon Ségur,St. Estèphe,R,B,1995,4,1995,750,1,Bordeaux,,Ch. Calon Ségur | St. Estèphe | R | B | 1995 | 4
+C008,Ch. Calon Ségur,St. Estèphe,R,B,1995,6,1995,750,1,Bordeaux,,Ch. Calon Ségur | St. Estèphe | R | B | 1995 | 6
+C009,Ch. Calon Ségur,St. Estèphe,R,B,1996,6,1996,750,1,Bordeaux,,Ch. Calon Ségur | St. Estèphe | R | B | 1996 | 6
+C010,Ch. Cheval Blanc,St. Emilion,R,B,1989,10,1989,750,1,Bordeaux,,Ch. Cheval Blanc | St. Emilion | R | B | 1989 | 10
+C011,Ch. Cheval Blanc,St. Emilion,R,B,1999,2,1999,750,1,Bordeaux,,Ch. Cheval Blanc | St. Emilion | R | B | 1999 | 2
+C012,Ch. Cheval Blanc,St. Emilion,R,B,2001,2,2001,750,1,Bordeaux,,Ch. Cheval Blanc | St. Emilion | R | B | 2001 | 2
+C013,Ch. Clinet,Pomerol,R,B,1989,8,1989,750,1,Bordeaux,,Ch. Clinet | Pomerol | R | B | 1989 | 8
+C014,Ch. Cos d'Estournel,St. Estèphe,R,B,1996,5,1996,750,1,Bordeaux,,Ch. Cos d'Estournel | St. Estèphe | R | B | 1996 | 5
+C015,Ch. Cos d'Estournel,St. Estèphe,R,B,2000,3,2000,750,1,Bordeaux,,Ch. Cos d'Estournel | St. Estèphe | R | B | 2000 | 3
+C016,Ch. Cos d'Estournel,St. Estèphe,R,B,2001,6,2001,750,1,Bordeaux,,Ch. Cos d'Estournel | St. Estèphe | R | B | 2001 | 6
+C017,Ch. Cos d'Estournel,St. Estèphe,R,B,2003,12,2003,750,1,Bordeaux,,Ch. Cos d'Estournel | St. Estèphe | R | B | 2003 | 12
+C018,Ch. Cos d'Estournel,St. Estèphe,R,B,2007,1,2007,750,1,Bordeaux,,Ch. Cos d'Estournel | St. Estèphe | R | B | 2007 | 1
+C019,Ch. Cos d'Estournel Blanc,St. Estèphe,W,B,2005,2,2005,750,1,Bordeaux,,Ch. Cos d'Estournel Blanc | St. Estèphe | W | B | 2005 | 2
+C020,Ch. Ducru Beaucaillou,St. Julien,R,B,1982,2,1982,750,1,Bordeaux,,Ch. Ducru Beaucaillou | St. Julien | R | B | 1982 | 2
+C021,Ch. Ducru Beaucaillou,St. Julien,R,B,1998,1,1998,750,1,Bordeaux,,Ch. Ducru Beaucaillou | St. Julien | R | B | 1998 | 1
+C022,Ch. Figeac,St. Emilion,R,B,2000,1,2000,750,1,Bordeaux,,Ch. Figeac | St. Emilion | R | B | 2000 | 1
+C023,Ch. Grand Puy Lacoste,Pauillac,R,B,2010,3,2010,750,1,Bordeaux,,Ch. Grand Puy Lacoste | Pauillac | R | B | 2010 | 3
+C024,Ch. Guiraud,Sauternes,Sw,B,2001,2,2001,750,1,Bordeaux,,Ch. Guiraud | Sauternes | Sw | B | 2001 | 2
+C025,Ch. L'Eglise Clinet,Pomerol,R,B,2011,12,2011,750,1,Bordeaux,,Ch. L'Eglise Clinet | Pomerol | R | B | 2011 | 12
+C026,Ch. La Tour Blanche,Sauternes,Sw,B,1989,8,1989,750,1,Bordeaux,,Ch. La Tour Blanche | Sauternes | Sw | B | 1989 | 8
+C027,Ch. La Violette,Pomerol,R,B,2009,1,2009,750,1,Bordeaux,,Ch. La Violette | Pomerol | R | B | 2009 | 1
+C028,Ch. Lafaurie Peyraguey,Sauternes,Sw,B,1996,12,1996,750,1,Bordeaux,,Ch. Lafaurie Peyraguey | Sauternes | Sw | B | 1996 | 12
+C029,Ch. Latour,Pauillac,R,B,2003,12,2003,750,1,Bordeaux,,Ch. Latour | Pauillac | R | B | 2003 | 12
+C030,Ch. Latour,Pauillac,R,B,2005,2,2005,750,1,Bordeaux,,Ch. Latour | Pauillac | R | B | 2005 | 2
+C031,"Ch. Latour, Les Forts de Latour",Pauillac,R,B,2002,6,2002,750,1,Bordeaux,,"Ch. Latour, Les Forts de Latour | Pauillac | R | B | 2002 | 6"
+C032,Ch. Léoville Las Cases,St. Julien,R,B,1994,9,1994,750,1,Bordeaux,,Ch. Léoville Las Cases | St. Julien | R | B | 1994 | 9
+C033,Ch. Léoville Las Cases,St. Julien,R,B,2004,4,2004,750,1,Bordeaux,,Ch. Léoville Las Cases | St. Julien | R | B | 2004 | 4
+C034,Ch. Léoville Las Cases,St. Julien,R,B,2005,4,2005,750,1,Bordeaux,,Ch. Léoville Las Cases | St. Julien | R | B | 2005 | 4
+C035,Ch. Léoville Poyferre,St. Julien,R,B,2003,12,2003,750,1,Bordeaux,,Ch. Léoville Poyferre | St. Julien | R | B | 2003 | 12
+C036,Ch. Lynch Bages,Pauillac,R,B,1999,12,1999,750,1,Bordeaux,,Ch. Lynch Bages | Pauillac | R | B | 1999 | 12
+C037,Ch. Lynch Bages,Pauillac,R,B,2000,4,2000,750,1,Bordeaux,,Ch. Lynch Bages | Pauillac | R | B | 2000 | 4
+C038,Ch. Margaux,Margaux,R,B,1986,8,1986,750,1,Bordeaux,,Ch. Margaux | Margaux | R | B | 1986 | 8
+C039,Ch. Margaux,Margaux,R,B,2005,2,2005,750,1,Bordeaux,,Ch. Margaux | Margaux | R | B | 2005 | 2
+C040,"Ch. Margaux, Pavillon Blanc de Chateau Margaux",Margaux,W,B,2005,2,2005,750,1,Bordeaux,,"Ch. Margaux, Pavillon Blanc de Chateau Margaux | Margaux | W | B | 2005 | 2"
+C041,"Ch. Margaux, Pavillon Rouge du Ch. Margaux",Margaux,R,B,2002,2,2002,750,1,Bordeaux,,"Ch. Margaux, Pavillon Rouge du Ch. Margaux | Margaux | R | B | 2002 | 2"
+C042,Ch. Montrose,St. Estèphe,R,B,1990,5,1990,750,1,Bordeaux,,Ch. Montrose | St. Estèphe | R | B | 1990 | 5
+C043,Ch. Montrose,St. Estèphe,R,B,1996,2,1996,750,1,Bordeaux,,Ch. Montrose | St. Estèphe | R | B | 1996 | 2
+C044,Ch. Montrose,St. Estèphe,R,B,1999,2,1999,750,1,Bordeaux,,Ch. Montrose | St. Estèphe | R | B | 1999 | 2
+C045,Ch. Montrose,St. Estèphe,R,B,1999,2,1999,750,1,Bordeaux,,Ch. Montrose | St. Estèphe | R | B | 1999 | 2
+C046,Ch. Montrose,St. Estèphe,R,B,2001,2,2001,750,1,Bordeaux,,Ch. Montrose | St. Estèphe | R | B | 2001 | 2
+C047,Ch. Montrose,St. Estèphe,R,B,2004,4,2004,750,1,Bordeaux,,Ch. Montrose | St. Estèphe | R | B | 2004 | 4
+C048,Ch. Montrose,St. Estèphe,R,B,2005,3,2005,750,1,Bordeaux,,Ch. Montrose | St. Estèphe | R | B | 2005 | 3
+C049,Ch. Montrose,St. Estèphe,R,B,2011,2,2011,750,1,Bordeaux,,Ch. Montrose | St. Estèphe | R | B | 2011 | 2
+C050,Ch. Palmer,Margaux,R,B,1989,12,1989,750,1,Bordeaux,,Ch. Palmer | Margaux | R | B | 1989 | 12
+C051,Ch. Palmer,Margaux,R,B,1996,2,1996,750,1,Bordeaux,,Ch. Palmer | Margaux | R | B | 1996 | 2
+C052,Ch. Palmer,Margaux,R,B,1999,2,1999,750,1,Bordeaux,,Ch. Palmer | Margaux | R | B | 1999 | 2
+C053,Ch. Palmer,Margaux,R,B,2000,4,2000,750,1,Bordeaux,,Ch. Palmer | Margaux | R | B | 2000 | 4
+C054,Ch. Palmer Blanc,Margaux,W,B,2010,3,2010,750,1,Bordeaux,,Ch. Palmer Blanc | Margaux | W | B | 2010 | 3
+C055,Ch. Pape Clement,Pessac Léognan,R,B,2005,8,2005,750,1,Bordeaux,,Ch. Pape Clement | Pessac Léognan | R | B | 2005 | 8
+C056,Ch. Pape Clement Blanc,Pessac Léognan,R,B,2011,12,2011,750,1,Bordeaux,,Ch. Pape Clement Blanc | Pessac Léognan | R | B | 2011 | 12
+C057,Ch. Pichon Longueville Comtesse de Lalande,Pauillac,R,B,1983,12,1983,750,1,Bordeaux,,Ch. Pichon Longueville Comtesse de Lalande | Pauillac | R | B | 1983 | 12
+C058,Ch. Pichon Longueville Comtesse de Lalande,Pauillac,R,B,2003,12,2003,750,1,Bordeaux,,Ch. Pichon Longueville Comtesse de Lalande | Pauillac | R | B | 2003 | 12
+C059,Ch. Pontet Canet,Pauillac,R,B,2005,4,2005,750,1,Bordeaux,,Ch. Pontet Canet | Pauillac | R | B | 2005 | 4
+C060,Ch. Pontet Canet,Pauillac,R,B,2012,12,2012,750,1,Bordeaux,,Ch. Pontet Canet | Pauillac | R | B | 2012 | 12
+C061,Charles Heidsieck,Blanc de Millenaries,C,B,1995,6,1995,750,1,Champagne,,Charles Heidsieck | Blanc de Millenaries | C | B | 1995 | 6
+C062,Charles Heidsieck,Blanc de Millenaries,C,B,2004,13,2004,750,1,Champagne,,Charles Heidsieck | Blanc de Millenaries | C | B | 2004 | 13
+C063,Charles Heidsieck,Blanc de Millenaries,C,B,2006,12,2006,750,1,Champagne,,Charles Heidsieck | Blanc de Millenaries | C | B | 2006 | 12
+C064,Château de Beaucastel,"Chateauneuf du Pape, Hommage a Jacques Perrin",R,B,2007,5,2007,750,1,Rhone,,"Château de Beaucastel | Chateauneuf du Pape, Hommage a Jacques Perrin | R | B | 2007 | 5"
+C065,Château de Beaucastel,"Chateauneuf du Pape, Roussanne Vieilles Vignes",W,B,2007,3,2007,750,1,Rhone,,"Château de Beaucastel | Chateauneuf du Pape, Roussanne Vieilles Vignes | W | B | 2007 | 3"
+C066,Conterno Fantino,Barolo Ginestra Vigna Sorì Ginestra,R,B,2015,3,2015,750,1,Italy,,Conterno Fantino | Barolo Ginestra Vigna Sorì Ginestra | R | B | 2015 | 3
+C067,Dmn AF Gros,Richebourg Grand Cru,R,B,2012,6,2012,750,1,Burgundy,,Dmn AF Gros | Richebourg Grand Cru | R | B | 2012 | 6
+C068,Dmn AF Gros,Richebourg Grand Cru,R,B,2014,6,2014,750,1,Burgundy,,Dmn AF Gros | Richebourg Grand Cru | R | B | 2014 | 6
+C069,Dmn AF Gros,Richebourg Grand Cru,R,B,2016,6,2016,750,1,Burgundy,,Dmn AF Gros | Richebourg Grand Cru | R | B | 2016 | 6
+C070,Dmn AF Gros,Richebourg Grand Cru,R,B,2017,6,2017,750,1,Burgundy,,Dmn AF Gros | Richebourg Grand Cru | R | B | 2017 | 6
+C071,Dmn AF Gros,Richebourg Grand Cru,R,B,2018,6,2018,750,1,Burgundy,,Dmn AF Gros | Richebourg Grand Cru | R | B | 2018 | 6
+C072,Dmn Arlaud Père et Fils,Bonnes Mares Grand Cru,R,B,2016,2,2016,750,1,Burgundy,,Dmn Arlaud Père et Fils | Bonnes Mares Grand Cru | R | B | 2016 | 2
+C073,Dmn Arlaud Père et Fils,Bonnes Mares Grand Cru,R,B,2018,1,2018,750,1,Burgundy,,Dmn Arlaud Père et Fils | Bonnes Mares Grand Cru | R | B | 2018 | 1
+C074,Dmn Arlaud Père et Fils,Bonnes Mares Grand Cru,R,B,2019,1,2019,750,1,Burgundy,,Dmn Arlaud Père et Fils | Bonnes Mares Grand Cru | R | B | 2019 | 1
+C075,Dmn Arlaud Père et Fils,Chambolle Musigny Villages,R,B,2019,3,2019,750,1,Burgundy,,Dmn Arlaud Père et Fils | Chambolle Musigny Villages | R | B | 2019 | 3
+C076,Dmn Arlaud Père et Fils,Charmes Chambertin Grand Cru,R,B,2016,2,2016,750,1,Burgundy,,Dmn Arlaud Père et Fils | Charmes Chambertin Grand Cru | R | B | 2016 | 2
+C077,Dmn Arlaud Père et Fils,Charmes Chambertin Grand Cru,R,B,2017,6,2017,750,1,Burgundy,,Dmn Arlaud Père et Fils | Charmes Chambertin Grand Cru | R | B | 2017 | 6
+C078,Dmn Arlaud Père et Fils,Charmes Chambertin Grand Cru,R,B,2018,6,2018,750,1,Burgundy,,Dmn Arlaud Père et Fils | Charmes Chambertin Grand Cru | R | B | 2018 | 6
+C079,Dmn Arlaud Père et Fils,Charmes Chambertin Grand Cru,R,B,2018,1,2018,750,1,Burgundy,,Dmn Arlaud Père et Fils | Charmes Chambertin Grand Cru | R | B | 2018 | 1
+C080,Dmn Arlaud Père et Fils,Charmes Chambertin Grand Cru,R,B,2019,2,2019,750,1,Burgundy,,Dmn Arlaud Père et Fils | Charmes Chambertin Grand Cru | R | B | 2019 | 2
+C081,Dmn Arlaud Père et Fils,Clos de la Roche Grand Cru,R,B,2016,2,2016,750,1,Burgundy,,Dmn Arlaud Père et Fils | Clos de la Roche Grand Cru | R | B | 2016 | 2
+C082,Dmn Arlaud Père et Fils,Clos de la Roche Grand Cru,R,B,2019,1,2019,750,1,Burgundy,,Dmn Arlaud Père et Fils | Clos de la Roche Grand Cru | R | B | 2019 | 1
+C083,Dmn Arnaud Mortet,Gevrey Chambertin Tres Vieilles Vignes Villages,R,B,2019,6,2019,750,1,Burgundy,,Dmn Arnaud Mortet | Gevrey Chambertin Tres Vieilles Vignes Villages | R | B | 2019 | 6
+C084,Dmn Bonneau du Martray,Corton Charlemagne Grand Cru,W,B,2014,6,2014,750,1,Burgundy,,Dmn Bonneau du Martray | Corton Charlemagne Grand Cru | W | B | 2014 | 6
+C085,Dmn Bouchard Père et Fils,Beaune 1er Cru Grèves Vigne de l'Enfant Jesus,R,B,2016,6,2016,750,1,Burgundy,,Dmn Bouchard Père et Fils | Beaune 1er Cru Grèves Vigne de l'Enfant Jesus | R | B | 2016 | 6
+C086,Dmn Bouchard Père et Fils,Bonnes Mares Grand Cru,R,B,2015,3,2015,750,1,Burgundy,,Dmn Bouchard Père et Fils | Bonnes Mares Grand Cru | R | B | 2015 | 3
+C087,Dmn Bouchard Père et Fils,Bonnes Mares Grand Cru,R,B,2016,9,2016,750,1,Burgundy,,Dmn Bouchard Père et Fils | Bonnes Mares Grand Cru | R | B | 2016 | 9
+C088,Dmn Bouchard Père et Fils,Chambertin Clos de Bèze Grand Cru,R,B,2014,6,2014,750,1,Burgundy,,Dmn Bouchard Père et Fils | Chambertin Clos de Bèze Grand Cru | R | B | 2014 | 6
+C089,Dmn Bouchard Père et Fils,Chambertin Clos de Bèze Grand Cru,R,B,2015,6,2015,750,1,Burgundy,,Dmn Bouchard Père et Fils | Chambertin Clos de Bèze Grand Cru | R | B | 2015 | 6
+C090,Dmn Bouchard Père et Fils,Chambertin Clos de Bèze Grand Cru,R,B,2017,6,2017,750,1,Burgundy,,Dmn Bouchard Père et Fils | Chambertin Clos de Bèze Grand Cru | R | B | 2017 | 6
+C091,Dmn Bouchard Père et Fils,Chambertin Grand Cru,R,B,2017,6,2017,750,1,Burgundy?,,Dmn Bouchard Père et Fils | Chambertin Grand Cru | R | B | 2017 | 6
+C092,Dmn Bouchard Père et Fils,Clos de Vougeot Grand Cru,R,B,2016,6,2016,750,1,Burgundy,,Dmn Bouchard Père et Fils | Clos de Vougeot Grand Cru | R | B | 2016 | 6
+C093,Dmn Bouchard Père et Fils,Corton Charlemagne Grand Cru,W,M,2008,4,2008,1500,1,Burgundy,,Dmn Bouchard Père et Fils | Corton Charlemagne Grand Cru | W | M | 2008 | 4
+C094,Dmn Bouchard Père et Fils,Corton Grand Cru,R,B,2016,6,2016,750,1,Burgundy,,Dmn Bouchard Père et Fils | Corton Grand Cru | R | B | 2016 | 6
+C095,Dmn Bouchard Père et Fils,Echezeaux Grand Cru,R,B,2016,6,2016,750,1,Burgundy,,Dmn Bouchard Père et Fils | Echezeaux Grand Cru | R | B | 2016 | 6
+C096,Dmn Bouchard Père et Fils,Montrachet Grand Cru,W,B,2010,6,2010,750,1,Burgundy,,Dmn Bouchard Père et Fils | Montrachet Grand Cru | W | B | 2010 | 6
+C097,Dmn Bouchard Père et Fils,Montrachet Grand Cru,W,B,2014,6,2014,750,1,Burgundy,,Dmn Bouchard Père et Fils | Montrachet Grand Cru | W | B | 2014 | 6
+C098,Dmn Charles Van Canneyt,Chambertin Clos de Bèze Grand Cru,R,B,2015,6,2015,750,1,Burgundy,,Dmn Charles Van Canneyt | Chambertin Clos de Bèze Grand Cru | R | B | 2015 | 6
+C099,Dmn Charles Van Canneyt,Chambertin Clos de Bèze Grand Cru,R,B,2016,6,2016,750,1,Burgundy,,Dmn Charles Van Canneyt | Chambertin Clos de Bèze Grand Cru | R | B | 2016 | 6
+C100,Dmn Charles Van Canneyt,Chambertin Clos de Bèze Grand Cru,R,B,2017,6,2017,750,1,Burgundy,,Dmn Charles Van Canneyt | Chambertin Clos de Bèze Grand Cru | R | B | 2017 | 6
+C101,Dmn Charles Van Canneyt,Chambertin Clos de Bèze Grand Cru,R,B,2018,6,2018,750,1,Burgundy,,Dmn Charles Van Canneyt | Chambertin Clos de Bèze Grand Cru | R | B | 2018 | 6
+C102,Dmn Charles Van Canneyt,Chambertin Clos de Bèze Grand Cru,R,B,2019,6,2019,750,1,Burgundy,,Dmn Charles Van Canneyt | Chambertin Clos de Bèze Grand Cru | R | B | 2019 | 6
+C103,Dmn Charles Van Canneyt,Chambertin Grand Cru,R,B,2015,6,2015,750,1,Burgundy?,,Dmn Charles Van Canneyt | Chambertin Grand Cru | R | B | 2015 | 6
+C104,Dmn Charles Van Canneyt,Chambertin Grand Cru,R,B,2016,6,2016,750,1,Burgundy?,,Dmn Charles Van Canneyt | Chambertin Grand Cru | R | B | 2016 | 6
+C105,Dmn Charles Van Canneyt,Charmes Chambertin Grand Cru,R,B,2015,6,2015,750,1,Burgundy,,Dmn Charles Van Canneyt | Charmes Chambertin Grand Cru | R | B | 2015 | 6
+C106,Dmn Charles Van Canneyt,Charmes Chambertin Grand Cru,R,B,2016,6,2016,750,1,Burgundy,,Dmn Charles Van Canneyt | Charmes Chambertin Grand Cru | R | B | 2016 | 6
+C107,Dmn Charles Van Canneyt,Charmes Chambertin Grand Cru,R,B,2017,2,2017,750,1,Burgundy,,Dmn Charles Van Canneyt | Charmes Chambertin Grand Cru | R | B | 2017 | 2
+C108,Dmn Charles Van Canneyt,Charmes Chambertin Grand Cru,R,B,2018,5,2018,750,1,Burgundy,,Dmn Charles Van Canneyt | Charmes Chambertin Grand Cru | R | B | 2018 | 5
+C109,Dmn Charles Van Canneyt,Echezeaux Grand Cru,R,B,2019,6,2019,750,1,Burgundy,,Dmn Charles Van Canneyt | Echezeaux Grand Cru | R | B | 2019 | 6
+C110,Dmn Charles Van Canneyt,Gevrey Chambertin Les Cazetiers 1er Cru,R,B,2018,6,2018,750,1,Burgundy,,Dmn Charles Van Canneyt | Gevrey Chambertin Les Cazetiers 1er Cru | R | B | 2018 | 6
+C111,Dmn Clos de Tart Grand Cru,-,R,B,2017,6,2017,750,1,Burgundy,,Dmn Clos de Tart Grand Cru | - | R | B | 2017 | 6
+C112,Dmn Comte Armand,Auxey Duresses 1er Cru,R,B,2020,6,2020,750,1,Burgundy,,Dmn Comte Armand | Auxey Duresses 1er Cru | R | B | 2020 | 6
+C113,Dmn Comte Armand,Pommard 1er Cru Clos des Epeneaux,R,B,2017,4,2017,750,1,Burgundy,,Dmn Comte Armand | Pommard 1er Cru Clos des Epeneaux | R | B | 2017 | 4
+C114,Dmn Comte Armand,Pommard 1er Cru Clos des Epeneaux,R,B,2018,12,2018,750,1,Burgundy,,Dmn Comte Armand | Pommard 1er Cru Clos des Epeneaux | R | B | 2018 | 12
+C115,Dmn Comte Armand,Pommard 1er Cru Clos des Epeneaux,R,B,2019,18,2019,750,1,Burgundy,,Dmn Comte Armand | Pommard 1er Cru Clos des Epeneaux | R | B | 2019 | 18
+C116,Dmn Comte Armand,Pommard 1er Cru Clos des Epeneaux,R,B,2020,12,2020,750,1,Burgundy,,Dmn Comte Armand | Pommard 1er Cru Clos des Epeneaux | R | B | 2020 | 12
+C117,Dmn Comte Armand,Pommard 1er Cru Clos des Epeneaux,R,B,2020,6,2020,750,1,Burgundy,,Dmn Comte Armand | Pommard 1er Cru Clos des Epeneaux | R | B | 2020 | 6
+C118,Dmn Comte Armand,Pommard 1er Cru Clos des Epeneaux,R,B,2021,12,2021,750,1,Burgundy,,Dmn Comte Armand | Pommard 1er Cru Clos des Epeneaux | R | B | 2021 | 12
+C119,Dmn Comte Armand,Pommard 1er Cru Clos des Epeneaux,R,B,2022,12,2022,750,1,Burgundy,,Dmn Comte Armand | Pommard 1er Cru Clos des Epeneaux | R | B | 2022 | 12
+C120,Dmn Comte Armand,Volnay 1er Cru Les Frémiets,R,B,2020,6,2020,750,1,Burgundy,,Dmn Comte Armand | Volnay 1er Cru Les Frémiets | R | B | 2020 | 6
+C121,Dmn Comte Georges de Vogüé,Bonnes Mares Grand Cru,R,B,2008,6,2008,750,1,Burgundy,,Dmn Comte Georges de Vogüé | Bonnes Mares Grand Cru | R | B | 2008 | 6
+C122,Dmn Comte Georges de Vogüé,Bonnes Mares Grand Cru,R,B,2009,12,2009,750,1,Burgundy,,Dmn Comte Georges de Vogüé | Bonnes Mares Grand Cru | R | B | 2009 | 12
+C123,Dmn Comte Georges de Vogüé,Bonnes Mares Grand Cru,R,M,2009,1,2009,1500,1,Burgundy,,Dmn Comte Georges de Vogüé | Bonnes Mares Grand Cru | R | M | 2009 | 1
+C124,Dmn Comte Georges de Vogüé,Bonnes Mares Grand Cru,R,B,2009,12,2009,750,1,Burgundy,,Dmn Comte Georges de Vogüé | Bonnes Mares Grand Cru | R | B | 2009 | 12
+C125,Dmn Comte Georges de Vogüé,Bonnes Mares Grand Cru,R,B,2009,6,2009,750,1,Burgundy,,Dmn Comte Georges de Vogüé | Bonnes Mares Grand Cru | R | B | 2009 | 6
+C126,Dmn Comte Georges de Vogüé,Bonnes Mares Grand Cru,R,B,2010,6,2010,750,1,Burgundy,,Dmn Comte Georges de Vogüé | Bonnes Mares Grand Cru | R | B | 2010 | 6
+C127,Dmn Comte Georges de Vogüé,Bonnes Mares Grand Cru,R,B,2011,6,2011,750,1,Burgundy,,Dmn Comte Georges de Vogüé | Bonnes Mares Grand Cru | R | B | 2011 | 6
+C128,Dmn Comte Georges de Vogüé,Bonnes Mares Grand Cru,R,B,2011,12,2011,750,1,Burgundy,,Dmn Comte Georges de Vogüé | Bonnes Mares Grand Cru | R | B | 2011 | 12
+C129,Dmn Comte Georges de Vogüé,Bonnes Mares Grand Cru,R,B,2012,6,2012,750,1,Burgundy,,Dmn Comte Georges de Vogüé | Bonnes Mares Grand Cru | R | B | 2012 | 6
+C130,Dmn Comte Georges de Vogüé,Bonnes Mares Grand Cru,R,B,2015,6,2015,750,1,Burgundy,,Dmn Comte Georges de Vogüé | Bonnes Mares Grand Cru | R | B | 2015 | 6
+C131,Dmn Comte Georges de Vogüé,Bonnes Mares Grand Cru,R,B,2015,6,2015,750,1,Burgundy,,Dmn Comte Georges de Vogüé | Bonnes Mares Grand Cru | R | B | 2015 | 6
+C132,Dmn Comte Georges de Vogüé,Bonnes Mares Grand Cru,R,B,2017,12,2017,750,1,Burgundy,,Dmn Comte Georges de Vogüé | Bonnes Mares Grand Cru | R | B | 2017 | 12
+C133,Dmn Comte Georges de Vogüé,Bonnes Mares Grand Cru,R,B,2018,12,2018,750,1,Burgundy,,Dmn Comte Georges de Vogüé | Bonnes Mares Grand Cru | R | B | 2018 | 12
+C134,Dmn Comte Georges de Vogüé,Bonnes Mares Grand Cru,R,B,2019,12,2019,750,1,Burgundy,,Dmn Comte Georges de Vogüé | Bonnes Mares Grand Cru | R | B | 2019 | 12
+C135,Dmn Comte Georges de Vogüé,Chambolle Musigny 1er Cru,R,B,2009,12,2009,750,1,Burgundy,,Dmn Comte Georges de Vogüé | Chambolle Musigny 1er Cru | R | B | 2009 | 12
+C136,Dmn Comte Georges de Vogüé,Chambolle Musigny 1er Cru,R,B,2010,6,2010,750,1,Burgundy,,Dmn Comte Georges de Vogüé | Chambolle Musigny 1er Cru | R | B | 2010 | 6
+C137,Dmn Comte Georges de Vogüé,Chambolle Musigny 1er Cru,R,B,2010,6,2010,750,1,Burgundy,,Dmn Comte Georges de Vogüé | Chambolle Musigny 1er Cru | R | B | 2010 | 6
+C138,Dmn Comte Georges de Vogüé,Chambolle Musigny 1er Cru,R,B,2011,12,2011,750,1,Burgundy,,Dmn Comte Georges de Vogüé | Chambolle Musigny 1er Cru | R | B | 2011 | 12
+C139,Dmn Comte Georges de Vogüé,Chambolle Musigny 1er Cru,R,B,2012,12,2012,750,1,Burgundy,,Dmn Comte Georges de Vogüé | Chambolle Musigny 1er Cru | R | B | 2012 | 12
+C140,Dmn Comte Georges de Vogüé,Chambolle Musigny 1er Cru,R,B,2014,12,2014,750,1,Burgundy,,Dmn Comte Georges de Vogüé | Chambolle Musigny 1er Cru | R | B | 2014 | 12
+C141,Dmn Comte Georges de Vogüé,Chambolle Musigny 1er Cru,R,B,2018,6,2018,750,1,Burgundy,,Dmn Comte Georges de Vogüé | Chambolle Musigny 1er Cru | R | B | 2018 | 6
+C142,Dmn Comte Georges de Vogüé,Chambolle Musigny 1er Cru Les Amoureuses,R,B,2015,3,2015,750,1,Burgundy,,Dmn Comte Georges de Vogüé | Chambolle Musigny 1er Cru Les Amoureuses | R | B | 2015 | 3
+C143,Dmn Comte Georges de Vogüé,Chambolle Musigny 1er Cru Les Amoureuses,R,M,2016,1,2016,1500,1,Burgundy,,Dmn Comte Georges de Vogüé | Chambolle Musigny 1er Cru Les Amoureuses | R | M | 2016 | 1
+C144,Dmn Comte Georges de Vogüé,Chambolle Musigny Villages,R,B,2011,5,2011,750,1,Burgundy,,Dmn Comte Georges de Vogüé | Chambolle Musigny Villages | R | B | 2011 | 5
+C145,Dmn Comte Georges de Vogüé,Chambolle Musigny Villages,R,B,2018,6,2018,750,1,Burgundy,,Dmn Comte Georges de Vogüé | Chambolle Musigny Villages | R | B | 2018 | 6
+C146,Dmn Comte Georges de Vogüé,Musigny Cuvée Vieilles Vignes Grand Cru,R,B,2010,6,2010,750,1,Burgundy,,Dmn Comte Georges de Vogüé | Musigny Cuvée Vieilles Vignes Grand Cru | R | B | 2010 | 6
+C147,Dmn Comte Georges de Vogüé,Musigny Cuvée Vieilles Vignes Grand Cru,R,B,2011,6,2011,750,1,Burgundy,,Dmn Comte Georges de Vogüé | Musigny Cuvée Vieilles Vignes Grand Cru | R | B | 2011 | 6
+C148,Dmn Comte Georges de Vogüé,Musigny Cuvée Vieilles Vignes Grand Cru,R,B,2011,6,2011,750,1,Burgundy,,Dmn Comte Georges de Vogüé | Musigny Cuvée Vieilles Vignes Grand Cru | R | B | 2011 | 6
+C149,Dmn Comte Georges de Vogüé,Musigny Cuvée Vieilles Vignes Grand Cru,R,B,2011,12,2011,750,1,Burgundy,,Dmn Comte Georges de Vogüé | Musigny Cuvée Vieilles Vignes Grand Cru | R | B | 2011 | 12
+C150,Dmn Comte Georges de Vogüé,Musigny Cuvée Vieilles Vignes Grand Cru,R,B,2012,6,2012,750,1,Burgundy,,Dmn Comte Georges de Vogüé | Musigny Cuvée Vieilles Vignes Grand Cru | R | B | 2012 | 6
+C151,Dmn Comte Georges de Vogüé,Musigny Cuvée Vieilles Vignes Grand Cru,R,B,2012,12,2012,750,1,Burgundy,,Dmn Comte Georges de Vogüé | Musigny Cuvée Vieilles Vignes Grand Cru | R | B | 2012 | 12
+C152,Dmn Comte Georges de Vogüé,Musigny Cuvée Vieilles Vignes Grand Cru,R,B,2014,6,2014,750,1,Burgundy,,Dmn Comte Georges de Vogüé | Musigny Cuvée Vieilles Vignes Grand Cru | R | B | 2014 | 6
+C153,Dmn Comte Georges de Vogüé,Musigny Cuvée Vieilles Vignes Grand Cru,R,B,2014,6,2014,750,1,Burgundy,,Dmn Comte Georges de Vogüé | Musigny Cuvée Vieilles Vignes Grand Cru | R | B | 2014 | 6
+C154,Dmn Comte Georges de Vogüé,Musigny Cuvée Vieilles Vignes Grand Cru,R,B,2015,6,2015,750,1,Burgundy,,Dmn Comte Georges de Vogüé | Musigny Cuvée Vieilles Vignes Grand Cru | R | B | 2015 | 6
+C155,Dmn Comte Georges de Vogüé,Musigny Cuvée Vieilles Vignes Grand Cru,R,B,2016,6,2016,750,1,Burgundy,,Dmn Comte Georges de Vogüé | Musigny Cuvée Vieilles Vignes Grand Cru | R | B | 2016 | 6
+C156,Dmn Comte Georges de Vogüé,Musigny Cuvée Vieilles Vignes Grand Cru,R,B,2017,6,2017,750,1,Burgundy,,Dmn Comte Georges de Vogüé | Musigny Cuvée Vieilles Vignes Grand Cru | R | B | 2017 | 6
+C157,Dmn Comte Georges de Vogüé,Musigny Cuvée Vieilles Vignes Grand Cru,R,B,2017,12,2017,750,1,Burgundy,,Dmn Comte Georges de Vogüé | Musigny Cuvée Vieilles Vignes Grand Cru | R | B | 2017 | 12
+C158,Dmn Comte Georges de Vogüé,Musigny Cuvée Vieilles Vignes Grand Cru,R,B,2018,6,2018,750,1,Burgundy,,Dmn Comte Georges de Vogüé | Musigny Cuvée Vieilles Vignes Grand Cru | R | B | 2018 | 6
+C159,Dmn Comte Georges de Vogüé,Musigny Cuvée Vieilles Vignes Grand Cru,R,B,2018,12,2018,750,1,Burgundy,,Dmn Comte Georges de Vogüé | Musigny Cuvée Vieilles Vignes Grand Cru | R | B | 2018 | 12
+C160,Dmn Comte Georges de Vogüé,Musigny Cuvée Vieilles Vignes Grand Cru,R,B,2019,12,2019,750,1,Burgundy,,Dmn Comte Georges de Vogüé | Musigny Cuvée Vieilles Vignes Grand Cru | R | B | 2019 | 12
+C161,Dmn Cyprien Arlaud,Vosne Romanée Villages,R,B,2019,5,2019,750,1,Burgundy,,Dmn Cyprien Arlaud | Vosne Romanée Villages | R | B | 2019 | 5
+C162,Dmn de l'Arlot,Nuits St. Georges 1er Cru Clos des Forêts St. Georges,R,B,2019,6,2019,750,1,Burgundy,,Dmn de l'Arlot | Nuits St. Georges 1er Cru Clos des Forêts St. Georges | R | B | 2019 | 6
+C163,Dmn de l'Arlot,Nuits St. Georges 1er Cru Clos des Forêts St. Georges,R,B,2020,6,2020,750,1,Burgundy,,Dmn de l'Arlot | Nuits St. Georges 1er Cru Clos des Forêts St. Georges | R | B | 2020 | 6
+C164,Dmn de l'Arlot,Nuits St. Georges 1er Cru Clos des Forêts St. Georges,R,B,2021,6,2021,750,1,Burgundy,,Dmn de l'Arlot | Nuits St. Georges 1er Cru Clos des Forêts St. Georges | R | B | 2021 | 6
+C165,Dmn de la Vougeraie,Bonnes Mares Grand Cru,R,B,2010,2,2010,750,1,Burgundy,,Dmn de la Vougeraie | Bonnes Mares Grand Cru | R | B | 2010 | 2
+C166,Dmn de Montille,Puligny Montrachet 1er Cru Les Cailleret,W,B,2017,6,2017,750,1,Burgundy,,Dmn de Montille | Puligny Montrachet 1er Cru Les Cailleret | W | B | 2017 | 6
+C167,Dmn de Montille,Volnay 1er Cru les Brouillards,R,B,2016,6,2016,750,1,Burgundy,,Dmn de Montille | Volnay 1er Cru les Brouillards | R | B | 2016 | 6
+C168,Dmn Denis Mortet,Clos de Vougeot Grand Cru,R,B,2019,3,2019,750,1,Burgundy,,Dmn Denis Mortet | Clos de Vougeot Grand Cru | R | B | 2019 | 3
+C169,Dmn Denis Mortet,Clos de Vougeot Grand Cru,R,B,2020,3,2020,750,1,Burgundy,,Dmn Denis Mortet | Clos de Vougeot Grand Cru | R | B | 2020 | 3
+C170,Dmn Denis Mortet,Gevrey Chambertin Mes Cinq Terriors Villages,R,B,2019,6,2019,750,1,Burgundy,,Dmn Denis Mortet | Gevrey Chambertin Mes Cinq Terriors Villages | R | B | 2019 | 6
+C171,Dmn Denis Mortet,Gevrey Chambertin Mes Cinq Terriors Villages,R,B,2020,6,2020,750,1,Burgundy,,Dmn Denis Mortet | Gevrey Chambertin Mes Cinq Terriors Villages | R | B | 2020 | 6
+C172,Dmn Denis Mortet,Gevrey Chambertin Mes Cinq Terriors Villages,R,B,2021,6,2021,750,1,Burgundy,,Dmn Denis Mortet | Gevrey Chambertin Mes Cinq Terriors Villages | R | B | 2021 | 6
+C173,Dmn Drouhin Laroze,Chambertin Clos de Bèze Grand Cru,R,B,2016,6,2016,750,1,Burgundy,,Dmn Drouhin Laroze | Chambertin Clos de Bèze Grand Cru | R | B | 2016 | 6
+C174,Dmn Drouhin Laroze,Chambertin Clos de Bèze Grand Cru,R,B,2019,3,2019,750,1,Burgundy,,Dmn Drouhin Laroze | Chambertin Clos de Bèze Grand Cru | R | B | 2019 | 3
+C175,Dmn Drouhin Laroze,Chambertin Clos de Bèze Grand Cru,R,B,2020,3,2020,750,1,Burgundy,,Dmn Drouhin Laroze | Chambertin Clos de Bèze Grand Cru | R | B | 2020 | 3
+C176,Dmn Drouhin Laroze,Chapelle Chambertin Grand Cru,R,B,2016,1,2016,750,1,Burgundy,,Dmn Drouhin Laroze | Chapelle Chambertin Grand Cru | R | B | 2016 | 1
+C177,Dmn Drouhin Laroze,Gevrey Chambertin 1er Cru Lavaux St Jacques,R,B,2020,3,2020,750,1,Burgundy,,Dmn Drouhin Laroze | Gevrey Chambertin 1er Cru Lavaux St Jacques | R | B | 2020 | 3
+C178,Dmn Drouhin Laroze,Gevrey Chambertin Villages Dix Climats,R,B,2020,3,2020,750,1,Burgundy,,Dmn Drouhin Laroze | Gevrey Chambertin Villages Dix Climats | R | B | 2020 | 3
+C179,Dmn Drouhin Laroze,Latricières Chambertin Grand Cru,R,B,2016,2,2016,750,1,Burgundy,,Dmn Drouhin Laroze | Latricières Chambertin Grand Cru | R | B | 2016 | 2
+C180,Dmn Drouhin Laroze,Musigny Grand Cru,R,B,2012,6,2012,750,1,Burgundy,,Dmn Drouhin Laroze | Musigny Grand Cru | R | B | 2012 | 6
+C181,Dmn Drouhin Laroze,Musigny Grand Cru,R,B,2016,2,2016,750,1,Burgundy,,Dmn Drouhin Laroze | Musigny Grand Cru | R | B | 2016 | 2
+C182,Dmn du Comte Liger Belair,Hospices de Beaune Corton Grand Cru Cuvee Docteur Peste,R,B,2016,36,2016,750,1,Burgundy,,Dmn du Comte Liger Belair | Hospices de Beaune Corton Grand Cru Cuvee Docteur Peste | R | B | 2016 | 36
+C183,Dmn du Comte Liger Belair,Hospices de Beaune Mazis Chambertin Grand Cru Cuvee Madeleine Collignon,R,B,2017,67,2017,750,1,Burgundy,,Dmn du Comte Liger Belair | Hospices de Beaune Mazis Chambertin Grand Cru Cuvee Madeleine Collignon | R | B | 2017 | 67
+C184,Dmn Dujac,Chambolle Musigny 1er Cru Les Gruenchers,R,B,2018,6,2018,750,1,Burgundy,,Dmn Dujac | Chambolle Musigny 1er Cru Les Gruenchers | R | B | 2018 | 6
+C185,Dmn Dujac,Chambolle Musigny 1er Cru Les Gruenchers,R,B,2020,3,2020,750,1,Burgundy,,Dmn Dujac | Chambolle Musigny 1er Cru Les Gruenchers | R | B | 2020 | 3
+C186,Dmn Dujac,Chambolle Musigny Villages,R,B,2018,12,2018,750,1,Burgundy,,Dmn Dujac | Chambolle Musigny Villages | R | B | 2018 | 12
+C187,Dmn Fourrier,Chambolle Musigny 1er Cru Les Gruenchers,R,B,2016,6,2016,750,1,Burgundy,,Dmn Fourrier | Chambolle Musigny 1er Cru Les Gruenchers | R | B | 2016 | 6
+C188,Dmn Fourrier,Gevrey Chambertin 1er Cru Combe aux Moines,R,B,2016,3,2016,750,1,Burgundy,,Dmn Fourrier | Gevrey Chambertin 1er Cru Combe aux Moines | R | B | 2016 | 3
+C189,Dmn Fourrier,Gevrey Chambertin 1er Cru Les Champeaux,R,B,2016,3,2016,750,1,Burgundy,,Dmn Fourrier | Gevrey Chambertin 1er Cru Les Champeaux | R | B | 2016 | 3
+C190,Dmn Fourrier,Gevrey Chambertin 1er Cru Les Cherbaudes,R,B,2016,3,2016,750,1,Burgundy,,Dmn Fourrier | Gevrey Chambertin 1er Cru Les Cherbaudes | R | B | 2016 | 3
+C191,Dmn Fourrier,Gevrey Chambertin 1er Cru Les Goulots,R,B,2019,3,2019,750,1,Burgundy,,Dmn Fourrier | Gevrey Chambertin 1er Cru Les Goulots | R | B | 2019 | 3
+C192,Dmn Fourrier,Gevrey Chambertin Aux Echezeaux Villages,R,B,2017,2,2017,750,1,Burgundy,,Dmn Fourrier | Gevrey Chambertin Aux Echezeaux Villages | R | B | 2017 | 2
+C193,Dmn Fourrier,Gevrey Chambertin Villages Vieilles Vignes,R,B,2013,3,2013,750,1,Burgundy,,Dmn Fourrier | Gevrey Chambertin Villages Vieilles Vignes | R | B | 2013 | 3
+C194,Dmn Fourrier,Gevrey Chambertin Villages Vieilles Vignes,R,B,2016,6,2016,750,1,Burgundy,,Dmn Fourrier | Gevrey Chambertin Villages Vieilles Vignes | R | B | 2016 | 6
+C195,Dmn Fourrier,Gevrey Chambertin Villages Vieilles Vignes,R,B,2017,4,2017,750,1,Burgundy,,Dmn Fourrier | Gevrey Chambertin Villages Vieilles Vignes | R | B | 2017 | 4
+C196,Dmn Fourrier,Chambolle Musigny 1er Cru Les Gruenchers,R,B,2021,3,2021,750,1,Burgundy,,Dmn Fourrier | Chambolle Musigny 1er Cru Les Gruenchers | R | B | 2021 | 3
+C197,Dmn Fourrier,Gevrey Chambertin Villages Vieilles Vignes,R,B,2021,3,2021,750,1,Burgundy,,Dmn Fourrier | Gevrey Chambertin Villages Vieilles Vignes | R | B | 2021 | 3
+C198,Dmn Fourrier,Gevrey Chambertin Villages Vieilles Vignes,R,B,2022,6,2022,750,1,Burgundy,,Dmn Fourrier | Gevrey Chambertin Villages Vieilles Vignes | R | B | 2022 | 6
+C199,Dmn Fourrier (Jean-Marie),Chambolle Musigny 1er Cru Aux Echanges,R,B,2016,6,2016,750,1,Burgundy,,Dmn Fourrier (Jean-Marie) | Chambolle Musigny 1er Cru Aux Echanges | R | B | 2016 | 6
+C200,Dmn Francois Lamarche,Clos de Vougeot Grand Cru,R,B,2014,6,2014,750,1,Burgundy,,Dmn Francois Lamarche | Clos de Vougeot Grand Cru | R | B | 2014 | 6
+C201,Dmn Francois Lamarche,Clos de Vougeot Grand Cru,R,B,2019,6,2019,750,1,Burgundy,,Dmn Francois Lamarche | Clos de Vougeot Grand Cru | R | B | 2019 | 6
+C202,Dmn Francois Lamarche,Echezeaux Grand Cru,R,B,2014,6,2014,750,1,Burgundy,,Dmn Francois Lamarche | Echezeaux Grand Cru | R | B | 2014 | 6
+C203,Dmn Francois Lamarche,Echezeaux Grand Cru,R,B,2015,6,2015,750,1,Burgundy,,Dmn Francois Lamarche | Echezeaux Grand Cru | R | B | 2015 | 6
+C204,Dmn Ghislaine Barthod,Chambolle Musigny 1er Cru Les Cras,R,B,2010,6,2010,750,1,Burgundy,,Dmn Ghislaine Barthod | Chambolle Musigny 1er Cru Les Cras | R | B | 2010 | 6
+C205,Dmn Gros Frère et Soeur,Clos de Vougeot Musigni Grand Cru,R,B,2019,6,2019,750,1,Burgundy,,Dmn Gros Frère et Soeur | Clos de Vougeot Musigni Grand Cru | R | B | 2019 | 6
+C206,Dmn Gros Frère et Soeur,Echezeaux Grand Cru,R,B,2019,6,2019,750,1,Burgundy,,Dmn Gros Frère et Soeur | Echezeaux Grand Cru | R | B | 2019 | 6
+C207,Dmn Gros Frère et Soeur,Richebourg Grand Cru,R,B,2019,6,2019,750,1,Burgundy,,Dmn Gros Frère et Soeur | Richebourg Grand Cru | R | B | 2019 | 6
+C208,Dmn Harmand Geoffroy,Gevrey Chambertin 1er Cru Lavaux St Jacques,R,B,2018,6,2018,750,1,Burgundy,,Dmn Harmand Geoffroy | Gevrey Chambertin 1er Cru Lavaux St Jacques | R | B | 2018 | 6
+C209,Dmn Harmand Geoffroy,Gevrey Chambertin 1er Cru Lavaux St Jacques,R,B,2019,6,2019,750,1,Burgundy,,Dmn Harmand Geoffroy | Gevrey Chambertin 1er Cru Lavaux St Jacques | R | B | 2019 | 6
+C210,Dmn Harmand Geoffroy,Mazis Chambertin Grand Cru,R,B,2015,4,2015,750,1,Burgundy,,Dmn Harmand Geoffroy | Mazis Chambertin Grand Cru | R | B | 2015 | 4
+C211,Dmn Harmand Geoffroy,Mazis Chambertin Grand Cru,R,B,2016,6,2016,750,1,Burgundy,,Dmn Harmand Geoffroy | Mazis Chambertin Grand Cru | R | B | 2016 | 6
+C212,Dmn Harmand Geoffroy,Mazis Chambertin Grand Cru,R,B,2018,6,2018,750,1,Burgundy,,Dmn Harmand Geoffroy | Mazis Chambertin Grand Cru | R | B | 2018 | 6
+C213,Dmn Harmand Geoffroy,Mazis Chambertin Grand Cru,R,B,2019,6,2019,750,1,Burgundy,,Dmn Harmand Geoffroy | Mazis Chambertin Grand Cru | R | B | 2019 | 6
+C214,Dmn Hudelot Noëllat,Chambolle Musigny Villages,R,B,2017,12,2017,750,1,Burgundy,,Dmn Hudelot Noëllat | Chambolle Musigny Villages | R | B | 2017 | 12
+C215,Dmn Hudelot Noëllat,Clos de Vougeot Grand Cru,R,B,2012,4,2012,750,1,Burgundy,,Dmn Hudelot Noëllat | Clos de Vougeot Grand Cru | R | B | 2012 | 4
+C216,Dmn Hudelot Noëllat,Clos de Vougeot Grand Cru,R,B,2013,6,2013,750,1,Burgundy,,Dmn Hudelot Noëllat | Clos de Vougeot Grand Cru | R | B | 2013 | 6
+C217,Dmn Hudelot Noëllat,Clos de Vougeot Grand Cru,R,B,2013,6,2013,750,1,Burgundy,,Dmn Hudelot Noëllat | Clos de Vougeot Grand Cru | R | B | 2013 | 6
+C218,Dmn Hudelot Noëllat,Clos de Vougeot Grand Cru,R,B,2014,6,2014,750,1,Burgundy,,Dmn Hudelot Noëllat | Clos de Vougeot Grand Cru | R | B | 2014 | 6
+C219,Dmn Hudelot Noëllat,Clos de Vougeot Grand Cru,R,B,2015,6,2015,750,1,Burgundy,,Dmn Hudelot Noëllat | Clos de Vougeot Grand Cru | R | B | 2015 | 6
+C220,Dmn Hudelot Noëllat,Clos de Vougeot Grand Cru,R,B,2015,6,2015,750,1,Burgundy,,Dmn Hudelot Noëllat | Clos de Vougeot Grand Cru | R | B | 2015 | 6
+C221,Dmn Hudelot Noëllat,Clos de Vougeot Grand Cru,R,B,2016,6,2016,750,1,Burgundy,,Dmn Hudelot Noëllat | Clos de Vougeot Grand Cru | R | B | 2016 | 6
+C222,Dmn Hudelot Noëllat,Clos de Vougeot Grand Cru,R,B,2017,6,2017,750,1,Burgundy,,Dmn Hudelot Noëllat | Clos de Vougeot Grand Cru | R | B | 2017 | 6
+C223,Dmn Hudelot Noëllat,Clos de Vougeot Grand Cru,R,B,2017,12,2017,750,1,Burgundy,,Dmn Hudelot Noëllat | Clos de Vougeot Grand Cru | R | B | 2017 | 12
+C224,Dmn Hudelot Noëllat,Clos de Vougeot Grand Cru,R,B,2018,6,2018,750,1,Burgundy,,Dmn Hudelot Noëllat | Clos de Vougeot Grand Cru | R | B | 2018 | 6
+C225,Dmn Hudelot Noëllat,Clos de Vougeot Grand Cru,R,B,2019,3,2019,750,1,Burgundy,,Dmn Hudelot Noëllat | Clos de Vougeot Grand Cru | R | B | 2019 | 3
+C226,Dmn Hudelot Noëllat,Clos de Vougeot Grand Cru,R,B,2020,6,2020,750,1,Burgundy,,Dmn Hudelot Noëllat | Clos de Vougeot Grand Cru | R | B | 2020 | 6
+C227,Dmn Hudelot Noëllat,Meursault Clos des Écoles,W,B,2020,12,2020,750,1,Burgundy,,Dmn Hudelot Noëllat | Meursault Clos des Écoles | W | B | 2020 | 12
+C228,Dmn Hudelot Noëllat,Nuits St. Georges 1er Cru Aux Murgers,R,B,2020,6,2020,750,1,Burgundy,,Dmn Hudelot Noëllat | Nuits St. Georges 1er Cru Aux Murgers | R | B | 2020 | 6
+C229,Dmn Jacques Frederic Mugnier,Nuits St. Georges 1er Cru Clos de la Marechale,R,B,2012,6,2012,750,1,Burgundy,,Dmn Jacques Frederic Mugnier | Nuits St. Georges 1er Cru Clos de la Marechale | R | B | 2012 | 6
+C230,Dmn Jacques Frederic Mugnier,Nuits St. Georges 1er Cru Clos de la Marechale,R,B,2017,24,2017,750,1,Burgundy,,Dmn Jacques Frederic Mugnier | Nuits St. Georges 1er Cru Clos de la Marechale | R | B | 2017 | 24
+C231,Dmn Jacques Frederic Mugnier,Nuits St. Georges 1er Cru Clos de la Marechale,R,B,2018,12,2018,750,1,Burgundy,,Dmn Jacques Frederic Mugnier | Nuits St. Georges 1er Cru Clos de la Marechale | R | B | 2018 | 12
+C232,Dmn Jacques Prieur,Chambertin Grand Cru,R,B,2020,6,2020,750,1,Burgundy?,,Dmn Jacques Prieur | Chambertin Grand Cru | R | B | 2020 | 6
+C233,Dmn Jacques Prieur,Chevalier Montrachet Grand Cru,W,B,2020,6,2020,750,1,Burgundy,,Dmn Jacques Prieur | Chevalier Montrachet Grand Cru | W | B | 2020 | 6
+C234,Dmn Jacques Prieur,Clos de Vougeot Grand Cru,R,B,2013,12,2013,750,1,Burgundy,,Dmn Jacques Prieur | Clos de Vougeot Grand Cru | R | B | 2013 | 12
+C235,Dmn Jacques Prieur,Clos de Vougeot Grand Cru,R,B,2020,6,2020,750,1,Burgundy,,Dmn Jacques Prieur | Clos de Vougeot Grand Cru | R | B | 2020 | 6
+C236,Dmn Jacques Prieur,Corton Bressandes Grand Cru,R,B,2013,4,2013,750,1,Burgundy,,Dmn Jacques Prieur | Corton Bressandes Grand Cru | R | B | 2013 | 4
+C237,Dmn Jacques Prieur,Corton Bressandes Grand Cru,R,B,2020,6,2020,750,1,Burgundy,,Dmn Jacques Prieur | Corton Bressandes Grand Cru | R | B | 2020 | 6
+C238,Dmn Jacques Prieur,Echezeaux Grand Cru,R,B,2020,6,2020,750,1,Burgundy,,Dmn Jacques Prieur | Echezeaux Grand Cru | R | B | 2020 | 6
+C239,Dmn Jacques Prieur,Montrachet Grand Cru,W,B,2020,6,2020,750,1,Burgundy,,Dmn Jacques Prieur | Montrachet Grand Cru | W | B | 2020 | 6
+C240,Dmn Jacques Prieur,Musigny Grand Cru,R,B,2020,6,2020,750,1,Burgundy,,Dmn Jacques Prieur | Musigny Grand Cru | R | B | 2020 | 6
+C241,Dmn Jean Grivot,Clos de Vougeot Grand Cru,R,B,2013,6,2013,750,1,Burgundy,,Dmn Jean Grivot | Clos de Vougeot Grand Cru | R | B | 2013 | 6
+C242,Dmn Jean Grivot,Clos de Vougeot Grand Cru,R,B,2017,6,2017,750,1,Burgundy,,Dmn Jean Grivot | Clos de Vougeot Grand Cru | R | B | 2017 | 6
+C243,Dmn Jean Grivot,Clos de Vougeot Grand Cru,R,B,2018,6,2018,750,1,Burgundy,,Dmn Jean Grivot | Clos de Vougeot Grand Cru | R | B | 2018 | 6
+C244,Dmn Jean Grivot,Clos de Vougeot Grand Cru,R,B,2018,6,2018,750,1,Burgundy,,Dmn Jean Grivot | Clos de Vougeot Grand Cru | R | B | 2018 | 6
+C245,Dmn Jean Grivot,Clos de Vougeot Grand Cru,R,B,2019,3,2019,750,1,Burgundy,,Dmn Jean Grivot | Clos de Vougeot Grand Cru | R | B | 2019 | 3
+C246,Dmn Jean Grivot,Clos de Vougeot Grand Cru,R,B,2020,12,2020,750,1,Burgundy,,Dmn Jean Grivot | Clos de Vougeot Grand Cru | R | B | 2020 | 12
+C247,Dmn Jean Grivot,Clos de Vougeot Grand Cru,R,B,2021,6,2021,750,1,Burgundy,,Dmn Jean Grivot | Clos de Vougeot Grand Cru | R | B | 2021 | 6
+C248,Dmn Jean Grivot,Nuits St. Georges 1er Cru Aux Roncieres,R,B,2018,6,2018,750,1,Burgundy,,Dmn Jean Grivot | Nuits St. Georges 1er Cru Aux Roncieres | R | B | 2018 | 6
+C249,Dmn Jean Grivot,Nuits St. Georges 1er Cru Les Pruilers,R,B,2021,6,2021,750,1,Burgundy,,Dmn Jean Grivot | Nuits St. Georges 1er Cru Les Pruilers | R | B | 2021 | 6
+C250,Dmn Jean Grivot,Vosne Romanée 1er Cru Les Suchots,R,B,2021,6,2021,750,1,Burgundy,,Dmn Jean Grivot | Vosne Romanée 1er Cru Les Suchots | R | B | 2021 | 6
+C251,Dmn Jean Grivot,Vosne Romanée Villages,R,B,2020,12,2020,750,1,Burgundy,,Dmn Jean Grivot | Vosne Romanée Villages | R | B | 2020 | 12
+C252,Dmn Jean Grivot,Vosne Romanée Villages,R,B,2021,12,2021,750,1,Burgundy,,Dmn Jean Grivot | Vosne Romanée Villages | R | B | 2021 | 12
+C253,Dmn Jean Jacques Confuron,Chambolle Musigny 1er Cru,R,B,2017,12,2017,750,1,Burgundy,,Dmn Jean Jacques Confuron | Chambolle Musigny 1er Cru | R | B | 2017 | 12
+C254,Dmn Jean Jacques Confuron,Chambolle Musigny Villages,R,B,2015,2,2015,750,1,Burgundy,,Dmn Jean Jacques Confuron | Chambolle Musigny Villages | R | B | 2015 | 2
+C255,Dmn Jean Jacques Confuron,Clos de Vougeot Grand Cru,R,B,2017,12,2017,750,1,Burgundy,,Dmn Jean Jacques Confuron | Clos de Vougeot Grand Cru | R | B | 2017 | 12
+C256,Dmn Jean Jacques Confuron,Clos de Vougeot Grand Cru,R,B,2018,6,2018,750,1,Burgundy,,Dmn Jean Jacques Confuron | Clos de Vougeot Grand Cru | R | B | 2018 | 6
+C257,Dmn Jean Jacques Confuron,Clos de Vougeot Grand Cru,R,B,2019,6,2019,750,1,Burgundy,,Dmn Jean Jacques Confuron | Clos de Vougeot Grand Cru | R | B | 2019 | 6
+C258,Dmn Jean Jacques Confuron,Nuits St. Georges 1er Cru Aux Boudots,R,B,2019,6,2019,750,1,Burgundy,,Dmn Jean Jacques Confuron | Nuits St. Georges 1er Cru Aux Boudots | R | B | 2019 | 6
+C259,Dmn Jean Jacques Confuron,Nuits St. Georges 1er Cru Les Chaboeufs,R,B,2014,3,2014,750,1,Burgundy,,Dmn Jean Jacques Confuron | Nuits St. Georges 1er Cru Les Chaboeufs | R | B | 2014 | 3
+C260,Dmn Jean Jacques Confuron,Nuits St. Georges 1er Cru Les Chaboeufs,R,B,2018,12,2018,750,1,Burgundy,,Dmn Jean Jacques Confuron | Nuits St. Georges 1er Cru Les Chaboeufs | R | B | 2018 | 12
+C261,Dmn Jean Jacques Confuron,Romanée St. Vivant Grand Cru,R,B,2013,6,2013,750,1,Burgundy,,Dmn Jean Jacques Confuron | Romanée St. Vivant Grand Cru | R | B | 2013 | 6
+C262,Dmn Jean Jacques Confuron,Romanée St. Vivant Grand Cru,R,B,2014,6,2014,750,1,Burgundy,,Dmn Jean Jacques Confuron | Romanée St. Vivant Grand Cru | R | B | 2014 | 6
+C263,Dmn Jean Jacques Confuron,Romanée St. Vivant Grand Cru,R,B,2014,6,2014,750,1,Burgundy,,Dmn Jean Jacques Confuron | Romanée St. Vivant Grand Cru | R | B | 2014 | 6
+C264,Dmn Jean Jacques Confuron,Romanée St. Vivant Grand Cru,R,B,2015,12,2015,750,1,Burgundy,,Dmn Jean Jacques Confuron | Romanée St. Vivant Grand Cru | R | B | 2015 | 12
+C265,Dmn Jean Jacques Confuron,Romanée St. Vivant Grand Cru,R,B,2017,6,2017,750,1,Burgundy,,Dmn Jean Jacques Confuron | Romanée St. Vivant Grand Cru | R | B | 2017 | 6
+C266,Dmn Jean Jacques Confuron,Romanée St. Vivant Grand Cru,R,B,2018,6,2018,750,1,Burgundy,,Dmn Jean Jacques Confuron | Romanée St. Vivant Grand Cru | R | B | 2018 | 6
+C267,Dmn Jean Jacques Confuron,Romanée St. Vivant Grand Cru,R,B,2019,6,2019,750,1,Burgundy,,Dmn Jean Jacques Confuron | Romanée St. Vivant Grand Cru | R | B | 2019 | 6
+C268,Dmn Jean Jacques Confuron,Vosne Romanée 1er Cru Les Beaux Monts,R,B,2018,6,2018,750,1,Burgundy,,Dmn Jean Jacques Confuron | Vosne Romanée 1er Cru Les Beaux Monts | R | B | 2018 | 6
+C269,Dmn Jean-Marc Boillot,Puligny Montrachet 1er Cru La Truffière,W,B,2020,6,2020,750,1,Burgundy,,Dmn Jean-Marc Boillot | Puligny Montrachet 1er Cru La Truffière | W | B | 2020 | 6
+C270,Dmn Joseph Drouhin,Clos de Vougeot Grand Cru,R,B,2020,6,2020,750,1,Burgundy,,Dmn Joseph Drouhin | Clos de Vougeot Grand Cru | R | B | 2020 | 6
+C271,Dmn Joseph Faiveley,Chambolle Musigny 1er Cru Les Charmes,R,B,2016,6,2016,750,1,Burgundy,,Dmn Joseph Faiveley | Chambolle Musigny 1er Cru Les Charmes | R | B | 2016 | 6
+C272,Dmn Joseph Faiveley,Chambolle Musigny 1er Cru Les Charmes,R,B,2017,6,2017,750,1,Burgundy,,Dmn Joseph Faiveley | Chambolle Musigny 1er Cru Les Charmes | R | B | 2017 | 6
+C273,Dmn Joseph Faiveley,Clos de Vougeot Grand Cru,R,B,2014,6,2014,750,1,Burgundy,,Dmn Joseph Faiveley | Clos de Vougeot Grand Cru | R | B | 2014 | 6
+C274,Dmn Joseph Faiveley,Clos de Vougeot Grand Cru,R,B,2015,6,2015,750,1,Burgundy,,Dmn Joseph Faiveley | Clos de Vougeot Grand Cru | R | B | 2015 | 6
+C275,Dmn Joseph Faiveley,Corton Charlemagne Grand Cru,W,B,2012,2,2012,750,1,Burgundy,,Dmn Joseph Faiveley | Corton Charlemagne Grand Cru | W | B | 2012 | 2
+C276,Dmn Joseph Faiveley,Corton Clos des Cortons Grand Cru,R,B,2012,6,2012,750,1,Burgundy,,Dmn Joseph Faiveley | Corton Clos des Cortons Grand Cru | R | B | 2012 | 6
+C277,Dmn Joseph Faiveley,Corton Clos des Cortons Grand Cru,R,B,2014,6,2014,750,1,Burgundy,,Dmn Joseph Faiveley | Corton Clos des Cortons Grand Cru | R | B | 2014 | 6
+C278,Dmn Joseph Faiveley,Corton Clos des Cortons Grand Cru,R,B,2014,6,2014,750,1,Burgundy,,Dmn Joseph Faiveley | Corton Clos des Cortons Grand Cru | R | B | 2014 | 6
+C279,Dmn Joseph Faiveley,Gevrey Chambertin 1er Cru Clos des Issarts,R,B,2015,6,2015,750,1,Burgundy,,Dmn Joseph Faiveley | Gevrey Chambertin 1er Cru Clos des Issarts | R | B | 2015 | 6
+C280,Dmn Joseph Faiveley,Gevrey Chambertin 1er Cru Clos des Issarts,R,B,2016,12,2016,750,1,Burgundy,,Dmn Joseph Faiveley | Gevrey Chambertin 1er Cru Clos des Issarts | R | B | 2016 | 12
+C281,Dmn Joseph Faiveley,Gevrey Chambertin 1er Cru Clos des Issarts,R,B,2017,12,2017,750,1,Burgundy,,Dmn Joseph Faiveley | Gevrey Chambertin 1er Cru Clos des Issarts | R | B | 2017 | 12
+C282,Dmn Joseph Faiveley,Mazis Chambertin Grand Cru,R,B,2012,6,2012,750,1,Burgundy,,Dmn Joseph Faiveley | Mazis Chambertin Grand Cru | R | B | 2012 | 6
+C283,Dmn Joseph Faiveley,Mazis Chambertin Grand Cru,R,B,2014,12,2014,750,1,Burgundy,,Dmn Joseph Faiveley | Mazis Chambertin Grand Cru | R | B | 2014 | 12
+C284,Dmn Joseph Faiveley,Mazis Chambertin Grand Cru,R,B,2014,12,2014,750,1,Burgundy,,Dmn Joseph Faiveley | Mazis Chambertin Grand Cru | R | B | 2014 | 12
+C285,Dmn Joseph Faiveley,Mazis Chambertin Grand Cru,R,B,2014,6,2014,750,1,Burgundy,,Dmn Joseph Faiveley | Mazis Chambertin Grand Cru | R | B | 2014 | 6
+C286,Dmn Joseph Faiveley,Mazis Chambertin Grand Cru,R,B,2015,6,2015,750,1,Burgundy,,Dmn Joseph Faiveley | Mazis Chambertin Grand Cru | R | B | 2015 | 6
+C287,Dmn Joseph Faiveley,Mazis Chambertin Grand Cru,R,B,2016,6,2016,750,1,Burgundy,,Dmn Joseph Faiveley | Mazis Chambertin Grand Cru | R | B | 2016 | 6
+C288,Dmn Joseph Faiveley,Mazis Chambertin Grand Cru,R,B,2017,6,2017,750,1,Burgundy,,Dmn Joseph Faiveley | Mazis Chambertin Grand Cru | R | B | 2017 | 6
+C289,Dmn Laurent Roumier,Clos de Vougeot Grand Cru,R,B,2019,4,2019,750,1,Burgundy,,Dmn Laurent Roumier | Clos de Vougeot Grand Cru | R | B | 2019 | 4
+C290,Dmn Leflaive,Bourgogne Blanc,W,B,2016,4,2016,750,1,Burgundy,,Dmn Leflaive | Bourgogne Blanc | W | B | 2016 | 4
+C291,Dmn Leflaive,Bourgogne Blanc,W,B,2019,1,2019,750,1,Burgundy,,Dmn Leflaive | Bourgogne Blanc | W | B | 2019 | 1
+C292,Dmn Leflaive,Bourgogne Blanc,W,B,2020,2,2020,750,1,Burgundy,,Dmn Leflaive | Bourgogne Blanc | W | B | 2020 | 2
+C293,Dmn Leflaive,Pouilly Fuisse le Chaneau,W,B,2017,2,2017,750,1,Burgundy,,Dmn Leflaive | Pouilly Fuisse le Chaneau | W | B | 2017 | 2
+C294,Dmn Leflaive,Pouilly Fuissé Villages,W,B,2019,3,2019,750,1,Burgundy,,Dmn Leflaive | Pouilly Fuissé Villages | W | B | 2019 | 3
+C295,Dmn Leflaive,Puligny Montrachet 1er Cru Les Clavoillon,W,B,2013,5,2013,750,1,Burgundy,,Dmn Leflaive | Puligny Montrachet 1er Cru Les Clavoillon | W | B | 2013 | 5
+C296,Dmn Leflaive,Puligny Montrachet 1er Cru Les Clavoillon,W,B,2014,6,2014,750,1,Burgundy,,Dmn Leflaive | Puligny Montrachet 1er Cru Les Clavoillon | W | B | 2014 | 6
+C297,Dmn Leflaive,Puligny Montrachet 1er Cru Les Clavoillon,W,B,2015,6,2015,750,1,Burgundy,,Dmn Leflaive | Puligny Montrachet 1er Cru Les Clavoillon | W | B | 2015 | 6
+C298,Dmn Leflaive,Puligny Montrachet 1er Cru Les Clavoillon,W,B,2016,6,2016,750,1,Burgundy,,Dmn Leflaive | Puligny Montrachet 1er Cru Les Clavoillon | W | B | 2016 | 6
+C299,Dmn Leflaive,Puligny Montrachet 1er Cru Les Clavoillon,W,B,2017,6,2017,750,1,Burgundy,,Dmn Leflaive | Puligny Montrachet 1er Cru Les Clavoillon | W | B | 2017 | 6
+C300,Dmn Leflaive,Puligny Montrachet 1er Cru Les Clavoillon,W,B,2018,4,2018,750,1,Burgundy,,Dmn Leflaive | Puligny Montrachet 1er Cru Les Clavoillon | W | B | 2018 | 4
+C301,Dmn Leflaive,Puligny Montrachet 1er Cru Les Combettes,W,B,2017,3,2017,750,1,Burgundy,,Dmn Leflaive | Puligny Montrachet 1er Cru Les Combettes | W | B | 2017 | 3
+C302,Dmn Leflaive,Puligny Montrachet 1er Cru Les Folatieres,W,B,2011,6,2011,750,1,Burgundy,,Dmn Leflaive | Puligny Montrachet 1er Cru Les Folatieres | W | B | 2011 | 6
+C303,Dmn Leflaive,Puligny Montrachet 1er Cru Les Folatieres,W,B,2012,6,2012,750,1,Burgundy,,Dmn Leflaive | Puligny Montrachet 1er Cru Les Folatieres | W | B | 2012 | 6
+C304,Dmn Leflaive,Puligny Montrachet Villages,W,B,2014,6,2014,750,1,Burgundy,,Dmn Leflaive | Puligny Montrachet Villages | W | B | 2014 | 6
+C305,Dmn Leflaive,Puligny Montrachet Villages,W,B,2016,6,2016,750,1,Burgundy,,Dmn Leflaive | Puligny Montrachet Villages | W | B | 2016 | 6
+C306,Dmn Leflaive,Puligny Montrachet Villages,W,B,2017,6,2017,750,1,Burgundy,,Dmn Leflaive | Puligny Montrachet Villages | W | B | 2017 | 6
+C307,Dmn Leflaive,Puligny Montrachet Villages,W,B,2018,6,2018,750,1,Burgundy,,Dmn Leflaive | Puligny Montrachet Villages | W | B | 2018 | 6
+C308,Dmn Leflaive,Puligny Montrachet Villages,W,B,2019,3,2019,750,1,Burgundy,,Dmn Leflaive | Puligny Montrachet Villages | W | B | 2019 | 3
+C309,Dmn Leflaive,Puligny Montrachet Villages,W,B,2020,2,2020,750,1,Burgundy,,Dmn Leflaive | Puligny Montrachet Villages | W | B | 2020 | 2
+C310,Dmn Louis Jadot (Msn),Bonnes Mares Grand Cru,R,B,2017,3,2017,750,1,Burgundy,,Dmn Louis Jadot (Msn) | Bonnes Mares Grand Cru | R | B | 2017 | 3
+C311,Dmn Louis Jadot (Msn),Chambertin Clos de Bèze Grand Cru,R,B,2016,6,2016,750,1,Burgundy,,Dmn Louis Jadot (Msn) | Chambertin Clos de Bèze Grand Cru | R | B | 2016 | 6
+C312,Dmn Louis Jadot (Msn),Chambertin Clos de Bèze Grand Cru,R,B,2017,3,2017,750,1,Burgundy,,Dmn Louis Jadot (Msn) | Chambertin Clos de Bèze Grand Cru | R | B | 2017 | 3
+C313,Dmn Louis Jadot (Msn),Chambertin Grand Cru,R,B,2017,3,2017,750,1,Burgundy?,,Dmn Louis Jadot (Msn) | Chambertin Grand Cru | R | B | 2017 | 3
+C314,Dmn Louis Jadot (Msn),Clos de Vougeot Grand Cru,R,B,2017,12,2017,750,1,Burgundy,,Dmn Louis Jadot (Msn) | Clos de Vougeot Grand Cru | R | B | 2017 | 12
+C315,Dmn Louis Jadot (Msn),Echezeaux Grand Cru,R,B,2017,12,2017,750,1,Burgundy,,Dmn Louis Jadot (Msn) | Echezeaux Grand Cru | R | B | 2017 | 12
+C316,Dmn Lucien Le Moine,Bonnes Mares Grand Cru,R,B,2012,2,2012,750,1,Burgundy,,Dmn Lucien Le Moine | Bonnes Mares Grand Cru | R | B | 2012 | 2
+C317,Dmn Lucien Le Moine,Bonnes Mares Grand Cru,R,B,2013,2,2013,750,1,Burgundy,,Dmn Lucien Le Moine | Bonnes Mares Grand Cru | R | B | 2013 | 2
+C318,Dmn Lucien Le Moine,Bonnes Mares Grand Cru,R,B,2014,2,2014,750,1,Burgundy,,Dmn Lucien Le Moine | Bonnes Mares Grand Cru | R | B | 2014 | 2
+C319,Dmn Lucien Le Moine,Bonnes Mares Grand Cru,R,B,2015,2,2015,750,1,Burgundy,,Dmn Lucien Le Moine | Bonnes Mares Grand Cru | R | B | 2015 | 2
+C320,Dmn Lucien Le Moine,Bonnes Mares Grand Cru,R,B,2016,2,2016,750,1,Burgundy,,Dmn Lucien Le Moine | Bonnes Mares Grand Cru | R | B | 2016 | 2
+C321,Dmn Lucien Le Moine,Chambertin Clos de Bèze Grand Cru,R,B,2013,2,2013,750,1,Burgundy,,Dmn Lucien Le Moine | Chambertin Clos de Bèze Grand Cru | R | B | 2013 | 2
+C322,Dmn Lucien Le Moine,Chambertin Clos de Bèze Grand Cru,R,B,2014,1,2014,750,1,Burgundy,,Dmn Lucien Le Moine | Chambertin Clos de Bèze Grand Cru | R | B | 2014 | 1
+C323,Dmn Lucien Le Moine,Charmes Chambertin Grand Cru,R,B,2012,2,2012,750,1,Burgundy,,Dmn Lucien Le Moine | Charmes Chambertin Grand Cru | R | B | 2012 | 2
+C324,Dmn Lucien Le Moine,Charmes Chambertin Grand Cru,R,B,2014,1,2014,750,1,Burgundy,,Dmn Lucien Le Moine | Charmes Chambertin Grand Cru | R | B | 2014 | 1
+C325,Dmn Lucien Le Moine,Charmes Chambertin Grand Cru,R,B,2016,2,2016,750,1,Burgundy,,Dmn Lucien Le Moine | Charmes Chambertin Grand Cru | R | B | 2016 | 2
+C326,Dmn Lucien Le Moine,Clos de la Roche Grand Cru,R,B,2014,2,2014,750,1,Burgundy,,Dmn Lucien Le Moine | Clos de la Roche Grand Cru | R | B | 2014 | 2
+C327,Dmn Lucien Le Moine,Clos de la Roche Grand Cru,R,B,2016,2,2016,750,1,Burgundy,,Dmn Lucien Le Moine | Clos de la Roche Grand Cru | R | B | 2016 | 2
+C328,Dmn Lucien Le Moine,Clos de Vougeot Grand Cru,R,B,2013,2,2013,750,1,Burgundy,,Dmn Lucien Le Moine | Clos de Vougeot Grand Cru | R | B | 2013 | 2
+C329,Dmn Lucien Le Moine,Clos de Vougeot Grand Cru,R,B,2014,2,2014,750,1,Burgundy,,Dmn Lucien Le Moine | Clos de Vougeot Grand Cru | R | B | 2014 | 2
+C330,Dmn Lucien Le Moine,Clos de Vougeot Grand Cru,R,B,2015,2,2015,750,1,Burgundy,,Dmn Lucien Le Moine | Clos de Vougeot Grand Cru | R | B | 2015 | 2
+C331,Dmn Lucien Le Moine,Clos de Vougeot Grand Cru,R,B,2016,2,2016,750,1,Burgundy,,Dmn Lucien Le Moine | Clos de Vougeot Grand Cru | R | B | 2016 | 2
+C332,Dmn Lucien Le Moine,Clos St Denis Grand Cru,R,B,2012,1,2012,750,1,Burgundy?,,Dmn Lucien Le Moine | Clos St Denis Grand Cru | R | B | 2012 | 1
+C333,Dmn Lucien Le Moine,Clos St Denis Grand Cru,R,B,2014,2,2014,750,1,Burgundy?,,Dmn Lucien Le Moine | Clos St Denis Grand Cru | R | B | 2014 | 2
+C334,Dmn Lucien Le Moine,Clos St Denis Grand Cru,R,B,2015,2,2015,750,1,Burgundy?,,Dmn Lucien Le Moine | Clos St Denis Grand Cru | R | B | 2015 | 2
+C335,Dmn Lucien Le Moine,Clos St Denis Grand Cru,R,B,2016,2,2016,750,1,Burgundy?,,Dmn Lucien Le Moine | Clos St Denis Grand Cru | R | B | 2016 | 2
+C336,Dmn Lucien Le Moine,Echezeaux Grand Cru,R,B,2012,1,2012,750,1,Burgundy,,Dmn Lucien Le Moine | Echezeaux Grand Cru | R | B | 2012 | 1
+C337,Dmn Lucien Le Moine,Echezeaux Grand Cru,R,B,2014,2,2014,750,1,Burgundy,,Dmn Lucien Le Moine | Echezeaux Grand Cru | R | B | 2014 | 2
+C338,Dmn Lucien Le Moine,Echezeaux Grand Cru,R,B,2016,2,2016,750,1,Burgundy,,Dmn Lucien Le Moine | Echezeaux Grand Cru | R | B | 2016 | 2
+C339,Dmn Lucien Le Moine,Grands Echezeaux Grand Cru,R,B,2014,2,2014,750,1,Burgundy,,Dmn Lucien Le Moine | Grands Echezeaux Grand Cru | R | B | 2014 | 2
+C340,Dmn Lucien Le Moine,Griotte Chambertin Grand Cru,R,B,2014,2,2014,750,1,Burgundy,,Dmn Lucien Le Moine | Griotte Chambertin Grand Cru | R | B | 2014 | 2
+C341,Dmn Lucien Le Moine,Griotte Chambertin Grand Cru,R,B,2015,2,2015,750,1,Burgundy,,Dmn Lucien Le Moine | Griotte Chambertin Grand Cru | R | B | 2015 | 2
+C342,Dmn Lucien Le Moine,Mazis Chambertin Grand Cru,R,B,2012,1,2012,750,1,Burgundy,,Dmn Lucien Le Moine | Mazis Chambertin Grand Cru | R | B | 2012 | 1
+C343,Dmn Lucien Le Moine,Mazis Chambertin Grand Cru,R,B,2014,2,2014,750,1,Burgundy,,Dmn Lucien Le Moine | Mazis Chambertin Grand Cru | R | B | 2014 | 2
+C344,Dmn Lucien Le Moine,Mazis Chambertin Grand Cru,R,B,2015,2,2015,750,1,Burgundy,,Dmn Lucien Le Moine | Mazis Chambertin Grand Cru | R | B | 2015 | 2
+C345,Dmn Lucien Le Moine,Mazis Chambertin Grand Cru,R,B,2016,2,2016,750,1,Burgundy,,Dmn Lucien Le Moine | Mazis Chambertin Grand Cru | R | B | 2016 | 2
+C346,Dmn Méo Camuzet,Bourgogne Rouge Cuvée Etienne Camuzet,R,B,2022,6,2022,750,1,Burgundy,,Dmn Méo Camuzet | Bourgogne Rouge Cuvée Etienne Camuzet | R | B | 2022 | 6
+C347,Dmn Méo Camuzet Frère et Soeurs,Chambolle Musigny 1er Cru,R,B,2016,3,2016,750,1,Burgundy,,Dmn Méo Camuzet Frère et Soeurs | Chambolle Musigny 1er Cru | R | B | 2016 | 3
+C348,Dmn Méo Camuzet Frère et Soeurs,Chambolle Musigny 1er Cru Les Cras,R,B,2015,6,2015,750,1,Burgundy,,Dmn Méo Camuzet Frère et Soeurs | Chambolle Musigny 1er Cru Les Cras | R | B | 2015 | 6
+C349,Dmn Méo Camuzet Frère et Soeurs,Chambolle Musigny 1er Cru Les Cras,R,B,2017,3,2017,750,1,Burgundy,,Dmn Méo Camuzet Frère et Soeurs | Chambolle Musigny 1er Cru Les Cras | R | B | 2017 | 3
+C350,Dmn Méo Camuzet Frère et Soeurs,Chambolle Musigny 1er Cru Les Cras,R,B,2018,6,2018,750,1,Burgundy,,Dmn Méo Camuzet Frère et Soeurs | Chambolle Musigny 1er Cru Les Cras | R | B | 2018 | 6
+C351,Dmn Méo Camuzet Frère et Soeurs,Chambolle Musigny 1er Cru Les Cras,R,B,2018,3,2018,750,1,Burgundy,,Dmn Méo Camuzet Frère et Soeurs | Chambolle Musigny 1er Cru Les Cras | R | B | 2018 | 3
+C352,Dmn Méo Camuzet Frère et Soeurs,Chambolle Musigny 1er Cru Les Cras,R,B,2019,6,2019,750,1,Burgundy,,Dmn Méo Camuzet Frère et Soeurs | Chambolle Musigny 1er Cru Les Cras | R | B | 2019 | 6
+C353,Dmn Méo Camuzet Frère et Soeurs,Chambolle Musigny 1er Cru Les Feusselottes,R,B,2017,3,2017,750,1,Burgundy,,Dmn Méo Camuzet Frère et Soeurs | Chambolle Musigny 1er Cru Les Feusselottes | R | B | 2017 | 3
+C354,Dmn Méo Camuzet Frère et Soeurs,Chambolle Musigny 1er Cru Les Feusselottes,R,B,2018,3,2018,750,1,Burgundy,,Dmn Méo Camuzet Frère et Soeurs | Chambolle Musigny 1er Cru Les Feusselottes | R | B | 2018 | 3
+C355,Dmn Méo Camuzet Frère et Soeurs,Chambolle Musigny 1er Cru Les Feusselottes,R,B,2019,6,2019,750,1,Burgundy,,Dmn Méo Camuzet Frère et Soeurs | Chambolle Musigny 1er Cru Les Feusselottes | R | B | 2019 | 6
+C356,Dmn Méo Camuzet Frère et Soeurs,Chambolle Musigny Villages,R,B,2019,6,2019,750,1,Burgundy,,Dmn Méo Camuzet Frère et Soeurs | Chambolle Musigny Villages | R | B | 2019 | 6
+C357,Dmn Méo Camuzet Frère et Soeurs,Corton Charlemagne Grand Cru,W,B,2013,2,2013,750,1,Burgundy,,Dmn Méo Camuzet Frère et Soeurs | Corton Charlemagne Grand Cru | W | B | 2013 | 2
+C358,Dmn Méo Camuzet Frère et Soeurs,Corton Charlemagne Grand Cru,W,B,2014,2,2014,750,1,Burgundy,,Dmn Méo Camuzet Frère et Soeurs | Corton Charlemagne Grand Cru | W | B | 2014 | 2
+C359,Dmn Méo Camuzet Frère et Soeurs,Corton Charlemagne Grand Cru,W,B,2015,3,2015,750,1,Burgundy,,Dmn Méo Camuzet Frère et Soeurs | Corton Charlemagne Grand Cru | W | B | 2015 | 3
+C360,Dmn Méo Camuzet Frère et Soeurs,Corton Charlemagne Grand Cru,W,B,2016,2,2016,750,1,Burgundy,,Dmn Méo Camuzet Frère et Soeurs | Corton Charlemagne Grand Cru | W | B | 2016 | 2
+C361,Dmn Méo Camuzet Frère et Soeurs,Fixin 1er Cru Clos du Chapitre,R,B,2016,3,2016,750,1,Burgundy,,Dmn Méo Camuzet Frère et Soeurs | Fixin 1er Cru Clos du Chapitre | R | B | 2016 | 3
+C362,Dmn Méo Camuzet Frère et Soeurs,Fixin 1er Cru Clos du Chapitre,R,B,2019,2,2019,750,1,Burgundy,,Dmn Méo Camuzet Frère et Soeurs | Fixin 1er Cru Clos du Chapitre | R | B | 2019 | 2
+C363,Dmn Méo Camuzet Frère et Soeurs,Fixin 1er Cru Clos du Chapitre,R,B,2020,2,2020,750,1,Burgundy,,Dmn Méo Camuzet Frère et Soeurs | Fixin 1er Cru Clos du Chapitre | R | B | 2020 | 2
+C364,Dmn Méo Camuzet Frère et Soeurs,Fixin Villages,R,B,2019,2,2019,750,1,Burgundy,,Dmn Méo Camuzet Frère et Soeurs | Fixin Villages | R | B | 2019 | 2
+C365,Dmn Méo Camuzet Frère et Soeurs,Marsannay Villages,R,B,2019,6,2019,750,1,Burgundy,,Dmn Méo Camuzet Frère et Soeurs | Marsannay Villages | R | B | 2019 | 6
+C366,Dmn Méo Camuzet Frère et Soeurs,Marsannay Villages,R,B,2019,2,2019,750,1,Burgundy,,Dmn Méo Camuzet Frère et Soeurs | Marsannay Villages | R | B | 2019 | 2
+C367,Dmn Méo Camuzet Frère et Soeurs,Marsannay Villages,R,B,2020,6,2020,750,1,Burgundy,,Dmn Méo Camuzet Frère et Soeurs | Marsannay Villages | R | B | 2020 | 6
+C368,Dmn Méo Camuzet Frère et Soeurs,Morey St Denis Villages,R,B,2016,2,2016,750,1,Burgundy,,Dmn Méo Camuzet Frère et Soeurs | Morey St Denis Villages | R | B | 2016 | 2
+C369,Dmn Méo Camuzet Frère et Soeurs,Morey St Denis Villages,R,B,2019,2,2019,750,1,Burgundy,,Dmn Méo Camuzet Frère et Soeurs | Morey St Denis Villages | R | B | 2019 | 2
+C370,Dmn Méo Camuzet Frère et Soeurs,Nuits St. Georges 1er Cru Aux Argillas,R,B,2019,6,2019,750,1,Burgundy,,Dmn Méo Camuzet Frère et Soeurs | Nuits St. Georges 1er Cru Aux Argillas | R | B | 2019 | 6
+C371,Dmn Méo Camuzet Frère et Soeurs,Nuits St. Georges 1er Cru Aux Argillas,R,B,2020,6,2020,750,1,Burgundy,,Dmn Méo Camuzet Frère et Soeurs | Nuits St. Georges 1er Cru Aux Argillas | R | B | 2020 | 6
+C372,Dmn Méo Camuzet Frère et Soeurs,Nuits St. Georges 1er Cru Les Perrières,R,B,2016,3,2016,750,1,Burgundy,,Dmn Méo Camuzet Frère et Soeurs | Nuits St. Georges 1er Cru Les Perrières | R | B | 2016 | 3
+C373,Dmn Méo Camuzet Frère et Soeurs,Nuits St. Georges 1er Cru Les Perrières,R,B,2018,11,2018,750,1,Burgundy,,Dmn Méo Camuzet Frère et Soeurs | Nuits St. Georges 1er Cru Les Perrières | R | B | 2018 | 11
+C374,Dmn Méo Camuzet Frère et Soeurs,Nuits St. Georges 1er Cru Les Perrières,R,B,2018,3,2018,750,1,Burgundy,,Dmn Méo Camuzet Frère et Soeurs | Nuits St. Georges 1er Cru Les Perrières | R | B | 2018 | 3
+C375,Dmn Méo Camuzet Frère et Soeurs,Nuits St. Georges 1er Cru Les Perrières,R,B,2019,6,2019,750,1,Burgundy,,Dmn Méo Camuzet Frère et Soeurs | Nuits St. Georges 1er Cru Les Perrières | R | B | 2019 | 6
+C376,Dmn Méo Camuzet Frère et Soeurs,Nuits St. Georges 1er Cru Les Perrières,R,B,2021,3,2021,750,1,Burgundy,,Dmn Méo Camuzet Frère et Soeurs | Nuits St. Georges 1er Cru Les Perrières | R | B | 2021 | 3
+C377,Dmn Méo Camuzet Frère et Soeurs,Nuits St. Georges 1er Cru Les Perrières,R,B,2022,6,2022,750,1,Burgundy,,Dmn Méo Camuzet Frère et Soeurs | Nuits St. Georges 1er Cru Les Perrières | R | B | 2022 | 6
+C378,Dmn Méo Camuzet Frère et Soeurs,Nuits St. Georges Villages,R,B,2019,2,2019,750,1,Burgundy,,Dmn Méo Camuzet Frère et Soeurs | Nuits St. Georges Villages | R | B | 2019 | 2
+C379,Dmn Méo Camuzet Frère et Soeurs,Nuits St. Georges Villages,R,B,2020,1,2020,750,1,Burgundy,,Dmn Méo Camuzet Frère et Soeurs | Nuits St. Georges Villages | R | B | 2020 | 1
+C380,Dmn Méo Camuzet Frère et Soeurs,Vosne Romanée 1er Cru,R,B,2019,1,2019,750,1,Burgundy,,Dmn Méo Camuzet Frère et Soeurs | Vosne Romanée 1er Cru | R | B | 2019 | 1
+C381,Dmn Michel Gros,Clos de Vougeot Grand Cru,R,B,2019,6,2019,750,1,Burgundy,,Dmn Michel Gros | Clos de Vougeot Grand Cru | R | B | 2019 | 6
+C382,Dmn Michel Gros,"Clos de Vougeot Grand Cru, Le Grand Maupertuis",R,B,2018,6,2018,750,1,Burgundy,,"Dmn Michel Gros | Clos de Vougeot Grand Cru, Le Grand Maupertuis | R | B | 2018 | 6"
+C383,Dmn Michel Gros,Clos de Vougeot Grand Maupertuis Grand Cru,R,B,2020,6,2020,750,1,Burgundy,,Dmn Michel Gros | Clos de Vougeot Grand Maupertuis Grand Cru | R | B | 2020 | 6
+C384,Dmn Michel Gros,Vosne Romanée 1er Cru Clos des Reas,R,B,2015,6,2015,750,1,Burgundy,,Dmn Michel Gros | Vosne Romanée 1er Cru Clos des Reas | R | B | 2015 | 6
+C385,Dmn Michel Gros,Vosne Romanée 1er Cru Clos des Reas,R,B,2017,6,2017,750,1,Burgundy,,Dmn Michel Gros | Vosne Romanée 1er Cru Clos des Reas | R | B | 2017 | 6
+C386,Dmn Michel Gros,Vosne Romanée 1er Cru Clos des Reas,R,B,2018,12,2018,750,1,Burgundy,,Dmn Michel Gros | Vosne Romanée 1er Cru Clos des Reas | R | B | 2018 | 12
+C387,Dmn Michel Gros,Vosne Romanée 1er Cru Clos des Reas,R,B,2019,12,2019,750,1,Burgundy,,Dmn Michel Gros | Vosne Romanée 1er Cru Clos des Reas | R | B | 2019 | 12
+C388,Dmn Michel Gros,Vosne Romanée 1er Cru Clos des Reas,R,B,2020,12,2020,750,1,Burgundy,,Dmn Michel Gros | Vosne Romanée 1er Cru Clos des Reas | R | B | 2020 | 12
+C389,Dmn Michel Gros,Vosne Romanée 1er Cru Clos des Reas,R,B,2021,6,2021,750,1,Burgundy,,Dmn Michel Gros | Vosne Romanée 1er Cru Clos des Reas | R | B | 2021 | 6
+C390,Dmn Nicole Lamarche,Clos de Vougeot Grand Cru,R,B,2022,6,2022,750,1,Burgundy,,Dmn Nicole Lamarche | Clos de Vougeot Grand Cru | R | B | 2022 | 6
+C391,Dmn Nicole Lamarche,Echezeaux Grand Cru,R,B,2022,6,2022,750,1,Burgundy,,Dmn Nicole Lamarche | Echezeaux Grand Cru | R | B | 2022 | 6
+C392,Dmn Nicole Lamarche,La Grande Rue Grand Cru,R,B,2022,3,2022,750,1,Burgundy?,,Dmn Nicole Lamarche | La Grande Rue Grand Cru | R | B | 2022 | 3
+C393,Dmn Nicole Lamarche,Vosne Romanée 1er Cru Les Suchots,R,B,2022,3,2022,750,1,Burgundy,,Dmn Nicole Lamarche | Vosne Romanée 1er Cru Les Suchots | R | B | 2022 | 3
+C394,Dmn Olivier Bernstein,Bonnes Mares Grand Cru,R,B,2013,2,2013,750,1,Burgundy,,Dmn Olivier Bernstein | Bonnes Mares Grand Cru | R | B | 2013 | 2
+C395,Dmn Olivier Bernstein,Bonnes Mares Grand Cru,R,B,2016,2,2016,750,1,Burgundy,,Dmn Olivier Bernstein | Bonnes Mares Grand Cru | R | B | 2016 | 2
+C396,Dmn Olivier Bernstein,Chambertin Clos de Bèze Grand Cru,R,B,2013,4,2013,750,1,Burgundy,,Dmn Olivier Bernstein | Chambertin Clos de Bèze Grand Cru | R | B | 2013 | 4
+C397,Dmn Olivier Bernstein,Chambertin Clos de Bèze Grand Cru,R,B,2016,2,2016,750,1,Burgundy,,Dmn Olivier Bernstein | Chambertin Clos de Bèze Grand Cru | R | B | 2016 | 2
+C398,Dmn Olivier Bernstein,Chambertin Grand Cru,R,B,2013,4,2013,750,1,Burgundy?,,Dmn Olivier Bernstein | Chambertin Grand Cru | R | B | 2013 | 4
+C399,Dmn Olivier Bernstein,Chambertin Grand Cru,R,B,2016,2,2016,750,1,Burgundy?,,Dmn Olivier Bernstein | Chambertin Grand Cru | R | B | 2016 | 2
+C400,Dmn Olivier Bernstein,Charmes Chambertin Grand Cru,R,B,2016,2,2016,750,1,Burgundy,,Dmn Olivier Bernstein | Charmes Chambertin Grand Cru | R | B | 2016 | 2
+C401,Dmn Olivier Bernstein,Clos de la Roche Grand Cru,R,B,2013,1,2013,750,1,Burgundy,,Dmn Olivier Bernstein | Clos de la Roche Grand Cru | R | B | 2013 | 1
+C402,Dmn Olivier Bernstein,Clos de la Roche Grand Cru,R,B,2016,2,2016,750,1,Burgundy,,Dmn Olivier Bernstein | Clos de la Roche Grand Cru | R | B | 2016 | 2
+C403,Dmn Olivier Bernstein,Clos de Vougeot Grand Cru,R,B,2016,2,2016,750,1,Burgundy,,Dmn Olivier Bernstein | Clos de Vougeot Grand Cru | R | B | 2016 | 2
+C404,Dmn Olivier Bernstein,Mazis Chambertin Grand Cru,R,B,2012,2,2012,750,1,Burgundy,,Dmn Olivier Bernstein | Mazis Chambertin Grand Cru | R | B | 2012 | 2
+C405,Dmn Olivier Bernstein,Mazis Chambertin Grand Cru,R,B,2013,2,2013,750,1,Burgundy,,Dmn Olivier Bernstein | Mazis Chambertin Grand Cru | R | B | 2013 | 2
+C406,Dmn Olivier Bernstein,Mazis Chambertin Grand Cru,R,B,2016,2,2016,750,1,Burgundy,,Dmn Olivier Bernstein | Mazis Chambertin Grand Cru | R | B | 2016 | 2
+C407,Dmn Phillippe Bouzereau,Meursault Perrières 1er Cru,W,B,2020,6,2020,750,1,Burgundy,,Dmn Phillippe Bouzereau | Meursault Perrières 1er Cru | W | B | 2020 | 6
+C408,Dmn Ponsot,Clos de la Roche Grand Cru Vieilles Vignes,R,B,2012,6,2012,750,1,Burgundy,,Dmn Ponsot | Clos de la Roche Grand Cru Vieilles Vignes | R | B | 2012 | 6
+C409,Dmn Ponsot,Clos de la Roche Grand Cru Vieilles Vignes,R,B,2014,6,2014,750,1,Burgundy,,Dmn Ponsot | Clos de la Roche Grand Cru Vieilles Vignes | R | B | 2014 | 6
+C410,Dmn Ponsot,Clos de la Roche Grand Cru Vieilles Vignes,R,B,2015,6,2015,750,1,Burgundy,,Dmn Ponsot | Clos de la Roche Grand Cru Vieilles Vignes | R | B | 2015 | 6
+C411,Dmn Ponsot,Clos de la Roche Grand Cru Vieilles Vignes,R,B,2016,6,2016,750,1,Burgundy,,Dmn Ponsot | Clos de la Roche Grand Cru Vieilles Vignes | R | B | 2016 | 6
+C412,Dmn Robert Groffier Pere & Fils,Chambolle Musigny 1er Cru Les Hauts Doix,R,B,2019,6,2019,750,1,Burgundy,,Dmn Robert Groffier Pere & Fils | Chambolle Musigny 1er Cru Les Hauts Doix | R | B | 2019 | 6
+C413,Dmn Robert Groffier Pere & Fils,Chambolle Musigny 1er Cru Les Hauts Doix,R,B,2021,6,2021,750,1,Burgundy,,Dmn Robert Groffier Pere & Fils | Chambolle Musigny 1er Cru Les Hauts Doix | R | B | 2021 | 6
+C414,Dmn Robert Groffier Pere & Fils,Chambolle Musigny 1er Cru Les Sentiers,R,B,2019,6,2019,750,1,Burgundy,,Dmn Robert Groffier Pere & Fils | Chambolle Musigny 1er Cru Les Sentiers | R | B | 2019 | 6
+C415,Dmn Robert Groffier Pere & Fils,Gevrey Chambertin Les Seuvrees Villages,R,B,2019,6,2019,750,1,Burgundy,,Dmn Robert Groffier Pere & Fils | Gevrey Chambertin Les Seuvrees Villages | R | B | 2019 | 6
+C416,Dmn Robert Groffier Pere & Fils,Gevrey Chambertin Les Seuvrees Villages,R,B,2021,6,2021,750,1,Burgundy,,Dmn Robert Groffier Pere & Fils | Gevrey Chambertin Les Seuvrees Villages | R | B | 2021 | 6
+C417,Dmn Roche de Bellene,Bâtard Montrachet Grand Cru,W,B,2017,6,2017,750,1,Burgundy,,Dmn Roche de Bellene | Bâtard Montrachet Grand Cru | W | B | 2017 | 6
+C418,Dmn Roche de Bellene,Bonnes Mares Grand Cru,R,B,2016,3,2016,750,1,Burgundy,,Dmn Roche de Bellene | Bonnes Mares Grand Cru | R | B | 2016 | 3
+C419,Dmn Roche de Bellene,Chambertin Clos de Bèze Grand Cru,R,B,2015,6,2015,750,1,Burgundy,,Dmn Roche de Bellene | Chambertin Clos de Bèze Grand Cru | R | B | 2015 | 6
+C420,Dmn Roche de Bellene,Chambertin Clos de Bèze Grand Cru,R,B,2016,3,2016,750,1,Burgundy,,Dmn Roche de Bellene | Chambertin Clos de Bèze Grand Cru | R | B | 2016 | 3
+C421,Dmn Roche de Bellene,Chambertin Clos de Bèze Grand Cru,R,B,2017,6,2017,750,1,Burgundy,,Dmn Roche de Bellene | Chambertin Clos de Bèze Grand Cru | R | B | 2017 | 6
+C422,Dmn Roche de Bellene,Chambertin Clos de Bèze Grand Cru,R,B,2017,3,2017,750,1,Burgundy,,Dmn Roche de Bellene | Chambertin Clos de Bèze Grand Cru | R | B | 2017 | 3
+C423,Dmn Roche de Bellene,Chambertin Clos de Bèze Grand Cru,R,B,2018,6,2018,750,1,Burgundy,,Dmn Roche de Bellene | Chambertin Clos de Bèze Grand Cru | R | B | 2018 | 6
+C424,Dmn Roche de Bellene,Chambertin Clos de Bèze Grand Cru,R,B,2018,3,2018,750,1,Burgundy,,Dmn Roche de Bellene | Chambertin Clos de Bèze Grand Cru | R | B | 2018 | 3
+C425,Dmn Roche de Bellene,Chambertin Clos de Bèze Grand Cru,R,B,2019,3,2019,750,1,Burgundy,,Dmn Roche de Bellene | Chambertin Clos de Bèze Grand Cru | R | B | 2019 | 3
+C426,Dmn Roche de Bellene,Chambertin Clos de Bèze Grand Cru,R,B,2020,3,2020,750,1,Burgundy,,Dmn Roche de Bellene | Chambertin Clos de Bèze Grand Cru | R | B | 2020 | 3
+C427,Dmn Roche de Bellene,Chambertin Grand Cru,R,B,2014,6,2014,750,1,Burgundy?,,Dmn Roche de Bellene | Chambertin Grand Cru | R | B | 2014 | 6
+C428,Dmn Roche de Bellene,Chambertin Grand Cru,R,B,2015,6,2015,750,1,Burgundy?,,Dmn Roche de Bellene | Chambertin Grand Cru | R | B | 2015 | 6
+C429,Dmn Roche de Bellene,Charmes Chambertin Grand Cru,R,B,2017,6,2017,750,1,Burgundy,,Dmn Roche de Bellene | Charmes Chambertin Grand Cru | R | B | 2017 | 6
+C430,Dmn Roche de Bellene,Charmes Chambertin Grand Cru,R,B,2018,6,2018,750,1,Burgundy,,Dmn Roche de Bellene | Charmes Chambertin Grand Cru | R | B | 2018 | 6
+C431,Dmn Roche de Bellene,Corton Grand Cru,R,B,2014,2,2014,750,1,Burgundy,,Dmn Roche de Bellene | Corton Grand Cru | R | B | 2014 | 2
+C432,Dmn Roche de Bellene,Corton Grand Cru,R,B,2015,6,2015,750,1,Burgundy,,Dmn Roche de Bellene | Corton Grand Cru | R | B | 2015 | 6
+C433,Dmn Roche de Bellene,Corton Grand Cru,R,B,2016,1,2016,750,1,Burgundy,,Dmn Roche de Bellene | Corton Grand Cru | R | B | 2016 | 1
+C434,Dmn Roche de Bellene,Corton Grand Cru,R,B,2018,12,2018,750,1,Burgundy,,Dmn Roche de Bellene | Corton Grand Cru | R | B | 2018 | 12
+C435,Dmn Roche de Bellene,Corton Grand Le Rognet Grand Cru,R,B,2017,6,2017,750,1,Burgundy,,Dmn Roche de Bellene | Corton Grand Le Rognet Grand Cru | R | B | 2017 | 6
+C436,Dmn Roche de Bellene,Grands Echezeaux Grand Cru,R,B,2014,6,2014,750,1,Burgundy,,Dmn Roche de Bellene | Grands Echezeaux Grand Cru | R | B | 2014 | 6
+C437,Dmn Roche de Bellene,Grands Echezeaux Grand Cru,R,B,2016,6,2016,750,1,Burgundy,,Dmn Roche de Bellene | Grands Echezeaux Grand Cru | R | B | 2016 | 6
+C438,Dmn Roche de Bellene,Grands Echezeaux Grand Cru,R,B,2017,6,2017,750,1,Burgundy,,Dmn Roche de Bellene | Grands Echezeaux Grand Cru | R | B | 2017 | 6
+C439,Dmn Roche de Bellene,Grands Echezeaux Grand Cru,R,B,2018,6,2018,750,1,Burgundy,,Dmn Roche de Bellene | Grands Echezeaux Grand Cru | R | B | 2018 | 6
+C440,Dmn Roche de Bellene,Richebourg Grand Cru,R,B,2015,6,2015,750,1,Burgundy,,Dmn Roche de Bellene | Richebourg Grand Cru | R | B | 2015 | 6
+C441,Dmn Roche de Bellene,Richebourg Grand Cru,R,B,2016,6,2016,750,1,Burgundy,,Dmn Roche de Bellene | Richebourg Grand Cru | R | B | 2016 | 6
+C442,Dmn Roche de Bellene,Richebourg Grand Cru,R,B,2017,3,2017,750,1,Burgundy,,Dmn Roche de Bellene | Richebourg Grand Cru | R | B | 2017 | 3
+C443,Dmn Roche de Bellene,Richebourg Grand Cru,R,B,2017,6,2017,750,1,Burgundy,,Dmn Roche de Bellene | Richebourg Grand Cru | R | B | 2017 | 6
+C444,Dmn Roche de Bellene,Richebourg Grand Cru,R,B,2018,3,2018,750,1,Burgundy,,Dmn Roche de Bellene | Richebourg Grand Cru | R | B | 2018 | 3
+C445,Dmn Roche de Bellene,Richebourg Grand Cru,R,B,2018,6,2018,750,1,Burgundy,,Dmn Roche de Bellene | Richebourg Grand Cru | R | B | 2018 | 6
+C446,Dmn Roche de Bellene,Richebourg Grand Cru,R,B,2019,6,2019,750,1,Burgundy,,Dmn Roche de Bellene | Richebourg Grand Cru | R | B | 2019 | 6
+C447,Dmn Roche de Bellene,Romanée St. Vivant Grand Cru,R,B,2016,12,2016,750,1,Burgundy,,Dmn Roche de Bellene | Romanée St. Vivant Grand Cru | R | B | 2016 | 12
+C448,Dmn Roche de Bellene,Romanée St. Vivant Grand Cru,R,B,2017,3,2017,750,1,Burgundy,,Dmn Roche de Bellene | Romanée St. Vivant Grand Cru | R | B | 2017 | 3
+C449,Dmn Roche de Bellene,Romanée St. Vivant Grand Cru,R,B,2018,3,2018,750,1,Burgundy,,Dmn Roche de Bellene | Romanée St. Vivant Grand Cru | R | B | 2018 | 3
+C450,Dmn Roche de Bellene,Romanée St. Vivant Grand Cru,R,B,2018,6,2018,750,1,Burgundy,,Dmn Roche de Bellene | Romanée St. Vivant Grand Cru | R | B | 2018 | 6
+C451,Dmn Roche de Bellene,Romanée St. Vivant Grand Cru,R,B,2019,6,2019,750,1,Burgundy,,Dmn Roche de Bellene | Romanée St. Vivant Grand Cru | R | B | 2019 | 6
+C452,Dmn Roche de Bellene,Romanée St. Vivant Grand Cru,R,B,2020,6,2020,750,1,Burgundy,,Dmn Roche de Bellene | Romanée St. Vivant Grand Cru | R | B | 2020 | 6
+C453,Dmn Roche de Bellene,Vosne Romanée 1er Cru Les Rouges Dessus,R,B,2019,12,2019,750,1,Burgundy,,Dmn Roche de Bellene | Vosne Romanée 1er Cru Les Rouges Dessus | R | B | 2019 | 12
+C454,Dmn Roche de Bellene,Vosne Romanée 1er Cru Les Rouges Dessus,R,B,2020,12,2020,750,1,Burgundy,,Dmn Roche de Bellene | Vosne Romanée 1er Cru Les Rouges Dessus | R | B | 2020 | 12
+C455,Dmn Sylvie Esmonin,Gevrey Chambertin 1er Cru Clos St Jacques,R,B,2012,12,2012,750,1,Burgundy,,Dmn Sylvie Esmonin | Gevrey Chambertin 1er Cru Clos St Jacques | R | B | 2012 | 12
+C456,Dmn Sylvie Esmonin,Gevrey Chambertin 1er Cru Clos St Jacques,R,B,2018,2,2018,750,1,Burgundy,,Dmn Sylvie Esmonin | Gevrey Chambertin 1er Cru Clos St Jacques | R | B | 2018 | 2
+C457,Dmn Sylvie Esmonin,Gevrey Chambertin 1er Cru Clos St Jacques,R,B,2018,4,2018,750,1,Burgundy,,Dmn Sylvie Esmonin | Gevrey Chambertin 1er Cru Clos St Jacques | R | B | 2018 | 4
+C458,Dmn Sylvie Esmonin,Gevrey Chambertin 1er Cru Clos St Jacques,R,B,2019,3,2019,750,1,Burgundy,,Dmn Sylvie Esmonin | Gevrey Chambertin 1er Cru Clos St Jacques | R | B | 2019 | 3
+C459,Dmn Sylvie Esmonin,Gevrey Chambertin 1er Cru Clos St Jacques,R,B,2020,2,2020,750,1,Burgundy,,Dmn Sylvie Esmonin | Gevrey Chambertin 1er Cru Clos St Jacques | R | B | 2020 | 2
+C460,Dmn Sylvie Esmonin,Gevrey Chambertin Villages Vieilles Vignes,R,B,2019,3,2019,750,1,Burgundy,,Dmn Sylvie Esmonin | Gevrey Chambertin Villages Vieilles Vignes | R | B | 2019 | 3
+C461,Dmn Sylvie Esmonin,Gevrey Chambertin Villages Vieilles Vignes,R,B,2020,2,2020,750,1,Burgundy,,Dmn Sylvie Esmonin | Gevrey Chambertin Villages Vieilles Vignes | R | B | 2020 | 2
+C462,Dmn Taupenot Merme,Morey St Denis 1er Cru Les Pruliers,R,B,2018,6,2018,750,1,Burgundy,,Dmn Taupenot Merme | Morey St Denis 1er Cru Les Pruliers | R | B | 2018 | 6
+C463,Dmn Thibault Liger Belair,Charmes Chambertin Grand Cru,R,B,2017,6,2017,750,1,Burgundy,,Dmn Thibault Liger Belair | Charmes Chambertin Grand Cru | R | B | 2017 | 6
+C464,Dmn Thibault Liger Belair,Charmes Chambertin Grand Cru,R,B,2018,6,2018,750,1,Burgundy,,Dmn Thibault Liger Belair | Charmes Chambertin Grand Cru | R | B | 2018 | 6
+C465,Dmn Thibault Liger Belair,Corton Renardes Grand Cru,R,B,2014,6,2014,750,1,Burgundy,,Dmn Thibault Liger Belair | Corton Renardes Grand Cru | R | B | 2014 | 6
+C466,Dmn Trapet Pere & Fils,Chambertin Grand Cru,R,B,2014,6,2014,750,1,Burgundy?,,Dmn Trapet Pere & Fils | Chambertin Grand Cru | R | B | 2014 | 6
+C467,Dom Pérignon,Rosé,C,B,2006,12,2006,750,1,Champagne,,Dom Pérignon | Rosé | C | B | 2006 | 12
+C468,Dom Pérignon,Vintage,C,B,2004,18,2004,750,1,Champagne,,Dom Pérignon | Vintage | C | B | 2004 | 18
+C469,Dom Pérignon,Vintage,C,B,2005,12,2005,750,1,Champagne,,Dom Pérignon | Vintage | C | B | 2005 | 12
+C470,Dom Pérignon,Vintage,C,B,2008,6,2008,750,1,Champagne,,Dom Pérignon | Vintage | C | B | 2008 | 6
+C471,Dom Pérignon,Vintage,C,B,2008,10,2008,750,1,Champagne,,Dom Pérignon | Vintage | C | B | 2008 | 10
+C472,Dom Pérignon,Vintage,C,B,2008,24,2008,750,1,Champagne,,Dom Pérignon | Vintage | C | B | 2008 | 24
+C473,Dom Pérignon,Vintage,C,B,2008,6,2008,750,1,Champagne,,Dom Pérignon | Vintage | C | B | 2008 | 6
+C474,Dom Pérignon,Vintage,C,B,2010,24,2010,750,1,Champagne,,Dom Pérignon | Vintage | C | B | 2010 | 24
+C475,Dom Pérignon,Vintage,C,B,2013,12,2013,750,1,Champagne,,Dom Pérignon | Vintage | C | B | 2013 | 12
+C476,Dom Pérignon,Vintage P2,C,B,2002,12,2002,750,1,Champagne,,Dom Pérignon | Vintage P2 | C | B | 2002 | 12
+C477,Eric Rodez,Blanc de Blancs Grand Cru L04-19,C,B,NV - 2018,10,1000,750,1,Champagne,NV,Eric Rodez | Blanc de Blancs Grand Cru L04-19 | C | B | NV - 2018 | 10
+C478,Eric Rodez,Blanc de Noirs Grand Cru L04-19,C,B,NV - 2018,6,1000,750,1,Champagne,NV,Eric Rodez | Blanc de Noirs Grand Cru L04-19 | C | B | NV - 2018 | 6
+C479,Eric Rodez,Cuvée des Crayeres,C,B,NV - 2018,10,1000,750,1,Champagne,NV,Eric Rodez | Cuvée des Crayeres | C | B | NV - 2018 | 10
+C480,Frédéric Savart,Haute Couture Grand Cru Extra Brut,C,B,2018,6,2018,750,1,Champagne,,Frédéric Savart | Haute Couture Grand Cru Extra Brut | C | B | 2018 | 6
+C481,Frédéric Savart,L'Expression Premier Cru Brut Nature,C,B,2014,6,2014,750,1,Champagne,,Frédéric Savart | L'Expression Premier Cru Brut Nature | C | B | 2014 | 6
+C482,Frédéric Savart,L'Ouverture Blanc de Noirs Premier Cru Brut,C,B,NV,6,1000,750,1,Champagne,NV,Frédéric Savart | L'Ouverture Blanc de Noirs Premier Cru Brut | C | B | NV | 6
+C483,Gaja,Barbaresco,R,B,2014,4,2014,750,1,Italy,,Gaja | Barbaresco | R | B | 2014 | 4
+C484,Gaja,Barbaresco Costa Russi,R,B,2013,6,2013,750,1,Italy,,Gaja | Barbaresco Costa Russi | R | B | 2013 | 6
+C485,Gaja,Barbaresco Sorì Tildìn,R,B,2013,6,2013,750,1,Italy,,Gaja | Barbaresco Sorì Tildìn | R | B | 2013 | 6
+C486,Giuseppe Mascarello,Barolo Monprivato,R,B,2010,12,2010,750,1,Italy,,Giuseppe Mascarello | Barolo Monprivato | R | B | 2010 | 12
+C487,Giuseppe Mascarello,Barolo Monprivato,R,B,2013,12,2013,750,1,Italy,,Giuseppe Mascarello | Barolo Monprivato | R | B | 2013 | 12
+C488,Giuseppe Mascarello,Barolo Monprivato Ca D'Morissio,R,B,2008,6,2008,750,1,Italy,,Giuseppe Mascarello | Barolo Monprivato Ca D'Morissio | R | B | 2008 | 6
+C489,Henri Giraud,Aÿ Grand Cru Argonne Brut,C,B,2012,13,2012,750,1,Champagne,,Henri Giraud | Aÿ Grand Cru Argonne Brut | C | B | 2012 | 13
+C490,Henri Giraud,Aÿ Grand Cru Fût de Chêne Brut MV13,C,B,MV13-180320,5,1000,750,1,Champagne,non-standard: MV13-180320,Henri Giraud | Aÿ Grand Cru Fût de Chêne Brut MV13 | C | B | MV13-180320 | 5
+C491,Henri Giraud,Aÿ Grand Cru Fût de Chêne Brut MV15,C,B,MV15,12,1000,750,1,Champagne,non-standard: MV15,Henri Giraud | Aÿ Grand Cru Fût de Chêne Brut MV15 | C | B | MV15 | 12
+C492,Krug,Grande Cuvée 156e,C,B,NV,6,1000,750,1,Champagne,NV,Krug | Grande Cuvée 156e | C | B | NV | 6
+C493,Krug,Grande Cuvée 156e,C,M,NV,2,1000,1500,1,Champagne,NV,Krug | Grande Cuvée 156e | C | M | NV | 2
+C494,Krug,Grande Cuvée 156e,C,B,NV,6,1000,750,1,Champagne,NV,Krug | Grande Cuvée 156e | C | B | NV | 6
+C495,Krug,Grande Cuvée 156e,C,B,NV,2,1000,750,1,Champagne,NV,Krug | Grande Cuvée 156e | C | B | NV | 2
+C496,Krug,Grande Cuvée 156e,C,B,NV,6,1000,750,1,Champagne,NV,Krug | Grande Cuvée 156e | C | B | NV | 6
+C497,Krug,Grande Cuvée 157e,C,M,NV,5,1000,1500,1,Champagne,NV,Krug | Grande Cuvée 157e | C | M | NV | 5
+C498,Krug,Grande Cuvée 157e,C,B,NV,6,1000,750,1,Champagne,NV,Krug | Grande Cuvée 157e | C | B | NV | 6
+C499,Krug,Grande Cuvée 157e,C,B,NV,4,1000,750,1,Champagne,NV,Krug | Grande Cuvée 157e | C | B | NV | 4
+C500,Krug,Grande Cuvée 157e,C,B,NV,6,1000,750,1,Champagne,NV,Krug | Grande Cuvée 157e | C | B | NV | 6
+C501,Krug,Grande Cuvée 158e,C,B,NV,6,1000,750,1,Champagne,NV,Krug | Grande Cuvée 158e | C | B | NV | 6
+C502,Krug,Grande Cuvée 158e,C,B,NV,4,1000,750,1,Champagne,NV,Krug | Grande Cuvée 158e | C | B | NV | 4
+C503,Krug,Grande Cuvée 158e,C,B,NV,6,1000,750,1,Champagne,NV,Krug | Grande Cuvée 158e | C | B | NV | 6
+C504,Krug,Grande Cuvée 159e,C,B,NV,6,1000,750,1,Champagne,NV,Krug | Grande Cuvée 159e | C | B | NV | 6
+C505,Krug,Grande Cuvée 159e,C,B,NV,12,1000,750,1,Champagne,NV,Krug | Grande Cuvée 159e | C | B | NV | 12
+C506,Krug,Grande Cuvée 159e,C,M,NV,3,1000,1500,1,Champagne,NV,Krug | Grande Cuvée 159e | C | M | NV | 3
+C507,Krug,Grande Cuvée 159e,C,B,NV,6,1000,750,1,Champagne,NV,Krug | Grande Cuvée 159e | C | B | NV | 6
+C508,Krug,Grande Cuvée 159e,C,B,NV,4,1000,750,1,Champagne,NV,Krug | Grande Cuvée 159e | C | B | NV | 4
+C509,Krug,Grande Cuvée 159e,C,B,NV,6,1000,750,1,Champagne,NV,Krug | Grande Cuvée 159e | C | B | NV | 6
+C510,Krug,Grande Cuvée 159e,C,B,NV,6,1000,750,1,Champagne,NV,Krug | Grande Cuvée 159e | C | B | NV | 6
+C511,Krug,Grande Cuvée 160e,C,B,NV,12,1000,750,1,Champagne,NV,Krug | Grande Cuvée 160e | C | B | NV | 12
+C512,Krug,Grande Cuvée 160e,C,B,NV,12,1000,750,1,Champagne,NV,Krug | Grande Cuvée 160e | C | B | NV | 12
+C513,Krug,Grande Cuvée 160e,C,B,NV,6,1000,750,1,Champagne,NV,Krug | Grande Cuvée 160e | C | B | NV | 6
+C514,Krug,Grande Cuvée 160e,C,M,NV,6,1000,1500,1,Champagne,NV,Krug | Grande Cuvée 160e | C | M | NV | 6
+C515,Krug,Grande Cuvée 161e,C,H,NV,12,1000,375,1,Champagne,NV,Krug | Grande Cuvée 161e | C | H | NV | 12
+C516,Krug,Grande Cuvée 161e,C,B,NV,12,1000,750,1,Champagne,NV,Krug | Grande Cuvée 161e | C | B | NV | 12
+C517,Krug,Grande Cuvée 161e,C,M,NV,3,1000,1500,1,Champagne,NV,Krug | Grande Cuvée 161e | C | M | NV | 3
+C518,Krug,Grande Cuvée 162e,C,B,NV,6,1000,750,1,Champagne,NV,Krug | Grande Cuvée 162e | C | B | NV | 6
+C519,Krug,Grande Cuvée 163e,C,B,NV,12,1000,750,1,Champagne,NV,Krug | Grande Cuvée 163e | C | B | NV | 12
+C520,Krug,Grande Cuvée 163e,C,M,NV,1,1000,1500,1,Champagne,NV,Krug | Grande Cuvée 163e | C | M | NV | 1
+C521,Krug,Grande Cuvée 164e,C,B,NV,24,1000,750,1,Champagne,NV,Krug | Grande Cuvée 164e | C | B | NV | 24
+C522,Krug,Grande Cuvée 165e,C,B,NV,12,1000,750,1,Champagne,NV,Krug | Grande Cuvée 165e | C | B | NV | 12
+C523,Krug,Grande Cuvée 166e,C,B,NV,24,1000,750,1,Champagne,NV,Krug | Grande Cuvée 166e | C | B | NV | 24
+C524,Krug,Grande Cuvée 166e,C,M,NV,3,1000,1500,1,Champagne,NV,Krug | Grande Cuvée 166e | C | M | NV | 3
+C525,Krug,Grande Cuvée 166e,C,M,NV,3,1000,1500,1,Champagne,NV,Krug | Grande Cuvée 166e | C | M | NV | 3
+C526,Krug,Grande Cuvée 167e,C,B,NV,48,1000,750,1,Champagne,NV,Krug | Grande Cuvée 167e | C | B | NV | 48
+C527,Krug,Grande Cuvée 168e,C,B,NV,36,1000,750,1,Champagne,NV,Krug | Grande Cuvée 168e | C | B | NV | 36
+C528,Krug,Grande Cuvée 168e,C,H,NV,12,1000,375,1,Champagne,NV,Krug | Grande Cuvée 168e | C | H | NV | 12
+C529,Krug,Grande Cuvée 168e,C,H,NV,36,1000,375,1,Champagne,NV,Krug | Grande Cuvée 168e | C | H | NV | 36
+C530,Krug,Grande Cuvée 168e,C,H,NV,47,1000,375,1,Champagne,NV,Krug | Grande Cuvée 168e | C | H | NV | 47
+C531,Krug,Grande Cuvée 169e,C,B,NV,24,1000,750,1,Champagne,NV,Krug | Grande Cuvée 169e | C | B | NV | 24
+C532,Krug,Grande Cuvée 169e,C,B,NV,1,1000,750,1,Champagne,NV,Krug | Grande Cuvée 169e | C | B | NV | 1
+C533,La Rioja Alta,Gran Reserva 904,R,B,2004,4,2004,750,1,Spain,,La Rioja Alta | Gran Reserva 904 | R | B | 2004 | 4
+C534,La Rioja Alta,Gran Reserva 904,R,B,2005,5,2005,750,1,Spain,,La Rioja Alta | Gran Reserva 904 | R | B | 2005 | 5
+C535,Louis Roederer,Cristal,C,B,2005,24,2005,750,1,Champagne,,Louis Roederer | Cristal | C | B | 2005 | 24
+C536,Louis Roederer,Cristal,C,B,2006,12,2006,750,1,Champagne,,Louis Roederer | Cristal | C | B | 2006 | 12
+C537,Louis Roederer,Cristal,C,M,2006,1,2006,1500,1,Champagne,,Louis Roederer | Cristal | C | M | 2006 | 1
+C538,Louis Roederer,Cristal,C,B,2007,6,2007,750,1,Champagne,,Louis Roederer | Cristal | C | B | 2007 | 6
+C539,Masseto Vino da Tavola,Tenuta dell'Ornellaia,R,B,2006,3,2006,750,1,Italy,,Masseto Vino da Tavola | Tenuta dell'Ornellaia | R | B | 2006 | 3
+C540,Pierre Peters,Cuvee Speciale Les Chetillons Blanc de Blancs Grand Cru Brut,C,B,2016,6,2016,750,1,Champagne,,Pierre Peters | Cuvee Speciale Les Chetillons Blanc de Blancs Grand Cru Brut | C | B | 2016 | 6
+C541,Pierre Peters,Cuvée Speciale Les Chetillons Blanc de Blancs Grand Cru Brut,C,M,2011,4,2011,1500,1,Champagne,,Pierre Peters | Cuvée Speciale Les Chetillons Blanc de Blancs Grand Cru Brut | C | M | 2011 | 4
+C542,Pierre Peters,Cuvée Speciale Les Montjolys Blanc de Blancs Brut,C,B,2012,3,2012,750,1,Champagne,,Pierre Peters | Cuvée Speciale Les Montjolys Blanc de Blancs Brut | C | B | 2012 | 3
+C543,Pol Roger,Sir Winston Churchill,C,B,2002,12,2002,750,1,Champagne,,Pol Roger | Sir Winston Churchill | C | B | 2002 | 12
+C544,Pol Roger,Sir Winston Churchill,C,B,2004,6,2004,750,1,Champagne,,Pol Roger | Sir Winston Churchill | C | B | 2004 | 6
+C545,Pol Roger,Vintage Brut,C,M,1990,2,1990,1500,1,Champagne,,Pol Roger | Vintage Brut | C | M | 1990 | 2
+C546,Sassicaia,Tenuta San Guido,R,B,2003,6,2003,750,1,Italy,,Sassicaia | Tenuta San Guido | R | B | 2003 | 6
+C547,Sassicaia,Tenuta San Guido,R,B,2006,6,2006,750,1,Italy,,Sassicaia | Tenuta San Guido | R | B | 2006 | 6
+C548,Taittinger,Comtes de Champagne,C,B,2004,12,2004,750,1,Champagne,,Taittinger | Comtes de Champagne | C | B | 2004 | 12
+C549,Taittinger,Comtes de Champagne,C,B,2005,6,2005,750,1,Champagne,,Taittinger | Comtes de Champagne | C | B | 2005 | 6
+C550,Taittinger,Comtes de Champagne,C,B,2006,6,2006,750,1,Champagne,,Taittinger | Comtes de Champagne | C | B | 2006 | 6
+C551,Taittinger,Comtes de Champagne,C,B,2007,12,2007,750,1,Champagne,,Taittinger | Comtes de Champagne | C | B | 2007 | 12
+C552,Taittinger,Comtes de Champagne,C,B,2008,12,2008,750,1,Champagne,,Taittinger | Comtes de Champagne | C | B | 2008 | 12
+C553,Taittinger,Comtes de Champagne Rosé,C,M,2006,3,2006,1500,1,Champagne,,Taittinger | Comtes de Champagne Rosé | C | M | 2006 | 3
+C554,Taittinger,Comtes de Champagne Rosé,C,B,2008,3,2008,750,1,Champagne,,Taittinger | Comtes de Champagne Rosé | C | B | 2008 | 3
+C555,Taittinger,Comtes de Champagne Rosé,C,B,2009,6,2009,750,1,Champagne,,Taittinger | Comtes de Champagne Rosé | C | B | 2009 | 6
+C556,Taittinger,Comtes de Champagne Rosé,C,B,2009,9,2009,750,1,Champagne,,Taittinger | Comtes de Champagne Rosé | C | B | 2009 | 9
+C557,Taittinger,Comtes de Champagne Rosé,C,B,2011,6,2011,750,1,Champagne,,Taittinger | Comtes de Champagne Rosé | C | B | 2011 | 6
+C558,Tignanello,Antinori,R,B,2001,6,2001,750,1,Italy,,Tignanello | Antinori | R | B | 2001 | 6
+C559,Tignanello,Antinori,R,B,2004,3,2004,750,1,Italy,,Tignanello | Antinori | R | B | 2004 | 3
+C560,Tignanello,Antinori,R,B,2005,3,2005,750,1,Italy,,Tignanello | Antinori | R | B | 2005 | 3
+C561,Tignanello,Antinori,R,B,2006,6,2006,750,1,Italy,,Tignanello | Antinori | R | B | 2006 | 6
