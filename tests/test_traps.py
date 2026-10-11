@@ -32,7 +32,8 @@ from app.core.enums import ConditionFlag, DutyStatus, PriceKind, Reject, State, 
 from app.core.flags import MAX_OFFER_AGE_DAYS, REVIEW_FLAGS, WIDE_SPREAD_THRESHOLD, Flag
 from app.core.models import Offer, SellerLine
 from app.market.parcel import SAME_PRICE_AS_ANOTHER_MERCHANT, price_coincidences
-from app.worker.politeness import allowed, crawl_delay
+from app.worker.politeness import (
+    RobotsDisallowed, allowed, check_robots, crawl_delay, visit_window, within_visit_window)
 from app.identity.resolver import (
     PRODUCER_EXCLUSIONS, STRUCTURAL_EXCLUSIONS, Alias, CanonicalWine, Registry,
     collided_lwins, norm_producer, producers_excluded, split_release_code, wine_key)
@@ -1606,6 +1607,64 @@ def test_robots_allow_beats_a_shorter_disallow():
     text = "User-agent: *\nDisallow: /wp-admin/\nAllow: /wp-admin/admin-ajax.php\n"
     assert allowed(text, "https://x/wp-admin/", UA) is False
     assert allowed(text, "https://x/wp-admin/admin-ajax.php", UA) is True
+
+
+BBR_ROBOTS = """
+User-agent: *
+Disallow: /cart
+Disallow: /checkout
+Request-rate: 1/10
+Crawl-delay: 10
+Visit-time: 0200-0700
+"""
+
+
+def test_robots_visit_time_is_read():
+    """Berry Bros. & Rudd's own robots.txt, confirmed live 10 October 2026:
+    a window, UTC, alongside its Crawl-delay. Dropped silently before this
+    — nothing recognised the field at all — which would have fetched
+    outside the one window a merchant actually asked for."""
+    assert visit_window(BBR_ROBOTS, UA) == (120, 420)
+    assert visit_window(LW_TRADING_ROBOTS, UA) is None   # no such field: unrestricted
+
+
+@pytest.mark.parametrize("hour,minute,in_window", [
+    (2, 0, True), (4, 30, True), (7, 0, True),
+    (1, 59, False), (7, 1, False), (23, 53, False), (0, 0, False),
+])
+def test_robots_visit_time_window_boundaries(hour, minute, in_window):
+    now = datetime(2026, 10, 10, hour, minute, tzinfo=timezone.utc)
+    assert within_visit_window(BBR_ROBOTS, UA, now) is in_window
+    assert within_visit_window(LW_TRADING_ROBOTS, UA, now) is True   # unrestricted
+
+
+def test_robots_visit_time_wraps_midnight():
+    """2200-0600 means "overnight", not "never" — the arithmetic has to
+    cross midnight the same way a merchant reading it by eye would."""
+    overnight = "User-agent: *\nVisit-time: 2200-0600\n"
+    assert within_visit_window(overnight, UA, datetime(2026, 1, 1, 23, 0, tzinfo=timezone.utc))
+    assert within_visit_window(overnight, UA, datetime(2026, 1, 1, 3, 0, tzinfo=timezone.utc))
+    assert not within_visit_window(overnight, UA, datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc))
+
+
+def test_check_robots_refuses_a_fetch_outside_the_visit_window(monkeypatch):
+    """The real call site: check_robots raises the same RobotsDisallowed a
+    path-level block would, rather than fetching anyway and hoping nobody
+    minds — the whole reason this collector is identifiable at all."""
+    class _Resp:
+        status_code = 200
+        text = BBR_ROBOTS
+
+    class _Client:
+        def get(self, url):
+            return _Resp()
+
+    outside = datetime(2026, 10, 10, 23, 53, tzinfo=timezone.utc)
+    with pytest.raises(RobotsDisallowed, match="restricts visits to 0200-0700"):
+        check_robots("https://www.bbr.com/wines", UA, client=_Client(), now=outside)
+
+    inside = datetime(2026, 10, 10, 4, 0, tzinfo=timezone.utc)
+    check_robots("https://www.bbr.com/wines", UA, client=_Client(), now=inside)  # no raise
 
 
 # ------------------------- brokered stock, and two merchants quoting one price
