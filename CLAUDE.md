@@ -251,6 +251,21 @@ and the resolver support, nobody had wired the one call site. LiveTrade is
 the first adapter to populate it (Krug's Grande Cuvée editions), which is
 what exposed the gap.
 
+A live Champagne sweep (9-10 October 2026, 84 cellar lines against all
+seven adapters) found and fixed three more live-data gaps, none caught by
+any fixture test because none had ever been run against the real adapter
+through its real call path: Bordeaux Index's regular listing silently
+rejected every NV Champagne card as "unparseable" (no leading vintage
+token at all, not even the word "NV" — `parse_title`); `split_release_code`
+was wired into the LiveTrade adapter only, so the other six never split a
+Krug-style edition number out of a cuvée string at all; and FINE+RARE's
+`fetch()` never declared the `producer_slugs` keyword
+`app.worker.jobs._by_slug` always calls it with, so a real `collect_
+targeted` call for fine-rare raised `TypeError`. `norm_producer` also read
+"Dom" in "Dom Pérignon" as an abbreviation of "Domaine" rather than the
+monastic title it is — harmless only because the same wrong expansion ran
+on both sides of every match.
+
 Pricing rules are in `app/pricing/pricer.py` (decision 0007): margin, discount,
 precedence and the commercial flags, all pure and tested. The precedence ends
 with the market chain (decision 0017) — buyer price, then seller receives —
