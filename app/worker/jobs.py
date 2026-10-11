@@ -29,6 +29,7 @@ from app.adapters.farr import FEED_URL as FARR_URL, FarrAdapter
 from app.adapters.fine_and_rare import (
     PRODUCER_INDEX_URL as FRW_URL, FineAndRareAdapter)
 from app.adapters.goedhuis import PRODUCTS_URL as GOEDHUIS_URL, GoedhuisAdapter
+from app.adapters.justerini_brooks import BASE as JB_URL, JusteriniBrooksAdapter
 from app.adapters.lea_sandeman import LIST_URL as LS_URL, LeaSandemanAdapter
 from app.adapters.lw_trading import API_URL as LW_URL, LayWheelerTradingAdapter
 from app.core.benchmark import benchmark
@@ -91,12 +92,22 @@ def _by_search(adapter: Adapter, params: dict, vintage: int) -> Sequence[dict]:
     return adapter.fetch(params.get("search") or params.get("producer_slug"), vintage)
 
 
+def _by_producer_paths(adapter: Adapter, params: dict, vintage: int) -> Sequence[dict]:
+    return adapter.fetch(params.get("producer_paths"), vintage)
+
+
 WHOLE_BOOK["lea-sandeman"] = WholeBook(LeaSandemanAdapter, LS_URL)
 
 TARGETED: dict[str, Targeted] = {
     "bordeaux-index": Targeted(BordeauxIndexAdapter, BI_URL, SLUG_PARAMS, _by_slug),
     # A brokerage: what it publishes is an indication, not stock (decision 0013).
     "fine-rare": Targeted(FineAndRareAdapter, FRW_URL, SLUG_PARAMS, _by_slug),
+    # Searched by (producer display name, family page path) pairs, each
+    # verified against the merchant's own product sitemap — familyName on
+    # the page itself is not reliably producer-first, so the producer is
+    # supplied by the caller rather than parsed. See the adapter module.
+    "justerini-brooks": Targeted(JusteriniBrooksAdapter, JB_URL,
+                                 ("producer_paths",), _by_producer_paths),
     # Searched by producer term; robots asks for ten seconds between requests.
     "lw-trading": Targeted(LayWheelerTradingAdapter, LW_URL,
                            ("search",) + SLUG_PARAMS, _by_search),

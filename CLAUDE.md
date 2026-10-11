@@ -231,12 +231,31 @@ position, ask for a trade feed rather than scraping.
 
 ## Current state
 
-Done: deterministic core, identity resolver, seven verified adapters — Farr,
+Done: deterministic core, identity resolver, eight verified adapters — Farr,
 Goedhuis Waddesdon and Lea & Sandeman (sweep), Bordeaux Index, FINE+RARE,
-Lay & Wheeler Trading and Bordeaux Index LiveTrade (search) — Postgres schema,
-AI provider interface, FastAPI service (`app/api/`), Alembic migrations
-(`migrations/`), RQ worker (`app/worker/`) for snapshot collection and
-deterministic benchmark.
+Lay & Wheeler Trading, Bordeaux Index LiveTrade and Justerini & Brooks
+(search) — Postgres schema, AI provider interface, FastAPI service
+(`app/api/`), Alembic migrations (`migrations/`), RQ worker (`app/worker/`)
+for snapshot collection and deterministic benchmark.
+
+Justerini & Brooks (`app/adapters/justerini_brooks.py`), built for UK
+breadth once the Champagne sweep showed 42 of 52 targets at one merchant
+or none: server-rendered Next.js, but the real data is React Server
+Component "flight" chunks scattered through the page, not the rendered
+HTML. One family page returns every edition or vintage it currently
+stocks; `familyName` is producer-first only sometimes (confirmed across
+all eleven producers this adapter was built against), so the producer is
+supplied by the caller, never parsed from the page. One listing can carry
+TWO separate stock pools at once — a case (`stockCases`) and loose
+bottles (`stockBottles`) — confirmed live on a Taittinger Rosé listing
+showing both simultaneously; the adapter emits both as separate
+candidates, since the loose one is this cellar's own commercial unit.
+Yield against the live sweep: one line moved to READY (Dom Pérignon
+Vintage 2008) — J&B's own currently-live vintages for these cuvées mostly
+do not overlap this cellar's 2002-2016 back-vintages, which is itself the
+finding (see `docs/research/uk-trade-current-releases-vs-back-vintage-
+cellars.md`): the UK trade publishes current releases in cases; this
+cellar is back-vintage, loose-bottle stock.
 
 Bordeaux Index LiveTrade (`app/adapters/bordeaux_index_livetrade.py`,
 decision 0027) reads the two-sided marketplace the sibling adapter's listing
