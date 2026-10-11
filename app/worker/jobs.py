@@ -161,7 +161,7 @@ def ingest(conn: psycopg.Connection, snapshot_id: str, adapter: Adapter,
             if not whole_pence(out.offer.price):
                 repo.write_reject(conn, snapshot_id, adapter.id, NOT_WHOLE_PENCE,
                                   f"price {out.offer.price} is not a whole number of pence",
-                                  repo.unresolved_raw(out))
+                                  repo.unresolved_raw(out, raw))
                 rejected += 1
                 continue
             lwin7 = None if out.lwin7 in untrusted else out.lwin7
@@ -179,7 +179,7 @@ def ingest(conn: psycopg.Connection, snapshot_id: str, adapter: Adapter,
                         detail += " (conflict open)"
                 repo.write_reject(conn, snapshot_id, adapter.id,
                                   Reject.UNRESOLVED_IDENTITY.name, detail,
-                                  repo.unresolved_raw(out))
+                                  repo.unresolved_raw(out, raw))
                 rejected += 1
                 continue
             stored = replace(out.offer, wine_id=wine_id)
@@ -529,6 +529,80 @@ def learn_search_keys(merchant_id: str, set_by: str, *,
                                 source="merchant_index", set_by=set_by,
                                 note=f"from the merchant's own index ({len(slugs)} slug(s))")
     return {"merchant_id": merchant_id, "keys": len(by_key), "slugs": len(printed)}
+
+
+def reresolve_rejects(merchant_id: Optional[str] = None) -> dict:
+    """Re-run identity resolution against the CURRENT registry over every
+    UNRESOLVED_IDENTITY reject already on disk. No network, no re-fetch —
+    `offer_reject.raw["merchant_record"]` is the adapter's own raw record
+    exactly as captured, and `adapter.normalise()` is pure, so it is run
+    again, this time against whatever aliases exist now rather than
+    whatever existed at capture time (decision 0029).
+
+    Identity resolution happens once, at capture time, against the registry
+    as it stood then, and never re-resolves on its own: every alias added
+    afterwards makes some already-rejected offer newly resolvable, and
+    nothing goes back for it unless this runs. Call it after any alias is
+    approved — `app/api/main.py`'s two `create_alias` call sites enqueue it.
+    """
+    with transaction() as conn:
+        registry = repo.load_registry(conn)
+        rows = repo.unresolved_identity_rejects(conn, merchant_id)
+
+    examined = len(rows)
+    recovered: list[dict] = []
+    still_unresolved = 0
+    for row in rows:
+        spec = TARGETED.get(row["merchant_id"]) or WHOLE_BOOK.get(row["merchant_id"])
+        if spec is None:                       # merchant deregistered since capture
+            still_unresolved += 1
+            continue
+        adapter = spec.adapter()
+        raw = row["raw"]
+        record = raw.get("merchant_record")
+        if record is None:                     # a reject shape without one (not this reason)
+            still_unresolved += 1
+            continue
+
+        outs = adapter.normalise(record, captured_at=row["captured_at"])
+        outs = outs if isinstance(outs, list) else [outs]
+        found_one = False
+        for out in outs:
+            if not isinstance(out, Candidate):
+                continue
+            wine_id = registry.resolve_candidate(out.producer_text, out.cuvee_text,
+                                                 out.lwin7, out.release_code)
+            if wine_id is None:
+                continue
+            if not whole_pence(out.offer.price):
+                continue                       # unchanged since capture; still not writable
+            found_one = True
+            stored = replace(out.offer, wine_id=wine_id)
+            with transaction() as conn:
+                prior = repo.merchant_already_offered(
+                    conn, merchant_id=stored.merchant_id, wine_id=wine_id,
+                    vintage=stored.vintage, bottle_ml=stored.bottle_ml,
+                    pack_size=stored.pack_size, exclude_snapshot_id=row["snapshot_id"],
+                    exclude_offer_id=stored.offer_id)
+                repo.write_offer(conn, row["snapshot_id"], stored)
+                repo.delete_reject(conn, str(row["reject_id"]))
+            recovered.append({
+                "reject_id": str(row["reject_id"]), "merchant_id": stored.merchant_id,
+                "wine_id": wine_id, "vintage": stored.vintage, "bottle_ml": stored.bottle_ml,
+                "pack_size": stored.pack_size, "price": str(stored.price),
+                # The question that actually matters: did this merchant already
+                # have an offer for this exact unit, and at what price — so the
+                # caller can see for itself whether this duplicates what was
+                # already there or is genuinely new evidence, rather than being
+                # told a verdict this job cannot compute without a deal_id.
+                "merchant_already_had_this_unit": prior is not None,
+                "prior_price": str(prior["price"]) if prior else None,
+            })
+        if not found_one:
+            still_unresolved += 1
+
+    return {"examined": examined, "recovered": len(recovered),
+            "still_unresolved": still_unresolved, "detail": recovered}
 
 
 def deep_search(deal_id: str, *, min_comps: int = 2, merchant_ids: Optional[Sequence[str]] = None,

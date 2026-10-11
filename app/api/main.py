@@ -104,18 +104,23 @@ def alias_suggestions(min_occurrences: int = 2, conn: psycopg.Connection = Depen
 
 @protected.post("/wines/{wine_id}/aliases", response_model=s.AliasOut, status_code=201)
 def create_alias(wine_id: UUID, body: s.AliasIn, conn: psycopg.Connection = Depends(db),
-                 operator: dict = Depends(current_operator)):
+                 q: Queue = Depends(queue), operator: dict = Depends(current_operator)):
     payload = body.model_dump()
     payload["approved_by"] = operator["operator_id"]
     payload["confirm_target"] = str(body.confirm_target) if body.confirm_target else None
     try:
         with conn.transaction():
-            return _op(conn, repo.create_alias(conn, wine_id=str(wine_id), **payload),
-                       "approved_by")
+            out = _op(conn, repo.create_alias(conn, wine_id=str(wine_id), **payload),
+                      "approved_by")
     except LookupError:
         raise HTTPException(404, "wine not found")
     except (repo.Conflict, psycopg.Error) as e:
         raise _translate(e)
+    # Decision 0029: this alias may make an already-rejected offer resolvable
+    # right now, and nothing goes back for it on its own — recover what it
+    # can, from what is already on disk, no network.
+    q.enqueue_call(func="app.worker.jobs.reresolve_rejects", timeout=JOB_TIMEOUT)
+    return out
 
 
 # ------------------------------------------------------------ deals, lines
@@ -412,7 +417,7 @@ def list_lwin_conflicts(unresolved_only: bool = True, conn: psycopg.Connection =
 
 @protected.post("/lwin-conflicts/{conflict_id}/resolve", response_model=s.LwinConflictOut)
 def resolve_lwin_conflict(conflict_id: UUID, body: s.LwinConflictResolution,
-                          conn: psycopg.Connection = Depends(db),
+                          conn: psycopg.Connection = Depends(db), q: Queue = Depends(queue),
                           operator: dict = Depends(current_operator)):
     """The operator decides what the collision was, and the decision is acted on
     in one transaction: aliases for one wine under two names, or an exclusion
@@ -438,13 +443,17 @@ def resolve_lwin_conflict(conflict_id: UUID, body: s.LwinConflictResolution,
                 repo.mark_lwin_untrusted(
                     conn, row["merchant_id"], row["lwin7"], marked_by=operator["operator_id"],
                     reason=f"used for different wines: {'; '.join(row['names'])}")
-            return _op(conn, repo.close_lwin_conflict(
+            out = _op(conn, repo.close_lwin_conflict(
                 conn, str(conflict_id), resolution=body.resolution,
                 resolved_by=operator["operator_id"], note=body.note), "resolved_by")
     except LookupError:
         raise HTTPException(404, "wine not found")
     except (repo.Conflict, psycopg.Error) as e:
         raise _translate(e)
+    if body.resolution == "same_wine":
+        # Decision 0029: a "same wine" resolution is also a new alias.
+        q.enqueue_call(func="app.worker.jobs.reresolve_rejects", timeout=JOB_TIMEOUT)
+    return out
 
 
 # ------------------------------------------------------------ buyer offers

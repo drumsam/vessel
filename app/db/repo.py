@@ -434,14 +434,77 @@ def write_reject(conn: psycopg.Connection, snapshot_id: str, merchant_id: str,
     )
 
 
-def unresolved_raw(c: Candidate) -> dict:
+def unresolved_raw(c: Candidate, raw: Optional[dict] = None) -> dict:
     """What an UNRESOLVED_IDENTITY reject keeps: the merchant's record exactly as
     published plus the names identity resolution was given, so the candidate can
-    be re-resolved once an operator approves an alias."""
-    return {"merchant_record": c.offer.raw,
+    be re-resolved once an operator approves an alias (decision 0029: resolution
+    happens once, at capture time, against whatever the registry was then, and
+    never re-resolves on its own — `lwin7`/`release_code` are kept here, not
+    just `producer_text`/`cuvee_text`, so a later re-resolve pass can use
+    exactly what the original resolution attempt had, not a weaker subset).
+
+    `raw` is the ORIGINAL record `adapter.normalise()` was called with — NOT
+    `c.offer.raw`, which several adapters narrow to one output row (Bordeaux
+    Index: `{"card": title, "offer_row": row}`, one row of a card with many).
+    Re-running `normalise()` on that narrowed fragment would misparse it as a
+    whole new record and fail closed all over again; `raw` defaults to
+    `c.offer.raw` only for an adapter where the two really are the same thing.
+    """
+    return {"merchant_record": raw if raw is not None else c.offer.raw,
             "producer_text": c.producer_text,
             "cuvee_text": c.cuvee_text,
+            "lwin7": c.lwin7,
+            "release_code": c.release_code,
             "offer_id": c.offer.offer_id}
+
+
+def unresolved_identity_rejects(conn: psycopg.Connection,
+                                merchant_id: Optional[str] = None) -> list[dict]:
+    """Every UNRESOLVED_IDENTITY reject still on disk, each with the snapshot's
+    own captured_at (decision 0029) — the one timestamp `normalise()` needs to
+    rebuild the Offer exactly as it would have been written at capture time.
+    Pruned snapshots take their rejects with them (ON DELETE CASCADE), so this
+    only ever sees what retention has kept."""
+    sql = """SELECT r.reject_id, r.snapshot_id, r.merchant_id, r.raw, s.captured_at
+               FROM offer_reject r JOIN snapshot s ON s.snapshot_id = r.snapshot_id
+              WHERE r.reason = 'UNRESOLVED_IDENTITY'"""
+    params: tuple = ()
+    if merchant_id:
+        sql += " AND r.merchant_id = %s"
+        params = (merchant_id,)
+    return conn.execute(sql, params).fetchall()
+
+
+def delete_reject(conn: psycopg.Connection, reject_id: str) -> None:
+    conn.execute("DELETE FROM offer_reject WHERE reject_id = %s", (reject_id,))
+
+
+def merchant_already_offered(conn: psycopg.Connection, *, merchant_id: str, wine_id: str,
+                             vintage: int, bottle_ml: int, pack_size: int,
+                             exclude_snapshot_id: str, exclude_offer_id: str) -> Optional[dict]:
+    """Did this merchant already have a comparable offer for this exact
+    commercial unit before this one? The decision 0029 report's own
+    "duplicates a price we already have" question, answered directly rather
+    than guessed at: the caller is told the old price so it can see for
+    itself whether a recovered offer only confirms what was already there.
+
+    `offer_id` is only unique WITHIN a snapshot (`offer`'s own constraint is
+    on the pair) — excluding by `offer_id` alone would also exclude a
+    genuinely different, already-written offer from an earlier capture that
+    happens to carry the same merchant code, which is exactly the case a
+    re-resolved reject from a second capture of the same card produces.
+    """
+    return conn.execute(
+        """SELECT price, offer_id FROM offer
+            WHERE merchant_id = %(merchant_id)s AND wine_id = %(wine_id)s
+              AND vintage = %(vintage)s AND bottle_ml = %(bottle_ml)s
+              AND pack_size = %(pack_size)s
+              AND NOT (snapshot_id = %(exclude_snapshot_id)s AND offer_id = %(exclude_offer_id)s)
+            ORDER BY price ASC LIMIT 1""",
+        {"merchant_id": merchant_id, "wine_id": wine_id, "vintage": vintage,
+         "bottle_ml": bottle_ml, "pack_size": pack_size,
+         "exclude_snapshot_id": exclude_snapshot_id, "exclude_offer_id": exclude_offer_id}
+    ).fetchone()
 
 
 # --------------------------------------------------------------- benchmark

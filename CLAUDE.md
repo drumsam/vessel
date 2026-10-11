@@ -175,10 +175,10 @@ INGEST → IDENTITY PROPOSAL → IDENTITY VERIFICATION → SNAPSHOT LOOKUP
 ## Testing
 
 ```bash
-python -m pytest -q                      # 377 pass, 161 skip; no network, no services
+python -m pytest -q                      # 422 pass, 163 skip; no network, no services
 docker compose up -d                     # Postgres + Redis, then:
 TEST_DATABASE_URL=postgresql://pricer:pricer@localhost:5432/pricer_test \
-TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q   # 538 pass
+TEST_REDIS_URL=redis://localhost:6379/15 python -m pytest -q   # 585 pass
 python scripts/rerun_burgundy_proof.py   # expect READY 0  REVIEW 15  NO_MARKET 5
 python scripts/load_vintage_tiers.py    # the vintage register, from its CSV
 python scripts/case_premium_report.py   # what the collected pairs say CASE_PREMIUM is
@@ -275,6 +275,18 @@ the comps directly (region-independent, `AGREEMENT_THRESHOLD`), rather
 than only through a vintage band that exists for Burgundy alone —
 without which a loose-bottle cellar priced from UK case sellers could
 never produce a READY line outside Burgundy at all.
+
+Decision 0029: identity resolution happens once, at capture time, against
+whatever the registry was then, and never re-resolves on its own — every
+alias added afterwards leaves already-rejected offers it would now
+resolve sitting untouched in `offer_reject` forever, unless something
+goes back for them. `app.worker.jobs.reresolve_rejects()` does, from
+`offer_reject.raw` alone, no network: both places an alias is approved
+(`POST /wines/{wine_id}/aliases`, the LWIN-conflict "same wine"
+resolution) enqueue it automatically. Its own report says, per recovery,
+whether that merchant already held the exact unit and at what price — a
+recovered offer that duplicates a price already on the run changes
+nothing; a genuinely new one might.
 
 Pricing rules are in `app/pricing/pricer.py` (decision 0007): margin, discount,
 precedence and the commercial flags, all pure and tested. The precedence ends

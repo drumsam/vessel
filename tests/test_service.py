@@ -947,6 +947,69 @@ def test_approved_alias_resolves_merchant_spelling_on_next_collection(client):
     assert _collect_written(client) == 2
 
 
+@pg
+def test_an_approved_alias_recovers_the_rejection_already_on_disk_decision_0029(client):
+    """The companion to the test above, and the gap it leaves: identity
+    resolution happens once, at capture time, against whatever the registry
+    was then, and never re-resolves on its own. Creating the alias must
+    recover the ALREADY-CAPTURED rejection too — no second collection, no
+    network — because `/wines/{wine_id}/aliases` enqueues
+    `reresolve_rejects` itself."""
+    wid = _seed_wine(client, cuvee="Charmes-Chambertin Grand Cru")
+    _collect_bi(client, wid, [bi_card("650.00", cuvee="Charmes-Chambertin")])
+    [reject] = _sql("SELECT reject_id, reason FROM offer_reject")
+    assert reject["reason"] == "UNRESOLVED_IDENTITY"
+    assert _sql("SELECT count(*) c FROM offer")[0]["c"] == 0
+
+    r = client.post(f"/wines/{wid}/aliases", json={
+        "producer_text": R, "cuvee_text": "Charmes-Chambertin",
+        "source": "operator", "note": "Farr omits 'Grand Cru'"})
+    assert r.status_code == 201
+    _work(client.queue)                     # the alias endpoint's own enqueued job
+
+    assert _sql("SELECT count(*) c FROM offer_reject")[0]["c"] == 0
+    [offer] = _sql("SELECT wine_id, price FROM offer")
+    assert str(offer["wine_id"]) == wid and offer["price"] == Decimal("650.00")
+
+    deal_id, line_id = _deal(client, wid, quantity=2)
+    _benchmark(client, deal_id)
+    run = client.get(f"/lines/{line_id}/benchmark").json()
+    assert run["comp_count"] == 1 and run["uk_floor"] == "650.00"
+
+
+@pg
+def test_reresolve_reports_whether_a_recovery_duplicates_an_existing_price(client):
+    """Decision 0029's own report answers the question that matters: not
+    just how many recovered, but whether each one changes anything. Bordeaux
+    Index already holds this exact unit at £650 under its usual wording; a
+    second card at the same price under the wording that only resolves once
+    the alias exists must be reported as a duplicate, not implied to be new
+    depth. Calls `repo.create_alias`/`jobs.reresolve_rejects` directly
+    (bypassing the API's own enqueue) so the job's return value — not just
+    its database effect — can be checked."""
+    wid = _seed_wine(client, cuvee="Charmes-Chambertin Grand Cru")
+    _collect_bi(client, wid, [bi_card("650.00", cuvee="Charmes-Chambertin Grand Cru")])
+    _collect_bi(client, wid, [bi_card("650.00", cuvee="Charmes-Chambertin")])
+    assert _sql("SELECT count(*) c FROM offer")[0]["c"] == 1
+    assert _sql("SELECT count(*) c FROM offer_reject WHERE reason = 'UNRESOLVED_IDENTITY'"
+               )[0]["c"] == 1
+
+    from app.db.connection import transaction
+    from app.db import repo as repo_module
+    with transaction() as conn:
+        repo_module.create_alias(conn, wine_id=wid, producer_text=R,
+                                 cuvee_text="Charmes-Chambertin", source="operator",
+                                 approved_by=client.operator["operator_id"],
+                                 note="Farr omits 'Grand Cru'")
+
+    from app.worker import jobs as jobs_module
+    result = jobs_module.reresolve_rejects()
+    assert result["recovered"] == 1 and result["examined"] == 1
+    [recovered] = result["detail"]
+    assert recovered["merchant_already_had_this_unit"] is True
+    assert recovered["prior_price"] == "650.00" == recovered["price"]
+
+
 def _collect_written(client) -> int:
     return client.get(f"/snapshots/{_collect(client)}").json()["offers_written"]
 
