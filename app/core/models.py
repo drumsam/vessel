@@ -94,16 +94,21 @@ class SellerLine:
     #: False everywhere it is not set, which is the exact-unit rule of 0001.
     derive_units: bool = False
 
-    #: Whether this line's own comps were checked against their quality-matched
-    #: neighbouring vintages and agreed, cleanly, with nothing excluded or
-    #: flagged either side (decision 0023). The CALLER sets it, from the
-    #: vintage band's own result, exactly as derive_units is set from the
-    #: wine's region: the core does not know what a vintage band is and never
-    #: will. False everywhere it is not set. Confirming agreement does not
-    #: raise DERIVED_FROM_CASE — it is still added, for display, whenever a
-    #: comp was derived — it only stops that one flag from gating a line
-    #: whose comp_count is 2 or more; a single comp still goes to a person
-    #: regardless of this field.
+    #: Whether a vintage band, if one exists for this wine's region, found
+    #: nothing to exclude or flag on either side (decision 0023, corrected by
+    #: 0028). The CALLER sets it, from the band's own result, exactly as
+    #: derive_units is set from the wine's region: the core does not know
+    #: what a vintage band is and never will. True vacuously where no band
+    #: exists to ask (most regions have none — invariant 18, "no band, no
+    #: flag"); False only where a band ran and objected. This is now ONE of
+    #: two tests `BenchmarkResult.state` requires before DERIVED_FROM_CASE
+    #: stops gating — the other, source agreement between the comps
+    #: themselves, is region-independent and computed inside the core from
+    #: `merchant_bests` directly, so it needs nothing from the caller.
+    #: Confirming agreement does not raise DERIVED_FROM_CASE — it is still
+    #: added, for display, whenever a comp was derived — it only stops that
+    #: one flag from gating a line whose comp_count is 2 or more; a single
+    #: comp still goes to a person regardless of this field.
     derivation_confirmed: bool = False
 
     @property

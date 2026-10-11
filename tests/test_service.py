@@ -2226,11 +2226,15 @@ def test_export_contains_no_band_fields(client):
 
 
 @pg
-def test_a_burgundy_line_prices_from_a_derived_comp_and_goes_to_review(client):
+def test_a_burgundy_line_prices_from_a_derived_comp_and_two_agreeing_merchants_go_ready(client):
     """Bordeaux Index holds the 2020 Mugneret-Gibourg as a 3x75 at £600 and
     nothing at 6x75. Before decision 0016 that was a near-miss and the line read
     ONE_COMP off Lea & Sandeman alone; now it is a second merchant at £1,200 —
-    and because the 5% is an assumption, the line reaches a person either way."""
+    the SAME £1,200 Lea & Sandeman already asks exactly, 0% apart. Decision
+    0028: two merchants that agree this closely are not waiting on an
+    assumed premium to be confirmed by a vintage band that happens not to
+    exist for this one vintage — DERIVED_FROM_CASE still shows, it just
+    stops gating."""
     _load_tiers()
     wid = _seed_wine(client, producer=f"Domaine {MG}", cuvee=MG_CUVEE,
                      region="Burgundy", colour="Red")
@@ -2256,7 +2260,9 @@ def test_a_burgundy_line_prices_from_a_derived_comp_and_goes_to_review(client):
     run = client.get(f"/lines/{line_id}/benchmark").json()
     assert run["comp_count"] == 2
     assert (run["uk_floor"], run["uk_reference"]) == ("1200.00", "1200.00")
-    assert "DERIVED_FROM_CASE" in run["flags"] and run["state"] == "REVIEW"
+    # Still shown — decision 0028 never stops the flag being added, only
+    # stops it gating once the comps agree this closely (0% apart here).
+    assert "DERIVED_FROM_CASE" in run["flags"] and run["state"] == "READY"
 
     [derived] = [c for c in run["comps"]
                  if c["role"] == "merchant_best" and c["derived_from"]]

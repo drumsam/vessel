@@ -47,13 +47,16 @@ The invariants, in short:
    comps rank behind every exact-unit comp, are used only when fewer than two
    merchants hold the seller's own unit, and always flag the line
    `DERIVED_FROM_CASE`, so a person sees them — except that the flag stops
-   *gating* (never stops being shown) once 2+ merchants' comps agree with
-   their own quality-matched neighbouring vintages (decision 0023: "trusts
-   source agreement, not the constant"); one comp never qualifies, and
-   neither does a line whose region has no vintage band at all. Magnums and
-   half bottles never convert, either way. The core is told which lines
+   *gating* (never stops being shown) once 2+ merchants' comps agree WITH
+   EACH OTHER, within `AGREEMENT_THRESHOLD` (10%, region-independent —
+   decision 0028, correcting 0023's first attempt, which expressed
+   agreement only through the vintage band and so could never fire outside
+   Burgundy, where the band exists); where a vintage band also exists for
+   the region it must agree too, strictly more information, not given up
+   for Burgundy. One comp never qualifies either way. Magnums and half
+   bottles never convert, either way. The core is told which lines
    qualify; it does not know what a region is. See `docs/decisions/0016`,
-   `0018`, `0023`.
+   `0018`, `0023`, `0028`.
 3. Depth counts merchants, not listings.
 4. Floor = lowest merchant-best · Reference = second-lowest (or the only one,
    flagged `ONE_COMP`) · Median = median of merchant-bests.
@@ -133,8 +136,8 @@ operator *review*: it is about evidence quality and commercial flags never go in
 it. `COMP_EXCLUDED_VINTAGE_BAND` and `LOW_COMP_OUT_OF_BAND` are in it (0015):
 they reach a run through `inherited_flags`, so the band can hold a line in
 review and can never release one. `DERIVED_FROM_CASE` is the one named
-exception to "membership alone decides" (decision 0023): still a member,
-still gates a single comp, but `BenchmarkResult.state` — not this set —
+exception to "membership alone decides" (decisions 0023, 0028): still a
+member, still gates a single comp, but `BenchmarkResult.state` — not this set —
 stops it gating a 2+-comp line once the band confirms agreement. The buyer
 *export* is a separate gate; see invariant 12 and decision 0008.
 
@@ -265,6 +268,13 @@ targeted` call for fine-rare raised `TypeError`. `norm_producer` also read
 "Dom" in "Dom Pérignon" as an abbreviation of "Domaine" rather than the
 monastic title it is — harmless only because the same wrong expansion ran
 on both sides of every match.
+
+Decision 0028, from the same sweep, corrects decision 0023 itself:
+`DERIVED_FROM_CASE` stopping gating now checks source agreement between
+the comps directly (region-independent, `AGREEMENT_THRESHOLD`), rather
+than only through a vintage band that exists for Burgundy alone —
+without which a loose-bottle cellar priced from UK case sellers could
+never produce a READY line outside Burgundy at all.
 
 Pricing rules are in `app/pricing/pricer.py` (decision 0007): margin, discount,
 precedence and the commercial flags, all pure and tested. The precedence ends

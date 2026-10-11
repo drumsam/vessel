@@ -3,13 +3,18 @@
 One rule, one place. If a flag is in REVIEW_FLAGS the line cannot be READY —
 with exactly one named exception, decided in `BenchmarkResult.state`
 (`app/core/benchmark.py`), not here: DERIVED_FROM_CASE stops gating once two
-or more merchants' comps agree with their own quality-matched neighbouring
-vintages (decision 0023, `SellerLine.derivation_confirmed`). The set below is
-unchanged by that exception — DERIVED_FROM_CASE is still a member, still
-gates a single-comp line, and is still shown on every line it was ever added
-to. The exception lives where it is checked, so this file keeps being the one
-place the MEMBERSHIP is defined, even though membership alone no longer
-decides every line's state.
+or more merchants' comps agree WITH EACH OTHER, within AGREEMENT_THRESHOLD —
+region-independent (decision 0028, correcting 0023's own first attempt,
+which expressed agreement only through a vintage band that exists for
+Burgundy alone and so could never fire anywhere else). Where a band also
+exists for the line's region, it must agree too
+(`SellerLine.derivation_confirmed`) — the band is strictly more information
+and is not given up for Burgundy. The set below is unchanged by that
+exception — DERIVED_FROM_CASE is still a member, still gates a single-comp
+line, and is still shown on every line it was ever added to. The exception
+lives where it is checked, so this file keeps being the one place the
+MEMBERSHIP is defined, even though membership alone no longer decides every
+line's state.
 """
 from __future__ import annotations
 from decimal import Decimal
@@ -135,16 +140,36 @@ FORMAT_INCOHERENCE = Decimal("0.30")
 #: derived comparable always carries DERIVED_FROM_CASE and always ranks behind
 #: a real offer at the seller's own unit.
 #:
-#: That same reasoning is why decision 0023 trusts SOURCE AGREEMENT rather
-#: than this constant: a line with two or more comps that independently agree
-#: with their own quality-matched neighbouring vintages has evidence this
-#: specific wine's derived price is right, regardless of what CASE_PREMIUM
-#: says about wines in general. DERIVED_FROM_CASE stops gating on that
-#: evidence; it never stops being added, and one comp is never enough to
-#: supply it.
+#: That same reasoning is why decision 0023 (corrected by 0028) trusts SOURCE
+#: AGREEMENT rather than this constant: a line with two or more comps that
+#: independently agree WITH EACH OTHER, within AGREEMENT_THRESHOLD, has
+#: evidence this specific wine's derived price is right, regardless of what
+#: CASE_PREMIUM says about wines in general. DERIVED_FROM_CASE stops gating
+#: on that evidence; it never stops being added, and one comp is never
+#: enough to supply it.
 #:
-#: See docs/research/case-premium-measurement.md and decisions 0016, 0023.
+#: See docs/research/case-premium-measurement.md and decisions 0016, 0023,
+#: 0028.
 CASE_PREMIUM = Decimal("1.00")
+
+#: Decision 0028. DERIVED_FROM_CASE stops gating a 2+-comp line when every
+#: merchant_best price sits within this fraction of the lowest one —
+#: region-independent, no vintage band required (0023's own spec required a
+#: band that only exists for Burgundy, so outside it the exemption could
+#: never fire at all — the Champagne sweep's whole 454-bottle Krug position
+#: is proof of exactly that dead end). Where a band DOES exist, both tests
+#: are required (see `app/worker/jobs._benchmark_with_band`): the band is
+#: strictly more information and is not given up for Burgundy.
+#:
+#: Set from the live Champagne sweep's own spread, 9-10 October 2026 — the
+#: full ladder of every 2+-comp line found, Floor to Reference:
+#:   5.7, 8.7, 12.6, 18.5, 20.0, 23.8, 27.1, 27.3, 40.5, 57.0  (%)
+#: 10% draws the line after the first two (Dom Pérignon Rosé 2006 at 5.7%,
+#: Louis Roederer Cristal 2005 at 8.7%) and holds every other real gap found,
+#: including Taittinger Comtes de Champagne 2006 and 2008 at 57.0% and
+#: 40.5% — two merchants 40% apart is not agreement, however many of them
+#: there are. See docs/decisions/0028.
+AGREEMENT_THRESHOLD = Decimal("0.10")
 
 #: Derivation is 750ml only. Magnums and above carry a scarcity premium that has
 #: nothing to do with the wine in the bottle, and half bottles the mirror of it,

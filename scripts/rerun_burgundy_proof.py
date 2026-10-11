@@ -19,7 +19,7 @@ from dataclasses import replace
 
 from app.core.benchmark import benchmark
 from app.core.enums import DutyStatus, PriceKind, StockType
-from app.core.flags import CASE_PREMIUM, Flag
+from app.core.flags import CASE_PREMIUM
 from app.core.models import Offer, SellerLine
 from app.adapters.condition import normalise_condition
 from app.identity.resolver import CanonicalWine, Registry, wine_key
@@ -148,12 +148,12 @@ for i, (raw, wid, vintage, qty) in enumerate(SET, 1):
         kept = without_high_outliers(offers, check) if check.high_outliers else offers
         r = benchmark(ln, kept, as_of=AS_OF)
 
-    # DERIVED_FROM_CASE stops gating once 2+ comps agree with the band —
-    # decided here, from the band's own result, never inside the core
-    # (decision 0023). Same condition and placement as app.worker.jobs._benchmark_with_band.
-    if (Flag.DERIVED_FROM_CASE in r.flags and check.band_low is not None
-            and not check.high_outliers and not check.low_outliers):
-        r.line = replace(r.line, derivation_confirmed=True)
+    # Decision 0028: same condition and placement as
+    # app.worker.jobs._benchmark_with_band — what the band itself found, not
+    # the (region-independent) source-agreement test, which the core now
+    # does itself. See that function's own comment for the full reasoning.
+    check_ok = check.band_low is None or (not check.high_outliers and not check.low_outliers)
+    r.line = replace(r.line, derivation_confirmed=check_ok)
 
     if (r.state.value, r.uk_reference) != before:
         moved.append((ln.line_id, raw, before, (r.state.value, r.uk_reference), check))

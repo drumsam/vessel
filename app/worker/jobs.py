@@ -33,7 +33,6 @@ from app.adapters.lea_sandeman import LIST_URL as LS_URL, LeaSandemanAdapter
 from app.adapters.lw_trading import API_URL as LW_URL, LayWheelerTradingAdapter
 from app.core.benchmark import benchmark
 from app.core.enums import Reject
-from app.core.flags import Flag
 from app.core.models import Offer
 from app.db import repo
 from app.db.connection import transaction
@@ -384,16 +383,19 @@ def _benchmark_with_band(conn: psycopg.Connection, line, res: repo.Resolution,
         offers = without_high_outliers(res.offers, check) if check.high_outliers else res.offers
         result = benchmark(line, offers, as_of=when)
 
-    # DERIVED_FROM_CASE stops gating once 2+ comps agree with the band —
-    # decided here, from the band's own result, never inside the core
-    # (decision 0023). The band must have actually run (a tier exists for
-    # this region) and found nothing to exclude or flag either side: a
-    # high outlier already means the comps did not agree, and a kept low
-    # outlier already gates independently through LOW_COMP_OUT_OF_BAND, so
-    # neither case needs a second opinion from this flag.
-    if (Flag.DERIVED_FROM_CASE in result.flags and check.band_low is not None
-            and not check.high_outliers and not check.low_outliers):
-        result.line = replace(result.line, derivation_confirmed=True)
+    # Decision 0028: the core itself now checks source agreement between the
+    # comps (region-independent, from merchant_bests alone — see
+    # BenchmarkResult.state). What is decided HERE, from the band, is the
+    # other, narrower question: did a vintage band for this region object?
+    # Vacuously true where no band exists at all (most regions — invariant
+    # 18, "no band, no flag"); false only where one ran and found a high or
+    # low outlier, which already gates independently through
+    # COMP_EXCLUDED_VINTAGE_BAND / LOW_COMP_OUT_OF_BAND regardless. Set
+    # unconditionally — state only reads it when DERIVED_FROM_CASE and
+    # comp_count >= 2 both already hold, so there is nothing to gain by
+    # narrowing when it is computed.
+    result.line = replace(result.line, derivation_confirmed=(
+        check.band_low is None or (not check.high_outliers and not check.low_outliers)))
 
     run_id = str(repo.save_benchmark(conn, result, res, region=region))
     repo.save_vintage_band(conn, run_id, check, res)
