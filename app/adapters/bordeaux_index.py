@@ -107,14 +107,32 @@ def parse_title(title: str) -> dict | None:
           cuvee 'Charmes-Chambertin Grand Cru'
 
     BI is producer-FIRST (the opposite of Farr). Split on the first comma.
+
+    An NV Champagne card carries no leading vintage token at all — not even
+    the literal word "NV". Confirmed live, 9 October 2026, across five
+    producers (Bollinger, Eric Rodez, Henri Giraud, Krug, Savart), all on
+    this same endpoint: titles like "Krug, Grande Cuvee 161eme Edition" and
+    "Krug Grande Cuvee Edition 162" start directly with the producer, so
+    `_TITLE` never matches and every one of them was silently rejected as
+    "unparseable" — 40 live rejections in one Champagne sweep, the whole of
+    this cellar's Krug position among them. Any title the vintage-first
+    pattern cannot read is now read as NV instead of refused: this adapter
+    has never seen a genuinely garbled title in the wild, only this one
+    consistent omission, so there is nothing else for "unparseable" to mean
+    here.
     """
     m = _TITLE.match(title or "")
-    if not m:
+    if m:
+        vintage = 1000 if m.group("vintage").upper() == "NV" else int(m.group("vintage"))
+        rest = m.group("rest")
+    elif (title or "").strip():
+        vintage = 1000
+        rest = title.strip()
+    else:
         return None
-    rest = m.group("rest")
     producer, _, cuvee = rest.partition(",")
     return {
-        "vintage": 1000 if m.group("vintage").upper() == "NV" else int(m.group("vintage")),
+        "vintage": vintage,
         "producer": producer.strip(),
         "cuvee": cuvee.strip() or producer.strip(),
     }
@@ -223,6 +241,9 @@ class BordeauxIndexAdapter(Adapter):
         if t is None:
             return Rejected(raw, Reject.UNRESOLVED_IDENTITY, f"unparseable title {raw.get('title')!r}")
 
+        from app.identity.resolver import split_release_code
+        cuvee, release_code = split_release_code(t["cuvee"])
+
         out: list[Candidate | Rejected] = []
         for i, row in enumerate(raw.get("offers", [])):
             p = parse_offer_row(row)
@@ -261,7 +282,8 @@ class BordeauxIndexAdapter(Adapter):
                     raw={"card": raw.get("title"), "offer_row": row},
                 ),
                 producer_text=t["producer"],
-                cuvee_text=t["cuvee"],
+                cuvee_text=cuvee,
+                release_code=release_code,
             ))
         return out
 

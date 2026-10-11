@@ -231,6 +231,8 @@ class LayWheelerTradingAdapter(Adapter):
                  "availability": availability, "attributes": attrs},
         )
         producer_text = attrs.get("Producer", "")
-        return Candidate(offer=offer, producer_text=producer_text,
-                         cuvee_text=cuvee_from_name(name, producer_text),
+        from app.identity.resolver import split_release_code
+        cuvee, release_code = split_release_code(cuvee_from_name(name, producer_text))
+        return Candidate(offer=offer, producer_text=producer_text, cuvee_text=cuvee,
+                         release_code=release_code,
                          lwin7=lwin_from_sku(raw.get("sku", "")))

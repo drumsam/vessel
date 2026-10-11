@@ -48,11 +48,21 @@ _PRODUCER_PREFIX = {
     "m": "maison", "maison": "maison",
 }
 
+#: "Dom" before these second words is the monastic title ("Dom Pierre
+#: Pérignon"), never an abbreviation of "Domaine" — expanding it would read
+#: "Dom Pérignon" as "Domaine Pérignon". Harmless only by accident today
+#: (normalisation runs symmetrically on both sides of every match), and
+#: wrong the moment a merchant writes "Dom. Pérignon" meaning an actual
+#: Domaine, or a real "Domaine Pérignon" is ever registered. Champagne
+#: sweep, 9 October 2026 — 136 bottles rode on this reading correctly.
+_DOM_IS_A_TITLE_BEFORE = {"perignon"}
+
 
 def norm_producer(s: str) -> str:
     parts = norm(s).split()
     if parts and parts[0] in _PRODUCER_PREFIX:
-        parts[0] = _PRODUCER_PREFIX[parts[0]]
+        if not (parts[0] == "dom" and len(parts) > 1 and parts[1] in _DOM_IS_A_TITLE_BEFORE):
+            parts[0] = _PRODUCER_PREFIX[parts[0]]
     return " ".join(parts)
 
 
@@ -67,13 +77,21 @@ _EDITION_RE = re.compile(
     r"\s*(\d{1,3})\s*(?:ème|eme|ième|ieme|e|th|rd|nd|st)\.?\s*(?:[EÉ]dition)?\s*$",
     re.IGNORECASE)
 
+#: The same edition, word-first: "Grande Cuvee Edition 162" — confirmed live
+#: on Bordeaux Index's own regular listing feed, 9 October 2026, where one
+#: card ("KRU1621000BT") names the edition this way while every sibling card
+#: for the SAME cuvee uses the number-first form above ("Krug, Grande Cuvee
+#: 161eme Edition") — one merchant, two orderings, in the same feed.
+_EDITION_WORD_FIRST_RE = re.compile(r"\s*[EÉ]dition\s+(\d{1,3})\s*$", re.IGNORECASE)
+
 
 def split_release_code(text: str) -> tuple[str, Optional[str]]:
     """Pull a release/edition number out of a cuvée string, if one is there.
 
     "Grande Cuvée 156ème Édition" -> ("Grande Cuvée", "156"). "Grande Cuvée
-    169e" -> ("Grande Cuvée", "169"). "156th" alone -> ("", "156"). No match
-    -> the text unchanged, release_code None.
+    169e" -> ("Grande Cuvée", "169"). "Grande Cuvee Edition 162" -> ("Grande
+    Cuvee", "162"). "156th" alone -> ("", "156"). No match -> the text
+    unchanged, release_code None.
 
     This is a PROPOSAL, exactly like producer/cuvee splitting elsewhere in
     this module (decision 0019): it only shapes what goes into `wine_key`. The
@@ -84,7 +102,7 @@ def split_release_code(text: str) -> tuple[str, Optional[str]]:
     — each is already a complete, distinct cuvée name with no shared base to
     split from, so wine_key tells them apart with no change here.
     """
-    match = _EDITION_RE.search(text or "")
+    match = _EDITION_RE.search(text or "") or _EDITION_WORD_FIRST_RE.search(text or "")
     if not match:
         return (text or "").strip(), None
     remainder = " ".join((text[:match.start()] + text[match.end():]).split())

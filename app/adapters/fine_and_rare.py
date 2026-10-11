@@ -113,13 +113,34 @@ class FineAndRareAdapter(Adapter):
     id = "fine-rare"
     merchant = "FINE+RARE"
 
-    def fetch(self, producer_slug: str, vintage: int) -> Sequence[dict]:  # pragma: no cover
+    def fetch(self, producer_slug: str | None = None, vintage: int | None = None, *,
+             producer_slugs: Sequence[str] | None = None) -> Sequence[dict]:  # pragma: no cover
+        """One producer in one vintage, or several slugs for one producer.
+
+        Same union-of-slugs contract as the Bordeaux Index adapter
+        (`producer_slugs`), for the same reason: FINE+RARE's own sitemap lists
+        "louis-roederer" and "louis-roederer-et-philippe-starck" as two
+        different producer slugs for one house, same as BI's own
+        "pol_roger"/"pol_roger_(berry_bros._&_rudd)" split (Champagne sweep,
+        9 October 2026) — dropping one silently halves that producer's depth.
+        `app.worker.jobs._by_slug` always passes `producer_slugs` as a kwarg
+        (whether or not the caller wanted a union), which is what exposed the
+        missing parameter here: this adapter had never been run through
+        `collect_targeted` against its own real signature, every test having
+        patched `fetch` itself.
+        """
+        slugs = list(producer_slugs or ([producer_slug] if producer_slug else []))
+        if not slugs:
+            raise ValueError("a producer slug is required")
         import httpx
         with httpx.Client(timeout=60, follow_redirects=True,
                           headers={"User-Agent": user_agent()}) as client:
-            urls: list[str] = []
-            for sitemap in self._product_sitemaps(client):
-                urls += product_urls(self._cached(client, sitemap), producer_slug, vintage)
+            urls: dict[str, None] = {}
+            sitemaps = self._product_sitemaps(client)
+            for slug in slugs:
+                for sitemap in sitemaps:
+                    for url in product_urls(self._cached(client, sitemap), slug, vintage):
+                        urls.setdefault(url, None)
             return [self._product(client, url) for url in urls]
 
     def search_keys(self) -> dict[str, str]:  # pragma: no cover - network
@@ -210,7 +231,10 @@ class FineAndRareAdapter(Adapter):
                  # not depth — FINE+RARE counts once (decision 0013).
                  "market": market},
         )
-        return Candidate(offer=offer, producer_text=producer, cuvee_text=cuvee)
+        from app.identity.resolver import split_release_code
+        split_cuvee, release_code = split_release_code(cuvee)
+        return Candidate(offer=offer, producer_text=producer, cuvee_text=split_cuvee,
+                         release_code=release_code)
 
 
 def indications(records: Iterable[dict], adapter: FineAndRareAdapter | None = None):

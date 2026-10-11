@@ -128,6 +128,29 @@ def test_bi_title_is_producer_first_and_code_is_never_identity():
     assert t["vintage"] == 2005
 
 
+def test_bi_nv_champagne_title_has_no_leading_vintage_token_at_all():
+    """Champagne sweep, 9 October 2026: confirmed live across Bollinger, Eric
+    Rodez, Henri Giraud, Krug and Savart -- an NV card's title on BI's own
+    regular listing endpoint carries no vintage token, not even "NV" itself.
+    "Krug, Grande Cuvee 161eme Edition" starts directly with the producer.
+    Every one of 40 live rows like it was silently "unparseable title" before
+    this fix, including the whole of this cellar's Krug position."""
+    t = parse_title("Krug, Grande Cuvee 161eme Edition")
+    assert t == {"vintage": 1000, "producer": "Krug", "cuvee": "Grande Cuvee 161eme Edition"}
+    assert parse_title("") is None
+    assert parse_title(None) is None
+
+
+def test_bi_normalise_splits_the_edition_number_out_of_the_cuvee():
+    """The gap decision 0019 built for and 0027 found unwired elsewhere
+    (release_code never reaching resolve_candidate) also applied to this
+    adapter's own normalise(): it never called split_release_code at all."""
+    card = {"title": "Krug, Grande Cuvee 161eme Edition", "code": "KRU161", "url": "u",
+            "offers": ["Case (6 x 75cl) STATUS In-Bond You buy £1,800.00 1 BUY 1 Case(s) Remaining"]}
+    [c] = BordeauxIndexAdapter().normalise(card, captured_at=AS_OF)
+    assert (c.producer_text, c.cuvee_text, c.release_code) == ("Krug", "Grande Cuvee", "161")
+
+
 def test_bi_third_party_marker_marks_basis_unconfirmed():
     p = parse_offer_row("Case (6 x 75cl) BR CONDITION Original Case STATUS In-Bond ETA In Stock You buy £31,800.00 1 Buy 1 Case(s) Remaining")
     assert p["third_party_marker"] is True
@@ -372,6 +395,55 @@ def test_wine_key_is_accent_and_abbreviation_stable():
            wine_key("Dom. Comte Georges de Vogue", "Musigny Grand Cru")
     assert wine_key("Ch Lafite Rothschild", "Grand Vin") == \
            wine_key("Château Lafite-Rothschild", "Grand Vin")
+
+
+def test_dom_perignon_is_not_read_as_domaine_perignon():
+    """"Dom" before "Pérignon" is the monastic title (Dom Pierre Pérignon),
+    not an abbreviation of "Domaine" — Champagne sweep, 9 October 2026, 136
+    bottles. Confirmed harmless by accident before this fix (both sides of
+    every match went through the same wrong expansion); this asserts the
+    producer key itself now reads correctly, not just that it matched
+    itself."""
+    assert norm_producer("Dom Pérignon") == "dom perignon"
+    assert norm_producer("Dom Perignon") == "dom perignon"
+    # the abbreviation still expands for an actual Domaine, prefix unchanged
+    assert norm_producer("Dom. Leflaive") == "domaine leflaive"
+
+
+def test_krug_grande_cuvee_editions_require_release_code_or_collapse_to_one():
+    """The negative control for decision 0019/0027's release_code fix:
+    app/worker/jobs.ingest() never passed Candidate.release_code to
+    resolve_candidate from 0019 until the LiveTrade adapter exposed the gap
+    (8 October 2026). Every Krug edition ever ingested by any adapter
+    resolved without it. This proves the practical size of that bug against
+    real cellar data: 156e-169e (454 bottles, Doug's largest single
+    position) must resolve as 14 distinct wines WITH the code, and WOULD
+    collapse to one WITHOUT it."""
+    editions = [str(n) for n in range(156, 170)]
+    with_code = {wine_key("Krug", "Grande Cuvée", code) for code in editions}
+    without_code = {wine_key("Krug", "Grande Cuvée", None) for _ in editions}
+    assert len(with_code) == 14
+    assert without_code == {"krug|grande cuvee"}
+
+    reg = Registry([CanonicalWine(f"krug-{code}", "Krug", "Grande Cuvée", release_code=code)
+                    for code in editions])
+    for code in editions:
+        assert reg.resolve("Krug", "Grande Cuvée", release_code=code) == f"krug-{code}"
+    # a candidate that fails to carry its edition fails closed to review,
+    # never guesses which of the 14 it meant
+    assert reg.resolve("Krug", "Grande Cuvée") is None
+
+
+def test_split_release_code_reads_the_edition_word_first_too():
+    """Bordeaux Index's OWN regular listing feed names the same edition two
+    ways in two different cards: "Krug, Grande Cuvee 161eme Edition" (number
+    first, the pattern above) and "Krug Grande Cuvee Edition 162" (the word
+    "Edition" first, number last) -- one merchant, two orderings, in the
+    same feed, confirmed live 9 October 2026."""
+    assert split_release_code("Grande Cuvee Edition 162") == ("Grande Cuvee", "162")
+    assert split_release_code("Grande Cuvée Édition 156") == ("Grande Cuvée", "156")
+    # a classification with more text after "Edition N" is not this pattern
+    assert split_release_code("Edition 162 Grand Cru") == ("Edition 162 Grand Cru", None)
 
 
 def test_condition_normalisation_from_live_strings():
@@ -943,6 +1015,22 @@ def test_a_product_with_no_published_indication_is_a_rejection():
     assert out.reason is Reject.NON_POSITIVE_PRICE and "no broking indication" in out.detail
 
 
+def test_fine_and_rare_normalise_splits_the_edition_number_out_of_the_cuvee():
+    """Same gap as the regular Bordeaux Index adapter: FINE+RARE's own
+    normalise() never called split_release_code either, so a Krug edition
+    indication would have resolved against the bare, trap-prone "Grande
+    Cuvee" key rather than its own edition. Champagne sweep, 9 Oct 2026."""
+    raw = {"url": "https://www.frw.co.uk/product/x/nv-krug-grande-cuvee-161eme-edition-krug",
+           "product": {"_id": "id-1", "name": "NV Krug Grande Cuvee 161eme Edition",
+                       "parent": {"name": "Grande Cuvee 161eme Edition",
+                                 "producer": {"name": "Krug"}}},
+           "productMarketInfo": {"unitSize": "75", "unit": "cl",
+                                 "unitPrice": {"amount": 150, "currencyCode": "GBP"}}}
+    c = FineAndRareAdapter().normalise(raw, captured_at=AS_OF)
+    assert isinstance(c, Candidate), c
+    assert (c.producer_text, c.cuvee_text, c.release_code) == ("Krug", "Grande Cuvee", "161")
+
+
 @pytest.mark.parametrize("size,unit,ml", [
     ("75", "cl", 750), ("150", "cl", 1500), ("1.5", "l", 1500), ("750", "ml", 750),
     ("75", None, None), ("", "cl", None),
@@ -965,6 +1053,50 @@ def test_fine_and_rare_product_urls_select_a_producer_and_vintage_exactly():
     assert product_urls(xml, "trimbach", 1000) == [
         "https://www.frw.co.uk/product/d/nv-trimbach-mixed-case-1989-2001-trimbach"]
     assert product_urls(xml, "domaine-armand-rousseau", 2014) == []
+
+
+def test_fine_and_rare_fetch_accepts_producer_slugs_from_by_slug():
+    """app.worker.jobs._by_slug always calls adapter.fetch(slug, vintage,
+    producer_slugs=...) for every TARGETED merchant using it, whether or not
+    a union was wanted. FineAndRareAdapter.fetch() never declared that
+    keyword, so every real (unpatched) collect_targeted call for fine-rare
+    raised TypeError — undetected because every existing test replaces
+    `fetch` outright rather than calling the real adapter through `_by_slug`.
+    Found running the Champagne sweep live, 9 October 2026."""
+    from app.worker.jobs import _by_slug
+    calls = []
+
+    class _Stub(FineAndRareAdapter):
+        def fetch(self, producer_slug=None, vintage=None, *, producer_slugs=None):
+            calls.append((producer_slug, vintage, producer_slugs))
+            return []
+
+    _by_slug(_Stub(), {"producer_slug": "krug"}, 1000)
+    assert calls == [("krug", 1000, None)]
+    calls.clear()
+    _by_slug(_Stub(), {"producer_slugs": ["louis-roederer", "louis-roederer-et-philippe-starck"]}, 2006)
+    assert calls == [(None, 2006, ["louis-roederer", "louis-roederer-et-philippe-starck"])]
+
+
+def test_fine_and_rare_unions_two_slugs_for_one_producer():
+    """FINE+RARE's own sitemap lists "louis-roederer" and "louis-roederer-et-
+    philippe-starck" as two different producer slugs for one house (same
+    pattern as Bordeaux Index's Pol Roger / Berry Bros. split) — a search
+    that only tries one silently halves that producer's depth. `fetch()`
+    itself is network-only (no injectable client, matching the rest of this
+    adapter), so the union is exercised at the `product_urls` layer it
+    unions over, one call per slug, same as `fetch`'s own loop does."""
+    xml = "".join(f"<url><loc>{u}</loc></url>" for u in [
+        "https://www.frw.co.uk/product/a/2006-cristal-louis-roederer",
+        "https://www.frw.co.uk/product/b/2006-cristal-louis-roederer-et-philippe-starck",
+    ])
+    assert product_urls(xml, "louis-roederer", 2006) == [
+        "https://www.frw.co.uk/product/a/2006-cristal-louis-roederer"]
+    assert product_urls(xml, "louis-roederer-et-philippe-starck", 2006) == [
+        "https://www.frw.co.uk/product/b/2006-cristal-louis-roederer-et-philippe-starck"]
+    both = (product_urls(xml, "louis-roederer", 2006)
+            + product_urls(xml, "louis-roederer-et-philippe-starck", 2006))
+    assert len(both) == 2 and len(set(both)) == 2
 
 
 def test_fine_and_rare_producer_index_is_the_deep_search_key():
@@ -1253,6 +1385,24 @@ def lw_offer(needle: str) -> Candidate:
     out = LayWheelerTradingAdapter().normalise(lw_product(needle), captured_at=AS_OF)
     assert isinstance(out, Candidate), out
     return out
+
+
+def test_lw_trading_normalise_splits_the_edition_number_out_of_the_cuvee():
+    """Same gap as the other two targeted-search adapters: normalise() never
+    called split_release_code either. Built from a real product record with
+    the name/producer/vintage attribute overridden to a Krug edition, same
+    shape L&W actually publishes. Champagne sweep, 9 Oct 2026."""
+    import copy
+    product = copy.deepcopy(lw_product("Combe au Moine"))
+    product["name"] = "NV Krug, Grande Cuvee 161eme Edition 6x75cl"
+    for attr in product["attributes"]:
+        if attr["name"] == "Producer":
+            attr["terms"] = [{"id": 1, "name": "Krug", "slug": "krug"}]
+        elif attr["name"] == "Vintage":
+            attr["terms"] = [{"id": 2, "name": "NV", "slug": "nv"}]
+    c = LayWheelerTradingAdapter().normalise(product, captured_at=AS_OF)
+    assert isinstance(c, Candidate), c
+    assert (c.producer_text, c.cuvee_text, c.release_code) == ("Krug", "Grande Cuvee", "161")
 
 
 def test_lw_trading_price_is_minor_units():
