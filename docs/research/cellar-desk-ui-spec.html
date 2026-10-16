@@ -42,6 +42,13 @@ padding:.9rem 1.1rem;margin-top:1rem;box-shadow:0 -3px 14px rgba(0,0,0,.06)}
 .foot dt{font:600 .67rem inherit;letter-spacing:.07em;text-transform:uppercase;color:var(--mut);margin-bottom:.1rem}
 .foot dd{margin:0;font-size:1.05rem;font-variant-numeric:tabular-nums;font-weight:600}
 .foot dd.big{font-size:1.3rem;color:var(--acc)}
+.agency{font-size:.82rem;color:var(--mut);border-left:3px solid var(--rule);padding-left:.9rem;margin:0 0 1rem}
+.gate{margin-top:.5rem;padding:.6rem .75rem;border-radius:5px;background:var(--card);border:1px solid var(--thin);color:var(--ink)}
+.gate strong{color:var(--thin)}
+.accept{display:block;margin-top:.5rem;font:600 .8rem inherit;background:var(--thin);color:var(--bg);border:0;border-radius:4px;padding:.4rem .8rem;cursor:pointer}
+.okacc{color:var(--ok)}
+.warn{background:var(--shade);border:1px solid var(--thin);border-radius:5px;padding:.6rem .8rem;margin-bottom:.6rem;font-size:.84rem}
+.act button:disabled{opacity:.42;cursor:not-allowed}
 .foot .gbp{font-size:.74rem;color:var(--mut);font-weight:400}
 .act{display:flex;gap:.5rem;margin-top:.85rem;flex-wrap:wrap}
 .act button{font:600 .88rem inherit;border-radius:5px;padding:.6rem 1.1rem;cursor:pointer;border:1px solid var(--rule);background:var(--card);color:var(--ink)}
@@ -65,6 +72,8 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 <header><h1>WFS Cellar · Champagne</h1>
 <p class="sub" style="margin:0">Priced 9 Oct against UK In Bond · HK$ at 10.37 · <strong id="cnt"></strong> of 30 lines selected</p></header>
 <p class="sub">Click any price to see the merchants behind it. Untick what you don't want to sell.</p>
+<p class="agency">Agency settlement (decision 0022): <strong>the buyer pays the seller directly</strong> and you
+invoice 8% of the sale. You never hold the money. &ldquo;Seller nets&rdquo; is the offer price less your commission.</p>
 
 <div class="bar">
   <button data-f="all" class="on">All 30</button>
@@ -79,8 +88,8 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 <th class="n" data-s="bottles">Btls</th>
 <th class="n" data-s="mkt">Market</th>
 <th class="n" data-s="ves">Offer price</th>
-<th class="n hide" data-s="net">Seller gets</th>
-<th class="n" data-s="fee">My fee</th>
+<th class="n hide" data-s="net">Seller nets</th>
+<th class="n" data-s="fee">Your 8%</th>
 <th data-s="conf">Evidence</th>
 </tr></thead><tbody id="tb"></tbody></table>
 
@@ -89,9 +98,10 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
     <div><dt>Selected</dt><dd id="fL">—</dd></div>
     <div><dt>Market value</dt><dd id="fM">—<span class="gbp" id="fMg"></span></dd></div>
     <div><dt>Offer price (−20%)</dt><dd id="fV">—</dd></div>
-    <div><dt>Seller receives</dt><dd id="fN">—</dd></div>
-    <div><dt>My fee (8%)</dt><dd class="big" id="fF">—</dd></div>
+    <div><dt>Seller nets</dt><dd id="fN">—</dd></div>
+    <div><dt>Your commission, invoiced</dt><dd class="big" id="fF">—</dd></div>
   </dl>
+  <div id="warn" class="warn" hidden></div>
   <div class="act">
     <button class="go" id="prev">See what the buyer gets →</button>
     <button id="csv">Download as CSV</button>
@@ -109,6 +119,9 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 <script>
 const ROWS=[{"id": 0, "producer": "Krug", "cuvee": "Grande Cuvée 167ᵉ", "vintage": "NV", "bottles": 48, "ref": 162.83, "sources": [{"m": "Bordeaux Index", "p": 1689}], "n": 1, "gap": 0, "note": "Original case", "mkt": 81050, "conf": "thin"}, {"id": 1, "producer": "Dom Pérignon", "cuvee": "Vintage", "vintage": "2008", "bottles": 46, "ref": 162.5, "sources": [{"m": "Bordeaux Index", "p": 1685}, {"m": "Justerini & Brooks", "p": 1711}], "n": 2, "gap": 1.5, "note": "Single owner", "mkt": 77516, "conf": "strong"}, {"id": 2, "producer": "Krug", "cuvee": "Grande Cuvée 168ᵉ", "vintage": "NV", "bottles": 36, "ref": 158.33, "sources": [{"m": "Bordeaux Index", "p": 1642}], "n": 1, "gap": 0, "note": "Original case", "mkt": 59108, "conf": "thin"}, {"id": 3, "producer": "Krug", "cuvee": "Grande Cuvée 169ᵉ", "vintage": "NV", "bottles": 25, "ref": 163.17, "sources": [{"m": "Bordeaux Index", "p": 1692}], "n": 1, "gap": 0, "note": "Original case", "mkt": 42302, "conf": "thin"}, {"id": 4, "producer": "Louis Roederer", "cuvee": "Cristal", "vintage": "2005", "bottles": 24, "ref": 211.83, "sources": [{"m": "Bordeaux Index", "p": 2020}, {"m": "Lay & Wheeler", "p": 2197}], "n": 2, "gap": 8.7, "note": "Single owner", "mkt": 52720, "conf": "strong"}, {"id": 5, "producer": "Krug", "cuvee": "Grande Cuvée 164ᵉ", "vintage": "NV", "bottles": 24, "ref": 292.5, "sources": [{"m": "Bordeaux Index", "p": 3033}], "n": 1, "gap": 0, "note": "Original case", "mkt": 72797, "conf": "thin"}, {"id": 6, "producer": "Krug", "cuvee": "Grande Cuvée 166ᵉ", "vintage": "NV", "bottles": 24, "ref": 162.17, "sources": [{"m": "Bordeaux Index", "p": 1682}], "n": 1, "gap": 0, "note": "Original case", "mkt": 40361, "conf": "thin"}, {"id": 7, "producer": "Dom Pérignon", "cuvee": "Vintage", "vintage": "2010", "bottles": 24, "ref": 177.5, "sources": [{"m": "Bordeaux Index", "p": 1486}, {"m": "Lay & Wheeler", "p": 1841}], "n": 2, "gap": 23.8, "note": "Original case", "mkt": 44176, "conf": "ok"}, {"id": 8, "producer": "Dom Pérignon", "cuvee": "Vintage", "vintage": "2004", "bottles": 18, "ref": 176.5, "sources": [{"m": "Bordeaux Index", "p": 1440}, {"m": "Lay & Wheeler", "p": 1830}], "n": 2, "gap": 27.1, "note": "Mature, labels as new", "mkt": 32945, "conf": "ok"}, {"id": 9, "producer": "Taittinger", "cuvee": "Comtes de Champagne Rosé", "vintage": "2009", "bottles": 15, "ref": 131.33, "sources": [{"m": "Bordeaux Index", "p": 1210}, {"m": "Lay & Wheeler", "p": 1362}], "n": 2, "gap": 12.6, "note": "Original case", "mkt": 20428, "conf": "ok"}, {"id": 10, "producer": "Charles Heidsieck", "cuvee": "Blanc des Millénaires", "vintage": "2004", "bottles": 13, "ref": 102.5, "sources": [{"m": "Bordeaux Index", "p": 1063}], "n": 1, "gap": 0, "note": "Original case", "mkt": 13818, "conf": "thin"}, {"id": 11, "producer": "Henri Giraud", "cuvee": "Aÿ Grand Cru Argonne", "vintage": "2012", "bottles": 13, "ref": 479.0, "sources": [{"m": "Bordeaux Index", "p": 4967}], "n": 1, "gap": 0, "note": "Original case", "mkt": 64574, "conf": "thin"}, {"id": 12, "producer": "Krug", "cuvee": "Grande Cuvée 163ᵉ", "vintage": "NV", "bottles": 12, "ref": 191.5, "sources": [{"m": "Bordeaux Index", "p": 1986}], "n": 1, "gap": 0, "note": "Original case", "mkt": 23830, "conf": "thin"}, {"id": 13, "producer": "Krug", "cuvee": "Grande Cuvée 165ᵉ", "vintage": "NV", "bottles": 12, "ref": 212.83, "sources": [{"m": "Bordeaux Index", "p": 2207}], "n": 1, "gap": 0, "note": "Original case", "mkt": 26485, "conf": "thin"}, {"id": 14, "producer": "Dom Pérignon", "cuvee": "Vintage", "vintage": "2005", "bottles": 12, "ref": 175.5, "sources": [{"m": "Bordeaux Index", "p": 1820}], "n": 1, "gap": 0, "note": "Mature, labels as new", "mkt": 21839, "conf": "thin"}, {"id": 15, "producer": "Dom Pérignon", "cuvee": "Vintage", "vintage": "2013", "bottles": 12, "ref": 133.33, "sources": [{"m": "Bordeaux Index", "p": 1383}], "n": 1, "gap": 0, "note": "Original case", "mkt": 16592, "conf": "thin"}, {"id": 16, "producer": "Dom Pérignon", "cuvee": "Rosé", "vintage": "2006", "bottles": 12, "ref": 264.33, "sources": [{"m": "Bordeaux Index", "p": 2592}, {"m": "Lay & Wheeler", "p": 2741}], "n": 2, "gap": 5.7, "note": "Single owner", "mkt": 32893, "conf": "strong"}, {"id": 17, "producer": "Louis Roederer", "cuvee": "Cristal", "vintage": "2006", "bottles": 12, "ref": 196.33, "sources": [{"m": "Bordeaux Index", "p": 1599}, {"m": "Lay & Wheeler", "p": 2036}], "n": 2, "gap": 27.3, "note": "Original case", "mkt": 24431, "conf": "ok"}, {"id": 18, "producer": "Taittinger", "cuvee": "Comtes de Champagne", "vintage": "2004", "bottles": 12, "ref": 116.67, "sources": [{"m": "Bordeaux Index", "p": 1210}], "n": 1, "gap": 0, "note": "Mature", "mkt": 14518, "conf": "thin"}, {"id": 19, "producer": "Taittinger", "cuvee": "Comtes de Champagne", "vintage": "2007", "bottles": 12, "ref": 96.67, "sources": [{"m": "Bordeaux Index", "p": 1002}], "n": 1, "gap": 0, "note": "Original case", "mkt": 12030, "conf": "thin"}, {"id": 20, "producer": "Taittinger", "cuvee": "Comtes de Champagne", "vintage": "2008", "bottles": 12, "ref": 200.0, "sources": [{"m": "Bordeaux Index", "p": 1476}, {"m": "Lay & Wheeler", "p": 2074}], "n": 2, "gap": 40.5, "note": "Original case", "mkt": 24888, "conf": "ok"}, {"id": 21, "producer": "Charles Heidsieck", "cuvee": "Blanc des Millénaires", "vintage": "2006", "bottles": 12, "ref": 104.67, "sources": [{"m": "Bordeaux Index", "p": 916}, {"m": "Lay & Wheeler", "p": 1085}], "n": 2, "gap": 18.5, "note": "Original case", "mkt": 13025, "conf": "ok"}, {"id": 22, "producer": "Louis Roederer", "cuvee": "Cristal", "vintage": "2007", "bottles": 6, "ref": 190.0, "sources": [{"m": "Bordeaux Index", "p": 1642}, {"m": "Lay & Wheeler", "p": 1970}], "n": 2, "gap": 20.0, "note": "Original case", "mkt": 11822, "conf": "ok"}, {"id": 23, "producer": "Taittinger", "cuvee": "Comtes de Champagne", "vintage": "2005", "bottles": 6, "ref": 91.67, "sources": [{"m": "Bordeaux Index", "p": 951}], "n": 1, "gap": 0, "note": "Mature", "mkt": 5704, "conf": "thin"}, {"id": 24, "producer": "Taittinger", "cuvee": "Comtes de Champagne", "vintage": "2006", "bottles": 6, "ref": 149.17, "sources": [{"m": "Bordeaux Index", "p": 985}, {"m": "Goedhuis", "p": 1547}], "n": 2, "gap": 57.0, "note": "Original case", "mkt": 9281, "conf": "ok"}, {"id": 25, "producer": "Taittinger", "cuvee": "Comtes de Champagne Rosé", "vintage": "2011", "bottles": 6, "ref": 141.0, "sources": [{"m": "Bordeaux Index", "p": 1462}], "n": 1, "gap": 0, "note": "Original case", "mkt": 8773, "conf": "thin"}, {"id": 26, "producer": "Charles Heidsieck", "cuvee": "Blanc des Millénaires", "vintage": "1995", "bottles": 6, "ref": 166.67, "sources": [{"m": "Bordeaux Index", "p": 1728}], "n": 1, "gap": 0, "note": "Mature, 31 years", "mkt": 10370, "conf": "thin"}, {"id": 27, "producer": "Pierre Peters", "cuvee": "Les Chétillons", "vintage": "2016", "bottles": 6, "ref": 227.0, "sources": [{"m": "Bordeaux Index", "p": 2354}], "n": 1, "gap": 0, "note": "Original case", "mkt": 14124, "conf": "thin"}, {"id": 28, "producer": "Taittinger", "cuvee": "Comtes de Champagne Rosé", "vintage": "2008", "bottles": 3, "ref": 166.67, "sources": [{"m": "Bordeaux Index", "p": 1728}], "n": 1, "gap": 0, "note": "Original case", "mkt": 5185, "conf": "thin"}, {"id": 29, "producer": "Louis Roederer", "cuvee": "Cristal 150cl", "vintage": "2006", "bottles": 1, "ref": 385.0, "sources": [{"m": "Bordeaux Index", "p": 3992}], "n": 1, "gap": 0, "note": "Magnum", "mkt": 3992, "conf": "thin"}], FX=10.37;
 const sel=new Set(ROWS.map(r=>r.id));
+const acc=new Set();                      // lines the operator has signed off
+const gated=r=>r.n<2 && !acc.has(r.id);   // ONE_COMP is a REVIEW flag (invariant 12)
+const blocked=()=>ROWS.filter(r=>sel.has(r.id)&&gated(r));
 let filter='all', sortKey='mkt', dir=-1;
 const d=n=>'HK$'+n.toLocaleString('en-US');
 const calc=r=>({mkt:r.mkt, ves:Math.round(r.mkt*.8/10)*10, net:Math.round(r.mkt*.8*.92/10)*10, fee:Math.round(r.mkt*.8*.08/10)*10});
@@ -122,7 +135,9 @@ function draw(){
   for(const r of visible()){
     const c=calc(r), on=sel.has(r.id);
     const tr=document.createElement('tr'); if(!on)tr.className='off';
-    const lab=r.conf==='strong'?['strong','2 merchants, '+r.gap+'% apart']:r.conf==='ok'?['ok','2 merchants, '+r.gap+'% apart']:['thin','1 merchant'];
+    const lab=r.conf==='strong'?['strong','2 merchants, '+r.gap+'% apart']
+      :r.conf==='ok'?['ok','2 merchants, '+r.gap+'% apart']
+      :acc.has(r.id)?['okacc','1 merchant · accepted']:['thin','1 merchant · needs you'];
     tr.innerHTML=`<td><input type="checkbox" ${on?'checked':''} data-id="${r.id}"></td>
       <td><div class="w">${r.producer} <em>${r.cuvee}</em> ${r.vintage}</div><div class="note">${r.note}</div></td>
       <td class="n">${r.bottles}</td>
@@ -140,10 +155,20 @@ function draw(){
   document.getElementById('fV').textContent=d(t.v);
   document.getElementById('fN').textContent=d(t.n);
   document.getElementById('fF').textContent=d(t.f);
+  const b=blocked(), w=document.getElementById('warn');
+  w.hidden=!b.length;
+  if(b.length) w.innerHTML=`<strong>${b.length} selected line${b.length>1?'s':''} rest${b.length>1?'':'s'} on one merchant and ${b.length>1?'have':'has'} not been accepted.</strong>
+    Nothing goes to a buyer until you've looked at ${b.length>1?'them':'it'} — click the market price to see the evidence and accept.`;
+  document.getElementById('prev').disabled=!!b.length;
+  document.getElementById('csv').disabled=!!b.length;
 }
 document.getElementById('tb').addEventListener('click',e=>{
   const cb=e.target.closest('input[data-id]');
   if(cb){const i=+cb.dataset.id; sel.has(i)?sel.delete(i):sel.add(i); draw(); return;}
+  const ab=e.target.closest('[data-acc]');
+  if(ab){const i=+ab.dataset.acc; acc.has(i)?acc.delete(i):acc.add(i);
+    const open=ab.closest('tr'); const host=open.previousElementSibling; open.remove();
+    host.querySelector('[data-ev]').click(); draw(); return;}
   const ev=e.target.closest('[data-ev]');
   if(ev){
     const r=ROWS.find(x=>x.id==+ev.dataset.ev), tr=ev.closest('tr');
