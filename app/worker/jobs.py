@@ -30,6 +30,7 @@ from app.adapters.farr import FEED_URL as FARR_URL, FarrAdapter
 from app.adapters.fine_and_rare import (
     PRODUCER_INDEX_URL as FRW_URL, FineAndRareAdapter)
 from app.adapters.goedhuis import PRODUCTS_URL as GOEDHUIS_URL, GoedhuisAdapter
+from app.adapters.jeroboams import BASE as JEROBOAMS_URL, JeroboamsAdapter
 from app.adapters.justerini_brooks import BASE as JB_URL, JusteriniBrooksAdapter
 from app.adapters.lea_sandeman import LIST_URL as LS_URL, LeaSandemanAdapter
 from app.adapters.lw_trading import API_URL as LW_URL, LayWheelerTradingAdapter
@@ -101,6 +102,10 @@ def _by_producer_slugs(adapter: Adapter, params: dict, vintage: int) -> Sequence
     return adapter.fetch(params.get("producer_slugs"), vintage)
 
 
+def _by_product_paths(adapter: Adapter, params: dict, vintage: int) -> Sequence[dict]:
+    return adapter.fetch(params.get("product_paths"))
+
+
 WHOLE_BOOK["lea-sandeman"] = WholeBook(LeaSandemanAdapter, LS_URL)
 
 TARGETED: dict[str, Targeted] = {
@@ -130,6 +135,14 @@ TARGETED: dict[str, Targeted] = {
     # direct stock, BBX its own exchange) — see the adapter module.
     "berry-bros-rudd": Targeted(BerryBrosRuddAdapter, BBR_URL,
                                 ("producer_slugs",), _by_producer_slugs),
+    # No per-producer search endpoint at all — only a static sitemap naming
+    # every product. product_paths is resolved once, outside this adapter,
+    # from that sitemap (decision 0011), same as Justerini & Brooks' own
+    # producer_paths. `vintage` is accepted only to match the shared
+    # (adapter, params, vintage) call shape; ignored, since each path is
+    # already one exact product.
+    "jeroboams": Targeted(JeroboamsAdapter, JEROBOAMS_URL,
+                          ("product_paths",), _by_product_paths),
 }
 
 

@@ -231,13 +231,13 @@ position, ask for a trade feed rather than scraping.
 
 ## Current state
 
-Done: deterministic core, identity resolver, nine verified adapters — Farr,
+Done: deterministic core, identity resolver, ten verified adapters — Farr,
 Goedhuis Waddesdon and Lea & Sandeman (sweep), Bordeaux Index, FINE+RARE,
-Lay & Wheeler Trading, Bordeaux Index LiveTrade, Justerini & Brooks and
-Berry Bros. & Rudd (search) — Postgres schema, AI provider interface,
-FastAPI service (`app/api/`), Alembic migrations (`migrations/`), RQ
-worker (`app/worker/`) for snapshot collection and deterministic
-benchmark.
+Lay & Wheeler Trading, Bordeaux Index LiveTrade, Justerini & Brooks, Berry
+Bros. & Rudd and Jeroboams (search) — Postgres schema, AI provider
+interface, FastAPI service (`app/api/`), Alembic migrations
+(`migrations/`), RQ worker (`app/worker/`) for snapshot collection and
+deterministic benchmark.
 
 Justerini & Brooks (`app/adapters/justerini_brooks.py`), built for UK
 breadth once the Champagne sweep showed 42 of 52 targets at one merchant
@@ -285,6 +285,35 @@ Champagne position, and five other producers. Built and tested; the live
 collection run is still pending BBR's own Algolia search-only key (not
 found) for the truncated producers, and its own `Visit-time: 0200-0700`
 (UTC) window for everyone else.
+
+Jeroboams (`app/adapters/jeroboams.py`, decision 0031), third and last of
+the three houses investigated for UK breadth: server-rendered Next.js,
+but the real data this time is plain JSON in `__NEXT_DATA__` — no Node
+subprocess needed, unlike Berry Bros. & Rudd. Two page shapes publish the
+same catalogue: an In Bond listing (`"ib-"` URL prefix) is a configurable
+product whose `initialUniqueItems` carries a useless zero-price "-MAIN"
+placeholder alongside the real priced variants; a duty-paid retail
+listing has no such split. Duty status is read from the `sku` suffix
+(`...IB`, optionally with a UUID for a second, independent stock lot of
+the same unit) rather than the URL — confirmed live, the SAME wine (Krug
+Grande Cuvée 173ème Édition) is published on both an "ib-" page and a
+separate non-"ib-" retail page, and fetching the wrong one by mistake
+still comes out right. `name` is unreliably producer-first or
+cuvée-first, independently re-confirming the exact lesson Justerini &
+Brooks already taught on a different merchant; `parse_cuvee()` checks
+both comma segments against the product's own clean `producer` field
+rather than assuming either order. A float-noise price
+(`204.999996`) is passed through unchanged — `app.worker.jobs`'s own
+`whole_pence()` check catches it centrally, the same way it already
+catches Farr's float32 noise. An assortment case is caught as a mixed lot
+by `lw_trading.py`'s own `mixed`/`assort(ment)` regex, reused unchanged.
+No per-producer search endpoint exists; `product_paths` is resolved once
+from the merchant's own complete product sitemap, outside the adapter,
+same discipline as J&B's own `producer_paths`. The actual yield this
+adapter was built for: a real, single-bottle, back-vintage, In Bond
+listing (Henri Giraud Argonne Rosé 2012, £1,531) — the first UK source in
+this fleet that reliably sells this cellar's own commercial unit rather
+than only the case.
 
 Bordeaux Index LiveTrade (`app/adapters/bordeaux_index_livetrade.py`,
 decision 0027) reads the two-sided marketplace the sibling adapter's listing
