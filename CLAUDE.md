@@ -389,6 +389,31 @@ Operator accounts and sessions are built (`app/api/auth.py`,
 deals and upload, one deal (identity, evidence, price, sign-off), the exception
 queue, and an issued offer.
 
+Cellar Desk (`web/app/deals/[dealId]/desk/`) is a second view of a deal, for
+"what can I sell right now" rather than the existing deal page's own
+line-by-line pricing console: every priced line in one sortable, filterable
+table, a sticky footer with running totals, a buyer-preview dialog and a CSV
+export. Built from a real spec (`docs/research/cellar-desk-ui-spec.html`,
+commits e762402/ad3c0dd) a prior session built with Doug as an interactive
+HTML prototype, caught and fixed before being carried into real code: the
+prototype let every line reach the preview/export regardless of comp count,
+which would have bypassed invariant 12 for any one-merchant (`ONE_COMP`,
+a `REVIEW_FLAGS` member) line, and its buyer-facing dialog used
+decision 0017's direct-purchase language ("My fee") for what is actually an
+agency sale under decision 0022 — the buyer pays the seller directly, Doug
+invoices 8% commission, and the money never passes through this app. Both
+are fixed in the real page: a thin line's evidence row carries an Accept
+button wired to the SAME `/lines/{id}/pricing/acknowledge` endpoint the
+existing deal page already uses (no new mechanism), and the preview/CSV
+actions stay disabled while any selected line is unaccepted; every screen
+says "seller nets" and "your commission, invoiced", never anything that
+implies this app holds the money. Every money figure shown is read verbatim
+from `pricing_result` (`buyer_price_gbp`/`seller_price_gbp`/`gp`, set only
+when a line's own basis is `buyer_discount`) — nothing here recomputes a
+price from `uk_reference`. `scripts/seed_cellar_desk_demo.py` seeds a small,
+real-shaped deal (one thin line, one agreeing pair, one disagreeing pair)
+for exercising the screen by hand; not a fixture, not part of any suite.
+
 The seller's spreadsheet is parsed **in the browser** (`web/lib/lines.js`,
 covered by `npm test`); the original row goes to the API verbatim as `raw_row`,
 which the API requires and refuses empty.

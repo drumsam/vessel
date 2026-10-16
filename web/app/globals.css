@@ -118,6 +118,79 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .muted { color: var(--muted); }
 .verbatim { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
 
+/* Cellar Desk (web/app/deals/[dealId]/desk) */
+.bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.pill {
+  font: 500 13px inherit; background: var(--card); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 20px; padding: 6px 14px; cursor: pointer;
+}
+.pill.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+tr.off { opacity: 0.4; }
+.w { font-weight: 600; }
+.w em { font-style: normal; font-weight: 400; color: var(--muted); }
+th.sortable { cursor: pointer; }
+.ev {
+  background: none; border: 0; color: var(--wine); font: inherit; cursor: pointer;
+  padding: 0; text-decoration: underline;
+}
+tr.evrow td { background: var(--wine-soft); font-size: 13.5px; padding: 12px 14px; }
+tr.evrow table { width: auto; margin: 6px 0; }
+tr.evrow .sub2 { padding: 2px 16px 2px 0; border: 0; background: none; }
+.gate {
+  margin-top: 8px; padding: 10px 12px; border-radius: 8px;
+  background: var(--card); border: 1px solid var(--review); color: var(--ink);
+}
+.gate strong { color: var(--review); }
+.accept {
+  display: block; margin-top: 8px; font: 600 13px inherit; background: var(--review);
+  color: #fff; border: 0; border-radius: 6px; padding: 7px 12px; cursor: pointer;
+}
+.agency {
+  font-size: 13px; color: var(--muted); border-left: 3px solid var(--line);
+  padding-left: 12px; margin: 0 0 16px;
+}
+.fxinput {
+  width: 52px; display: inline; padding: 1px 4px; margin: 0 2px;
+  border: 1px solid var(--line); border-radius: 4px; font: inherit;
+}
+.warn {
+  background: var(--wine-soft); border: 1px solid var(--review); border-radius: 8px;
+  padding: 10px 12px; margin: 10px 0; font-size: 13.5px;
+}
+.foot {
+  position: sticky; bottom: 0; background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 14px 16px; margin-top: 16px;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.06);
+}
+.foot dl { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 28px; align-items: baseline; }
+.foot div { min-width: 120px; }
+.foot dt { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.foot dd { margin: 0; font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.foot dd.big { font-size: 20px; color: var(--wine); }
+.foot .gbp { font-size: 12px; color: var(--muted); font-weight: 400; }
+.act { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+.act button.go { background: var(--wine); color: #fff; }
+dialog.preview {
+  border: 1px solid var(--line); border-radius: 10px; background: var(--card);
+  color: var(--ink); max-width: 32rem; width: 92vw; padding: 0;
+}
+dialog.preview::backdrop { background: rgba(0, 0, 0, 0.45); }
+dialog.preview .dlg { padding: 20px 22px; }
+dialog.preview h2 { margin: 0 0 4px; font-size: 17px; }
+.bcard {
+  border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px;
+  margin-bottom: 8px; display: flex; justify-content: space-between; gap: 16px; align-items: center;
+}
+.bcard .l { font-size: 14px; }
+.bcard .r { text-align: right; white-space: nowrap; }
+.bcard .was { font-size: 11px; color: var(--muted); text-decoration: line-through; margin: 0; }
+.bcard .now { font-size: 15px; font-weight: 650; margin: 0; }
+.bcard .sv { font-size: 11px; color: var(--wine); font-weight: 600; margin: 0; }
+dialog.preview .cls {
+  margin-top: 12px; font: 600 13px inherit; background: var(--ink); color: var(--bg);
+  border: 0; border-radius: 6px; padding: 8px 14px; cursor: pointer;
+}
+
 @media (max-width: 640px) {
   h1 { font-size: 19px; }
   th, td { padding: 8px 6px; }

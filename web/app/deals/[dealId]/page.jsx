@@ -95,6 +95,9 @@ export default function DealPage({ params }) {
                 onClick={() => run("Price", () => api.post(`/deals/${dealId}/pricing`, {}))}>
           {busy === "Price" ? "Pricing…" : "Price"}
         </button>
+        <Link href={`/deals/${dealId}/desk`} style={{ marginLeft: "auto", alignSelf: "center" }}>
+          Cellar Desk →
+        </Link>
       </div>
 
       <div className="card scroll">

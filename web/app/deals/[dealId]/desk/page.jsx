@@ -1,0 +1,363 @@
+"use client";
+
+import Link from "next/link";
+import { Fragment, use, useCallback, useEffect, useRef, useState } from "react";
+import { api, money } from "../../../../lib/api";
+
+/** Cellar Desk — the operator's own "what can I sell right now" view of a
+ * deal, built from docs/research/cellar-desk-ui-spec.html (commit ad3c0dd).
+ *
+ * Every figure is read from the engine, never recomputed here: buyer_price_gbp,
+ * seller_price_gbp and gp are set server-side only when a line's own pricing
+ * basis is "buyer_discount" (decision 0017), so they are read as-is, never
+ * derived from uk_reference in this file. The one exception is the "how far
+ * apart" gap badge, which is informational commentary, not a price — the
+ * REAL gate is comp_count/requires_acknowledgement, both read verbatim from
+ * the API, never recomputed.
+ *
+ * Settlement is agency (decision 0022): the buyer pays the seller directly
+ * and Doug invoices 8% commission. Nothing here ever implies the money
+ * passes through this app — "Seller nets" and "Your commission, invoiced"
+ * are the only labels used, on this screen and in the buyer preview alike.
+ *
+ * A thin (one-merchant) line is REVIEW under invariant 12: ONE_COMP is a
+ * member of REVIEW_FLAGS (app/core/flags.py), so `requires_acknowledgement`
+ * is already true for it with no extra logic here. Accepting it calls the
+ * SAME /lines/{id}/pricing/acknowledge endpoint line.jsx already uses — no
+ * new mechanism, per Doug's own instruction.
+ */
+
+function gapPercent(floor, reference) {
+  if (!floor || !reference) return null;
+  const f = Number(floor), r = Number(reference);
+  if (!f) return null;
+  return Math.round(((r - f) / f) * 1000) / 10;
+}
+
+function tier(line) {
+  const n = line.pricing?.comp_count ?? 0;
+  if (n < 2) return "thin";
+  const gap = gapPercent(line.pricing?.uk_floor, line.pricing?.uk_reference);
+  return gap !== null && gap <= 10 ? "strong" : "ok";
+}
+
+function gated(line) {
+  return !!(line.pricing?.requires_acknowledgement && !line.pricing?.acknowledgement);
+}
+
+function wineLabel(line, wines) {
+  const w = line.wine_id ? wines.get(line.wine_id) : null;
+  if (!w) return { producer: line.raw_description, cuvee: "", vintage: "" };
+  return {
+    producer: w.producer, cuvee: w.cuvee,
+    vintage: line.vintage === 1000 ? "NV" : String(line.vintage ?? ""),
+  };
+}
+
+const FILTERS = [
+  ["all", "All"],
+  ["strong", "Two merchants, agreeing"],
+  ["thin", "One merchant — check these"],
+  ["big", "Over market threshold"],
+];
+
+export default function CellarDesk({ params }) {
+  const { dealId } = use(params);
+  const [deal, setDeal] = useState(null);
+  const [wines, setWines] = useState(new Map());
+  const [sel, setSel] = useState(new Set());
+  const [open, setOpen] = useState(null);
+  const [evidence, setEvidence] = useState({});
+  const [busy, setBusy] = useState(null);
+  const [error, setError] = useState(null);
+  const [filter, setFilter] = useState("all");
+  const [sortKey, setSortKey] = useState("mkt");
+  const [sortDir, setSortDir] = useState(-1);
+  const [fx, setFx] = useState("10.37");
+  const dialogRef = useRef(null);
+
+  const load = useCallback(() => {
+    api.get(`/deals/${dealId}`).then((d) => {
+      setDeal(d);
+      setSel((prev) => (prev.size ? prev : new Set(
+        d.lines.filter((l) => l.pricing?.sell_price).map((l) => l.line_id))));
+    }).catch((e) => setError(e.message));
+    api.get("/wines").then((ws) => setWines(new Map(ws.map((w) => [w.wine_id, w]))))
+      .catch(() => {});
+  }, [dealId]);
+  useEffect(load, [load]);
+
+  async function toggleEvidence(lineId) {
+    if (open === lineId) { setOpen(null); return; }
+    setOpen(lineId);
+    if (!evidence[lineId]) {
+      try {
+        const run = await api.get(`/lines/${lineId}/benchmark`);
+        setEvidence((prev) => ({ ...prev, [lineId]: run }));
+      } catch (e) {
+        setEvidence((prev) => ({ ...prev, [lineId]: { error: e.message } }));
+      }
+    }
+  }
+
+  async function accept(lineId) {
+    setBusy(lineId);
+    setError(null);
+    try {
+      await api.post(`/lines/${lineId}/pricing/acknowledge`, { note: null });
+      load();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  if (!deal) return <p className="muted">{error || "Loading…"}</p>;
+
+  const priced = deal.lines.filter((l) => l.pricing?.sell_price && l.pricing?.uk_reference);
+  const rows = priced.filter((l) => {
+    if (filter === "strong") return tier(l) === "strong";
+    if (filter === "thin") return tier(l) === "thin";
+    if (filter === "big") return Number(l.pricing.uk_reference) * l.quantity > 30000;
+    return true;
+  }).sort((a, b) => {
+    const key = (l) => {
+      if (sortKey === "wine") return wineLabel(l, wines).producer + wineLabel(l, wines).cuvee;
+      if (sortKey === "bottles") return l.quantity;
+      if (sortKey === "mkt") return Number(l.pricing.uk_reference) * l.quantity;
+      if (sortKey === "ves") return Number(l.pricing.buyer_price_gbp ?? l.pricing.sell_price) * l.quantity;
+      return 0;
+    };
+    const x = key(a), y = key(b);
+    return (typeof x === "string" ? x.localeCompare(y) : x - y) * sortDir;
+  });
+
+  const selected = priced.filter((l) => sel.has(l.line_id));
+  const blocking = selected.filter(gated);
+  const totalMkt = selected.reduce((s, l) => s + Number(l.pricing.uk_reference) * l.quantity, 0);
+  const totalOffer = selected.reduce(
+    (s, l) => s + Number(l.pricing.buyer_price_gbp ?? l.pricing.sell_price) * l.quantity, 0);
+  const totalNet = selected.reduce(
+    (s, l) => s + Number(l.pricing.seller_price_gbp ?? l.pricing.sell_price) * l.quantity, 0);
+  const totalFee = selected.reduce((s, l) => s + Number(l.pricing.gp ?? 0) * l.quantity, 0);
+  const totalBottles = selected.reduce((s, l) => s + l.quantity, 0);
+  const hk = (gbp) => "HK$" + Math.round(gbp * Number(fx || 1)).toLocaleString("en-GB");
+
+  function openPreview() {
+    dialogRef.current?.showModal();
+  }
+
+  function downloadCsv() {
+    const header = "wine,vintage,bottles,market_gbp,offer_gbp,seller_nets_gbp,commission_gbp,merchants,gap_pct\n";
+    const body = selected.map((l) => {
+      const label = wineLabel(l, wines);
+      const gap = gapPercent(l.pricing.uk_floor, l.pricing.uk_reference) ?? 0;
+      return [
+        `"${label.producer} ${label.cuvee}"`, label.vintage || l.vintage, l.quantity,
+        (Number(l.pricing.uk_reference) * l.quantity).toFixed(2),
+        (Number(l.pricing.buyer_price_gbp ?? l.pricing.sell_price) * l.quantity).toFixed(2),
+        (Number(l.pricing.seller_price_gbp ?? l.pricing.sell_price) * l.quantity).toFixed(2),
+        (Number(l.pricing.gp ?? 0) * l.quantity).toFixed(2),
+        l.pricing.comp_count, gap,
+      ].join(",");
+    }).join("\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([header + body], { type: "text/csv" }));
+    a.download = `${deal.name.replace(/\W+/g, "-").toLowerCase()}-offer.csv`;
+    a.click();
+  }
+
+  return (
+    <>
+      <p className="muted" style={{ marginBottom: 4 }}>
+        <Link href={`/deals/${dealId}`}>← {deal.name}</Link>
+      </p>
+      <h1>Cellar Desk</h1>
+      <p className="sub">
+        {priced.length} priced line{priced.length === 1 ? "" : "s"} of {deal.lines.length} ·
+        {" "}<strong>{sel.size}</strong> selected · display rate HK$
+        <input className="fxinput" value={fx} onChange={(e) => setFx(e.target.value)} /> per £1
+      </p>
+      <p className="agency">
+        Agency settlement (decision 0022): <strong>the buyer pays the seller directly</strong> and
+        Doug invoices 8% of the sale as commission. VESSEL never holds the money.
+        &ldquo;Seller nets&rdquo; is the offer price less that commission.
+      </p>
+
+      {error && <div className="notice bad">{error}</div>}
+
+      <div className="bar">
+        {FILTERS.map(([key, label]) => (
+          <button key={key} className={`pill ${filter === key ? "on" : ""}`}
+                  onClick={() => setFilter(key)}>{label}</button>
+        ))}
+      </div>
+
+      <div className="card scroll">
+        <table>
+          <thead>
+            <tr>
+              <th style={{ width: 24 }}></th>
+              <th onClick={() => sortBy("wine")} className="sortable">Wine</th>
+              <th className="num sortable" onClick={() => sortBy("bottles")}>Btls</th>
+              <th className="num sortable" onClick={() => sortBy("mkt")}>Market</th>
+              <th className="num sortable" onClick={() => sortBy("ves")}>Offer price</th>
+              <th className="num">Seller nets</th>
+              <th className="num">Your 8%</th>
+              <th>Evidence</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((line) => {
+              const label = wineLabel(line, wines);
+              const p = line.pricing;
+              const t = tier(line);
+              const isOpen = open === line.line_id;
+              const isGated = gated(line);
+              const gap = gapPercent(p.uk_floor, p.uk_reference);
+              const checked = sel.has(line.line_id);
+              return (
+                <Fragment key={line.line_id}>
+                  <tr className={checked ? "" : "off"}>
+                    <td>
+                      <input type="checkbox" checked={checked} onChange={() => {
+                        setSel((prev) => {
+                          const next = new Set(prev);
+                          next.has(line.line_id) ? next.delete(line.line_id) : next.add(line.line_id);
+                          return next;
+                        });
+                      }} />
+                    </td>
+                    <td>
+                      <div className="w">{label.producer} <em>{label.cuvee}</em> {label.vintage}</div>
+                      <div className="muted" style={{ fontSize: 12 }}>{line.raw_description}</div>
+                    </td>
+                    <td className="num">{line.quantity}</td>
+                    <td className="num">
+                      <button className="ev" onClick={() => toggleEvidence(line.line_id)}>
+                        {hk(Number(p.uk_reference) * line.quantity)}
+                      </button>
+                    </td>
+                    <td className="num w">{hk(Number(p.buyer_price_gbp ?? p.sell_price) * line.quantity)}</td>
+                    <td className="num">{hk(Number(p.seller_price_gbp ?? p.sell_price) * line.quantity)}</td>
+                    <td className="num">{hk(Number(p.gp ?? 0) * line.quantity)}</td>
+                    <td>
+                      {t === "thin"
+                        ? <span className={`tag ${isGated ? "stop" : "ready"}`}>
+                            1 merchant {isGated ? "· needs you" : "· accepted"}
+                          </span>
+                        : <span className={`tag ${t === "strong" ? "ready" : "review"}`}>
+                            {p.comp_count} merchants, {gap}% apart
+                          </span>}
+                    </td>
+                  </tr>
+                  {isOpen && (
+                    <tr className="evrow">
+                      <td colSpan={8}>
+                        {!evidence[line.line_id] && <span className="muted">Loading…</span>}
+                        {evidence[line.line_id]?.error && (
+                          <span className="muted">Could not load evidence: {evidence[line.line_id].error}</span>
+                        )}
+                        {evidence[line.line_id] && !evidence[line.line_id].error && (
+                          <>
+                            <strong>Read {new Date(evidence[line.line_id].as_of).toLocaleDateString("en-GB")}, UK In Bond, per bottle</strong>
+                            <table>
+                              <tbody>
+                                {evidence[line.line_id].comps
+                                  .filter((c) => c.role === "merchant_best")
+                                  .map((c) => (
+                                    <tr key={c.merchant_offer_id}>
+                                      <td className="sub2">{c.merchant}</td>
+                                      <td className="sub2 num"><strong>{money(c.price)}</strong></td>
+                                    </tr>
+                                  ))}
+                              </tbody>
+                            </table>
+                            {isGated && (
+                              <div className="gate">
+                                <strong>One source only.</strong> This line is REVIEW
+                                (invariant 12) until a named operator looks at it — it cannot
+                                reach a buyer until then.
+                                <button className="accept" disabled={busy === line.line_id}
+                                        onClick={() => accept(line.line_id)}>
+                                  {busy === line.line_id ? "Accepting…" : "Accept this price"}
+                                </button>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="foot">
+        <dl>
+          <div><dt>Selected</dt><dd>{sel.size} lines · {totalBottles} btls</dd></div>
+          <div><dt>Market value</dt><dd>{hk(totalMkt)} <span className="gbp">£{Math.round(totalMkt).toLocaleString()}</span></dd></div>
+          <div><dt>Offer price</dt><dd>{hk(totalOffer)}</dd></div>
+          <div><dt>Seller nets</dt><dd>{hk(totalNet)}</dd></div>
+          <div><dt>Your commission, invoiced</dt><dd className="big">{hk(totalFee)}</dd></div>
+        </dl>
+        {blocking.length > 0 && (
+          <div className="warn">
+            <strong>{blocking.length} selected line{blocking.length > 1 ? "s" : ""} rest{blocking.length > 1 ? "" : "s"} on
+            one merchant and {blocking.length > 1 ? "have" : "has"} not been accepted.</strong>{" "}
+            Nothing goes to a buyer until {blocking.length > 1 ? "they're" : "it's"} looked at —
+            click the market price to see the evidence and accept.
+          </div>
+        )}
+        <div className="act">
+          <button className="go" disabled={blocking.length > 0} onClick={openPreview}>
+            See what the buyer gets →
+          </button>
+          <button className="quiet" disabled={blocking.length > 0} onClick={downloadCsv}>
+            Download as CSV
+          </button>
+        </div>
+      </div>
+
+      <dialog ref={dialogRef} className="preview">
+        <div className="dlg">
+          <h2>What lands on the buyer's side</h2>
+          <p className="muted">Agency settlement — the buyer pays the seller directly; Doug invoices
+            8% commission separately. VESSEL never holds this money.</p>
+          {[...selected].sort((a, b) => Number(b.pricing.uk_reference) - Number(a.pricing.uk_reference))
+            .slice(0, 6).map((line) => {
+              const label = wineLabel(line, wines);
+              const p = line.pricing;
+              const offerPerBottle = Number(p.buyer_price_gbp ?? p.sell_price);
+              const mktPerBottle = Number(p.uk_reference);
+              const below = mktPerBottle ? Math.round((1 - offerPerBottle / mktPerBottle) * 100) : 0;
+              return (
+                <div className="bcard" key={line.line_id}>
+                  <div className="l">
+                    <strong>{label.producer}</strong> <em>{label.cuvee}</em><br />
+                    <span className="muted">{label.vintage} · {line.quantity} btls · UK In Bond</span>
+                  </div>
+                  <div className="r">
+                    <p className="was">{hk(mktPerBottle)}</p>
+                    <p className="now">{hk(offerPerBottle)}</p>
+                    <p className="sv">{below}% below market</p>
+                  </div>
+                </div>
+              );
+            })}
+          {selected.length > 6 && <p className="muted">…and {selected.length - 6} more lines</p>}
+          <button className="cls" onClick={() => dialogRef.current?.close()}>Close</button>
+        </div>
+      </dialog>
+    </>
+  );
+
+  function sortBy(key) {
+    setSortDir(sortKey === key ? -sortDir : -1);
+    setSortKey(key);
+  }
+}
