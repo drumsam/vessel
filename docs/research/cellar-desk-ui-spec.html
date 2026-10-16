@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cellar Desk</title>
+<style>
+:root{--bg:#fbfaf8;--ink:#1a1a18;--mut:#6f6c66;--rule:#e6e2db;--acc:#6b2737;--card:#fff;
+--strong:#1f6b4a;--ok:#2d6ba3;--thin:#9a7414;--shade:#f4f1ec}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#13120f;--ink:#ece9e3;--mut:#9b968d;
+--rule:#2d2b26;--acc:#c98a99;--card:#1b1a16;--strong:#6fbf95;--ok:#7fb3dd;--thin:#d9b65a;--shade:#201e1a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 ui-sans-serif,system-ui,-apple-system,sans-serif}
+.wrap{max-width:84rem;margin:0 auto;padding:1.5rem 14px 3rem}
+header{display:flex;flex-wrap:wrap;gap:1rem;align-items:baseline;justify-content:space-between;margin-bottom:.4rem}
+h1{font-size:1.35rem;margin:0;font-weight:650}
+.sub{color:var(--mut);font-size:.88rem;margin:.1rem 0 1.2rem}
+.bar{display:flex;flex-wrap:wrap;gap:.45rem;margin-bottom:1rem}
+.bar button{font:500 .82rem inherit;background:var(--card);color:var(--ink);border:1px solid var(--rule);
+border-radius:20px;padding:.4rem .85rem;cursor:pointer}
+.bar button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+table{width:100%;border-collapse:collapse}
+thead th{position:sticky;top:0;background:var(--bg);text-align:left;font:600 .7rem inherit;letter-spacing:.07em;
+text-transform:uppercase;color:var(--mut);padding:.5rem .55rem;border-bottom:1px solid var(--rule);cursor:pointer;white-space:nowrap}
+thead th.n{text-align:right}
+tbody tr{border-bottom:1px solid var(--rule)}
+tbody tr.off{opacity:.38}
+td{padding:.5rem .55rem;vertical-align:middle}
+td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.w{font-weight:600}.w em{font-style:normal;font-weight:400;color:var(--mut)}
+.note{font-size:.78rem;color:var(--mut)}
+.pill{display:inline-block;font:600 .67rem inherit;letter-spacing:.04em;text-transform:uppercase;
+border:1px solid currentColor;border-radius:20px;padding:.18em .52em}
+.strong{color:var(--strong)}.ok{color:var(--ok)}.thin{color:var(--thin)}
+.ev{background:none;border:0;color:var(--acc);font:inherit;font-size:.8rem;cursor:pointer;padding:0;text-decoration:underline}
+tr.evrow td{background:var(--shade);font-size:.84rem;padding:.6rem .9rem}
+tr.evrow table{width:auto;margin-top:.3rem}
+tr.evrow td.sub2{padding:.2rem .9rem .2rem 0;border:0;background:none}
+input[type=checkbox]{width:17px;height:17px;accent-color:var(--acc)}
+.foot{position:sticky;bottom:0;background:var(--card);border:1px solid var(--rule);border-radius:7px;
+padding:.9rem 1.1rem;margin-top:1rem;box-shadow:0 -3px 14px rgba(0,0,0,.06)}
+.foot dl{margin:0;display:flex;flex-wrap:wrap;gap:.3rem 2.2rem;align-items:baseline}
+.foot div{min-width:7.5rem}
+.foot dt{font:600 .67rem inherit;letter-spacing:.07em;text-transform:uppercase;color:var(--mut);margin-bottom:.1rem}
+.foot dd{margin:0;font-size:1.05rem;font-variant-numeric:tabular-nums;font-weight:600}
+.foot dd.big{font-size:1.3rem;color:var(--acc)}
+.foot .gbp{font-size:.74rem;color:var(--mut);font-weight:400}
+.act{display:flex;gap:.5rem;margin-top:.85rem;flex-wrap:wrap}
+.act button{font:600 .88rem inherit;border-radius:5px;padding:.6rem 1.1rem;cursor:pointer;border:1px solid var(--rule);background:var(--card);color:var(--ink)}
+.act button.go{background:var(--acc);color:#fff;border-color:var(--acc)}
+dialog{border:1px solid var(--rule);border-radius:8px;background:var(--card);color:var(--ink);
+max-width:34rem;width:92vw;padding:0}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+.dlg{padding:1.4rem 1.6rem}
+.dlg h2{margin:0 0 .2rem;font-size:1.1rem}
+.dlg .cl{color:var(--mut);font-size:.85rem;margin:0 0 1rem}
+.bcard{border:1px solid var(--rule);border-radius:6px;padding:.8rem .95rem;margin-bottom:.5rem;display:flex;justify-content:space-between;gap:1rem;align-items:center}
+.bcard .l{font-size:.9rem}.bcard .l em{font-style:normal;color:var(--mut)}
+.bcard .r{text-align:right;white-space:nowrap}
+.bcard .was{font-size:.72rem;color:var(--mut);text-decoration:line-through;margin:0}
+.bcard .now{font-size:1rem;font-weight:650;margin:0}
+.bcard .sv{font-size:.72rem;color:var(--acc);font-weight:600;margin:0}
+.dlg .cls{margin-top:1rem;font:600 .85rem inherit;background:var(--ink);color:var(--bg);border:0;border-radius:5px;padding:.55rem 1rem;cursor:pointer}
+@media(max-width:60rem){td.hide,th.hide{display:none}}
+</style></head><body><div class="wrap">
+
+<header><h1>WFS Cellar · Champagne</h1>
+<p class="sub" style="margin:0">Priced 9 Oct against UK In Bond · HK$ at 10.37 · <strong id="cnt"></strong> of 30 lines selected</p></header>
+<p class="sub">Click any price to see the merchants behind it. Untick what you don't want to sell.</p>
+
+<div class="bar">
+  <button data-f="all" class="on">All 30</button>
+  <button data-f="strong">Two merchants, agreeing</button>
+  <button data-f="thin">One merchant — check these</button>
+  <button data-f="big">Over HK$30,000</button>
+</div>
+
+<table><thead><tr>
+<th style="width:26px"></th>
+<th data-s="producer">Wine</th>
+<th class="n" data-s="bottles">Btls</th>
+<th class="n" data-s="mkt">Market</th>
+<th class="n" data-s="ves">Offer price</th>
+<th class="n hide" data-s="net">Seller gets</th>
+<th class="n" data-s="fee">My fee</th>
+<th data-s="conf">Evidence</th>
+</tr></thead><tbody id="tb"></tbody></table>
+
+<div class="foot">
+  <dl>
+    <div><dt>Selected</dt><dd id="fL">—</dd></div>
+    <div><dt>Market value</dt><dd id="fM">—<span class="gbp" id="fMg"></span></dd></div>
+    <div><dt>Offer price (−20%)</dt><dd id="fV">—</dd></div>
+    <div><dt>Seller receives</dt><dd id="fN">—</dd></div>
+    <div><dt>My fee (8%)</dt><dd class="big" id="fF">—</dd></div>
+  </dl>
+  <div class="act">
+    <button class="go" id="prev">See what the buyer gets →</button>
+    <button id="csv">Download as CSV</button>
+  </div>
+</div>
+</div>
+
+<dialog id="dlg"><div class="dlg">
+  <h2>This Thursday · VESSEL</h2>
+  <p class="cl">What lands on your buyer's phone</p>
+  <div id="bl"></div>
+  <button class="cls" onclick="document.getElementById('dlg').close()">Close</button>
+</div></dialog>
+
+<script>
+const ROWS=[{"id": 0, "producer": "Krug", "cuvee": "Grande Cuvée 167ᵉ", "vintage": "NV", "bottles": 48, "ref": 162.83, "sources": [{"m": "Bordeaux Index", "p": 1689}], "n": 1, "gap": 0, "note": "Original case", "mkt": 81050, "conf": "thin"}, {"id": 1, "producer": "Dom Pérignon", "cuvee": "Vintage", "vintage": "2008", "bottles": 46, "ref": 162.5, "sources": [{"m": "Bordeaux Index", "p": 1685}, {"m": "Justerini & Brooks", "p": 1711}], "n": 2, "gap": 1.5, "note": "Single owner", "mkt": 77516, "conf": "strong"}, {"id": 2, "producer": "Krug", "cuvee": "Grande Cuvée 168ᵉ", "vintage": "NV", "bottles": 36, "ref": 158.33, "sources": [{"m": "Bordeaux Index", "p": 1642}], "n": 1, "gap": 0, "note": "Original case", "mkt": 59108, "conf": "thin"}, {"id": 3, "producer": "Krug", "cuvee": "Grande Cuvée 169ᵉ", "vintage": "NV", "bottles": 25, "ref": 163.17, "sources": [{"m": "Bordeaux Index", "p": 1692}], "n": 1, "gap": 0, "note": "Original case", "mkt": 42302, "conf": "thin"}, {"id": 4, "producer": "Louis Roederer", "cuvee": "Cristal", "vintage": "2005", "bottles": 24, "ref": 211.83, "sources": [{"m": "Bordeaux Index", "p": 2020}, {"m": "Lay & Wheeler", "p": 2197}], "n": 2, "gap": 8.7, "note": "Single owner", "mkt": 52720, "conf": "strong"}, {"id": 5, "producer": "Krug", "cuvee": "Grande Cuvée 164ᵉ", "vintage": "NV", "bottles": 24, "ref": 292.5, "sources": [{"m": "Bordeaux Index", "p": 3033}], "n": 1, "gap": 0, "note": "Original case", "mkt": 72797, "conf": "thin"}, {"id": 6, "producer": "Krug", "cuvee": "Grande Cuvée 166ᵉ", "vintage": "NV", "bottles": 24, "ref": 162.17, "sources": [{"m": "Bordeaux Index", "p": 1682}], "n": 1, "gap": 0, "note": "Original case", "mkt": 40361, "conf": "thin"}, {"id": 7, "producer": "Dom Pérignon", "cuvee": "Vintage", "vintage": "2010", "bottles": 24, "ref": 177.5, "sources": [{"m": "Bordeaux Index", "p": 1486}, {"m": "Lay & Wheeler", "p": 1841}], "n": 2, "gap": 23.8, "note": "Original case", "mkt": 44176, "conf": "ok"}, {"id": 8, "producer": "Dom Pérignon", "cuvee": "Vintage", "vintage": "2004", "bottles": 18, "ref": 176.5, "sources": [{"m": "Bordeaux Index", "p": 1440}, {"m": "Lay & Wheeler", "p": 1830}], "n": 2, "gap": 27.1, "note": "Mature, labels as new", "mkt": 32945, "conf": "ok"}, {"id": 9, "producer": "Taittinger", "cuvee": "Comtes de Champagne Rosé", "vintage": "2009", "bottles": 15, "ref": 131.33, "sources": [{"m": "Bordeaux Index", "p": 1210}, {"m": "Lay & Wheeler", "p": 1362}], "n": 2, "gap": 12.6, "note": "Original case", "mkt": 20428, "conf": "ok"}, {"id": 10, "producer": "Charles Heidsieck", "cuvee": "Blanc des Millénaires", "vintage": "2004", "bottles": 13, "ref": 102.5, "sources": [{"m": "Bordeaux Index", "p": 1063}], "n": 1, "gap": 0, "note": "Original case", "mkt": 13818, "conf": "thin"}, {"id": 11, "producer": "Henri Giraud", "cuvee": "Aÿ Grand Cru Argonne", "vintage": "2012", "bottles": 13, "ref": 479.0, "sources": [{"m": "Bordeaux Index", "p": 4967}], "n": 1, "gap": 0, "note": "Original case", "mkt": 64574, "conf": "thin"}, {"id": 12, "producer": "Krug", "cuvee": "Grande Cuvée 163ᵉ", "vintage": "NV", "bottles": 12, "ref": 191.5, "sources": [{"m": "Bordeaux Index", "p": 1986}], "n": 1, "gap": 0, "note": "Original case", "mkt": 23830, "conf": "thin"}, {"id": 13, "producer": "Krug", "cuvee": "Grande Cuvée 165ᵉ", "vintage": "NV", "bottles": 12, "ref": 212.83, "sources": [{"m": "Bordeaux Index", "p": 2207}], "n": 1, "gap": 0, "note": "Original case", "mkt": 26485, "conf": "thin"}, {"id": 14, "producer": "Dom Pérignon", "cuvee": "Vintage", "vintage": "2005", "bottles": 12, "ref": 175.5, "sources": [{"m": "Bordeaux Index", "p": 1820}], "n": 1, "gap": 0, "note": "Mature, labels as new", "mkt": 21839, "conf": "thin"}, {"id": 15, "producer": "Dom Pérignon", "cuvee": "Vintage", "vintage": "2013", "bottles": 12, "ref": 133.33, "sources": [{"m": "Bordeaux Index", "p": 1383}], "n": 1, "gap": 0, "note": "Original case", "mkt": 16592, "conf": "thin"}, {"id": 16, "producer": "Dom Pérignon", "cuvee": "Rosé", "vintage": "2006", "bottles": 12, "ref": 264.33, "sources": [{"m": "Bordeaux Index", "p": 2592}, {"m": "Lay & Wheeler", "p": 2741}], "n": 2, "gap": 5.7, "note": "Single owner", "mkt": 32893, "conf": "strong"}, {"id": 17, "producer": "Louis Roederer", "cuvee": "Cristal", "vintage": "2006", "bottles": 12, "ref": 196.33, "sources": [{"m": "Bordeaux Index", "p": 1599}, {"m": "Lay & Wheeler", "p": 2036}], "n": 2, "gap": 27.3, "note": "Original case", "mkt": 24431, "conf": "ok"}, {"id": 18, "producer": "Taittinger", "cuvee": "Comtes de Champagne", "vintage": "2004", "bottles": 12, "ref": 116.67, "sources": [{"m": "Bordeaux Index", "p": 1210}], "n": 1, "gap": 0, "note": "Mature", "mkt": 14518, "conf": "thin"}, {"id": 19, "producer": "Taittinger", "cuvee": "Comtes de Champagne", "vintage": "2007", "bottles": 12, "ref": 96.67, "sources": [{"m": "Bordeaux Index", "p": 1002}], "n": 1, "gap": 0, "note": "Original case", "mkt": 12030, "conf": "thin"}, {"id": 20, "producer": "Taittinger", "cuvee": "Comtes de Champagne", "vintage": "2008", "bottles": 12, "ref": 200.0, "sources": [{"m": "Bordeaux Index", "p": 1476}, {"m": "Lay & Wheeler", "p": 2074}], "n": 2, "gap": 40.5, "note": "Original case", "mkt": 24888, "conf": "ok"}, {"id": 21, "producer": "Charles Heidsieck", "cuvee": "Blanc des Millénaires", "vintage": "2006", "bottles": 12, "ref": 104.67, "sources": [{"m": "Bordeaux Index", "p": 916}, {"m": "Lay & Wheeler", "p": 1085}], "n": 2, "gap": 18.5, "note": "Original case", "mkt": 13025, "conf": "ok"}, {"id": 22, "producer": "Louis Roederer", "cuvee": "Cristal", "vintage": "2007", "bottles": 6, "ref": 190.0, "sources": [{"m": "Bordeaux Index", "p": 1642}, {"m": "Lay & Wheeler", "p": 1970}], "n": 2, "gap": 20.0, "note": "Original case", "mkt": 11822, "conf": "ok"}, {"id": 23, "producer": "Taittinger", "cuvee": "Comtes de Champagne", "vintage": "2005", "bottles": 6, "ref": 91.67, "sources": [{"m": "Bordeaux Index", "p": 951}], "n": 1, "gap": 0, "note": "Mature", "mkt": 5704, "conf": "thin"}, {"id": 24, "producer": "Taittinger", "cuvee": "Comtes de Champagne", "vintage": "2006", "bottles": 6, "ref": 149.17, "sources": [{"m": "Bordeaux Index", "p": 985}, {"m": "Goedhuis", "p": 1547}], "n": 2, "gap": 57.0, "note": "Original case", "mkt": 9281, "conf": "ok"}, {"id": 25, "producer": "Taittinger", "cuvee": "Comtes de Champagne Rosé", "vintage": "2011", "bottles": 6, "ref": 141.0, "sources": [{"m": "Bordeaux Index", "p": 1462}], "n": 1, "gap": 0, "note": "Original case", "mkt": 8773, "conf": "thin"}, {"id": 26, "producer": "Charles Heidsieck", "cuvee": "Blanc des Millénaires", "vintage": "1995", "bottles": 6, "ref": 166.67, "sources": [{"m": "Bordeaux Index", "p": 1728}], "n": 1, "gap": 0, "note": "Mature, 31 years", "mkt": 10370, "conf": "thin"}, {"id": 27, "producer": "Pierre Peters", "cuvee": "Les Chétillons", "vintage": "2016", "bottles": 6, "ref": 227.0, "sources": [{"m": "Bordeaux Index", "p": 2354}], "n": 1, "gap": 0, "note": "Original case", "mkt": 14124, "conf": "thin"}, {"id": 28, "producer": "Taittinger", "cuvee": "Comtes de Champagne Rosé", "vintage": "2008", "bottles": 3, "ref": 166.67, "sources": [{"m": "Bordeaux Index", "p": 1728}], "n": 1, "gap": 0, "note": "Original case", "mkt": 5185, "conf": "thin"}, {"id": 29, "producer": "Louis Roederer", "cuvee": "Cristal 150cl", "vintage": "2006", "bottles": 1, "ref": 385.0, "sources": [{"m": "Bordeaux Index", "p": 3992}], "n": 1, "gap": 0, "note": "Magnum", "mkt": 3992, "conf": "thin"}], FX=10.37;
+const sel=new Set(ROWS.map(r=>r.id));
+let filter='all', sortKey='mkt', dir=-1;
+const d=n=>'HK$'+n.toLocaleString('en-US');
+const calc=r=>({mkt:r.mkt, ves:Math.round(r.mkt*.8/10)*10, net:Math.round(r.mkt*.8*.92/10)*10, fee:Math.round(r.mkt*.8*.08/10)*10});
+function visible(){
+  let v=ROWS.filter(r=> filter==='all'||(filter==='strong'&&r.conf==='strong')||(filter==='thin'&&r.n<2)||(filter==='big'&&r.mkt>30000));
+  const g=r=>({producer:r.producer+r.cuvee,bottles:r.bottles,mkt:r.mkt,ves:calc(r).ves,net:calc(r).net,fee:calc(r).fee,conf:r.conf}[sortKey]);
+  return v.sort((a,b)=>{const x=g(a),y=g(b);return (typeof x==='string'?x.localeCompare(y):x-y)*dir});
+}
+function draw(){
+  const tb=document.getElementById('tb'); tb.innerHTML='';
+  for(const r of visible()){
+    const c=calc(r), on=sel.has(r.id);
+    const tr=document.createElement('tr'); if(!on)tr.className='off';
+    const lab=r.conf==='strong'?['strong','2 merchants, '+r.gap+'% apart']:r.conf==='ok'?['ok','2 merchants, '+r.gap+'% apart']:['thin','1 merchant'];
+    tr.innerHTML=`<td><input type="checkbox" ${on?'checked':''} data-id="${r.id}"></td>
+      <td><div class="w">${r.producer} <em>${r.cuvee}</em> ${r.vintage}</div><div class="note">${r.note}</div></td>
+      <td class="n">${r.bottles}</td>
+      <td class="n"><button class="ev" data-ev="${r.id}">${d(c.mkt)}</button></td>
+      <td class="n w">${d(c.ves)}</td>
+      <td class="n hide">${d(c.net)}</td>
+      <td class="n">${d(c.fee)}</td>
+      <td><span class="pill ${lab[0]}">${lab[1]}</span></td>`;
+    tb.appendChild(tr);
+  }
+  const s=ROWS.filter(r=>sel.has(r.id)), t=s.reduce((a,r)=>{const c=calc(r);return{m:a.m+c.mkt,v:a.v+c.ves,n:a.n+c.net,f:a.f+c.fee,b:a.b+r.bottles}},{m:0,v:0,n:0,f:0,b:0});
+  document.getElementById('cnt').textContent=s.length;
+  document.getElementById('fL').textContent=s.length+' lines · '+t.b+' btls';
+  document.getElementById('fM').innerHTML=d(t.m)+' <span class="gbp">£'+Math.round(t.m/FX).toLocaleString()+'</span>';
+  document.getElementById('fV').textContent=d(t.v);
+  document.getElementById('fN').textContent=d(t.n);
+  document.getElementById('fF').textContent=d(t.f);
+}
+document.getElementById('tb').addEventListener('click',e=>{
+  const cb=e.target.closest('input[data-id]');
+  if(cb){const i=+cb.dataset.id; sel.has(i)?sel.delete(i):sel.add(i); draw(); return;}
+  const ev=e.target.closest('[data-ev]');
+  if(ev){
+    const r=ROWS.find(x=>x.id==+ev.dataset.ev), tr=ev.closest('tr');
+    if(tr.nextElementSibling?.classList.contains('evrow')){tr.nextElementSibling.remove();return;}
+    const n=document.createElement('tr'); n.className='evrow';
+    n.innerHTML=`<td colspan="8"><strong>Read 9 October 2026, UK In Bond, per bottle</strong>
+      <table>${r.sources.map(s=>`<tr><td class="sub2">${s.m}</td><td class="sub2"><strong>${d(s.p)}</strong></td></tr>`).join('')}</table>
+      ${r.n<2?'<div style="margin-top:.4rem;color:var(--thin)"><strong>One source only.</strong> Fine to sell, but we don\'t print a percentage claim on it.</div>':''}</td>`;
+    tr.after(n);
+  }
+});
+document.querySelectorAll('.bar button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.bar button').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); filter=b.dataset.f; draw();
+});
+document.querySelectorAll('thead th[data-s]').forEach(th=>th.onclick=()=>{
+  const k=th.dataset.s; dir = sortKey===k ? -dir : -1; sortKey=k; draw();
+});
+document.getElementById('prev').onclick=()=>{
+  const bl=document.getElementById('bl'); bl.innerHTML='';
+  for(const r of ROWS.filter(x=>sel.has(x.id)).sort((a,b)=>b.mkt-a.mkt).slice(0,6)){
+    const c=calc(r), pb=Math.round(c.ves/r.bottles/10)*10, mb=Math.round(c.mkt/r.bottles/10)*10;
+    bl.insertAdjacentHTML('beforeend',`<div class="bcard">
+      <div class="l"><strong>${r.producer}</strong> <em>${r.cuvee}</em><br><em>${r.vintage} · ${r.bottles} btls · HK bond</em></div>
+      <div class="r"><p class="was">${d(mb)}</p><p class="now">${d(pb)}</p><p class="sv">${Math.round((1-pb/mb)*100)}% below market</p></div></div>`);
+  }
+  const more=sel.size-6; if(more>0) bl.insertAdjacentHTML('beforeend',`<p class="cl" style="margin:.6rem 0 0">…and ${more} more lines</p>`);
+  document.getElementById('dlg').showModal();
+};
+document.getElementById('csv').onclick=()=>{
+  const h='wine,vintage,bottles,market_hkd,offer_hkd,seller_hkd,fee_hkd,merchants,gap_pct\n';
+  const b=ROWS.filter(r=>sel.has(r.id)).map(r=>{const c=calc(r);
+    return `"${r.producer} ${r.cuvee}",${r.vintage},${r.bottles},${c.mkt},${c.ves},${c.net},${c.fee},${r.n},${r.gap}`}).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([h+b],{type:'text/csv'}));
+  a.download='wfs-champagne-offer.csv'; a.click();
+};
+draw();
+</script></body></html>
