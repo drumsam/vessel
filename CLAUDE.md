@@ -231,12 +231,13 @@ position, ask for a trade feed rather than scraping.
 
 ## Current state
 
-Done: deterministic core, identity resolver, eight verified adapters — Farr,
+Done: deterministic core, identity resolver, nine verified adapters — Farr,
 Goedhuis Waddesdon and Lea & Sandeman (sweep), Bordeaux Index, FINE+RARE,
-Lay & Wheeler Trading, Bordeaux Index LiveTrade and Justerini & Brooks
-(search) — Postgres schema, AI provider interface, FastAPI service
-(`app/api/`), Alembic migrations (`migrations/`), RQ worker (`app/worker/`)
-for snapshot collection and deterministic benchmark.
+Lay & Wheeler Trading, Bordeaux Index LiveTrade, Justerini & Brooks and
+Berry Bros. & Rudd (search) — Postgres schema, AI provider interface,
+FastAPI service (`app/api/`), Alembic migrations (`migrations/`), RQ
+worker (`app/worker/`) for snapshot collection and deterministic
+benchmark.
 
 Justerini & Brooks (`app/adapters/justerini_brooks.py`), built for UK
 breadth once the Champagne sweep showed 42 of 52 targets at one merchant
@@ -256,6 +257,34 @@ do not overlap this cellar's 2002-2016 back-vintages, which is itself the
 finding (see `docs/research/uk-trade-current-releases-vs-back-vintage-
 cellars.md`): the UK trade publishes current releases in cases; this
 cellar is back-vintage, loose-bottle stock.
+
+Berry Bros. & Rudd (`app/adapters/berry_bros_rudd.py`, decision 0030),
+second of the three houses investigated for UK breadth: Vue/Nuxt SSR, but
+the real price is in `window.__NUXT__`, a minified JS expression rather
+than JSON, evaluated in a throwaway Node subprocess — the first non-Python
+runtime dependency in this fleet, flagged to Doug before building further.
+A hit's own top-level `purchase_mode`/`stock_origin`/`prices` are only ONE
+variant Algolia promoted to that hit's headline; the real ladder is nested
+in `purchase_options[]` and is read exclusively from there, deduped by
+`bbx_listing_id` or, for a BBR-direct entry with none, by `(sku,
+purchase_mode)` — confirmed live, one Taittinger hit alone carried a 300cl
+Jeroboam never promoted to any top-level hit on the page at all. The price
+field is keyed by `purchase_mode`, never `case_size`: "In Bond" always
+prices the whole pack via `price_per_case_exact`, even at `case_size: 1`
+(a single Jeroboam is still "a case of one"); "Delivery" (duty paid)
+always prices ONE bottle via `price_per_bottle_exact` regardless of the
+SKU's own case size. `stock_origin` `BBR` (direct stock) and `BBX` (Berry
+Bros' own exchange) are one company publishing its book two ways, same
+reading as Bordeaux Index LiveTrade (decisions 0026/0027), but with no
+second adapter id to reconcile since both arrive on one fetch of one page.
+A producer page server-renders only Algolia's own first page of results
+with no pagination control that reaches a second one; `fetch()` raises
+`ProducerPageTruncated` rather than return a silently partial page —
+confirmed incomplete for Krug (24 of 58 editions), this cellar's largest
+Champagne position, and five other producers. Built and tested; the live
+collection run is still pending BBR's own Algolia search-only key (not
+found) for the truncated producers, and its own `Visit-time: 0200-0700`
+(UTC) window for everyone else.
 
 Bordeaux Index LiveTrade (`app/adapters/bordeaux_index_livetrade.py`,
 decision 0027) reads the two-sided marketplace the sibling adapter's listing
