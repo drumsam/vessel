@@ -22,6 +22,7 @@ from typing import Callable, Iterable, Optional, Sequence
 import psycopg
 
 from app.adapters.base import Adapter, Candidate, Rejected, whole_pence
+from app.adapters.berry_bros_rudd import BASE as BBR_URL, BerryBrosRuddAdapter
 from app.adapters.bordeaux_index import LIST_URL as BI_URL, BordeauxIndexAdapter
 from app.adapters.bordeaux_index_livetrade import (
     MARKETPLACE_URL as BI_LIVETRADE_URL, BordeauxIndexLiveTradeAdapter)
@@ -96,6 +97,10 @@ def _by_producer_paths(adapter: Adapter, params: dict, vintage: int) -> Sequence
     return adapter.fetch(params.get("producer_paths"), vintage)
 
 
+def _by_producer_slugs(adapter: Adapter, params: dict, vintage: int) -> Sequence[dict]:
+    return adapter.fetch(params.get("producer_slugs"), vintage)
+
+
 WHOLE_BOOK["lea-sandeman"] = WholeBook(LeaSandemanAdapter, LS_URL)
 
 TARGETED: dict[str, Targeted] = {
@@ -118,6 +123,13 @@ TARGETED: dict[str, Targeted] = {
     # 0026) — the same company, never a second comp. See the adapter module.
     "bordeaux-index-livetrade": Targeted(BordeauxIndexLiveTradeAdapter, BI_LIVETRADE_URL,
                                          ("search",) + SLUG_PARAMS, _by_search),
+    # One producer page per fetch, every edition it currently lists at once —
+    # but only up to its own Algolia page-size ceiling; adapter.fetch() raises
+    # ProducerPageTruncated rather than return a silent partial page. One
+    # merchant_id covers both stock origins the page itself carries (BBR
+    # direct stock, BBX its own exchange) — see the adapter module.
+    "berry-bros-rudd": Targeted(BerryBrosRuddAdapter, BBR_URL,
+                                ("producer_slugs",), _by_producer_slugs),
 }
 
 
