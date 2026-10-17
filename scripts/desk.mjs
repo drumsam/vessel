@@ -191,6 +191,11 @@ async function main() {
     console.log(`  Open:      ${dealUrl}`);
     console.log(`  Username:  ${user}`);
     console.log(`  Password:  desk-demo-password`);
+    // decision 0032: never leave it ambiguous whether this is demo data or
+    // a real cellar. desk.sh only ever drives the local, embedded database
+    // -- losing it costs nothing -- so the line says so every time, not
+    // just the first time.
+    console.log(`  Database:  localhost:${PG_PORT}/${PG_DATABASE} (local demo data — never a real cellar)`);
     console.log("");
   }
 }
