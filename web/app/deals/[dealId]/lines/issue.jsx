@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api, money } from "../../../lib/api";
+import { api, money } from "../../../../lib/api";
 
 /** Issue an offer. The API refuses any line that is unpriced or unaccepted, so
  *  the whole document stops rather than quietly losing a line. */

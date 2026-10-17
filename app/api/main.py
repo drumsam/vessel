@@ -55,10 +55,19 @@ protected = APIRouter(dependencies=[Depends(current_operator)])
 
 
 @app.get("/health")
-def health(conn: psycopg.Connection = Depends(db), q: Queue = Depends(queue)) -> dict:
+def health(conn: psycopg.Connection = Depends(db)) -> dict:
+    """Never 500s on a missing worker: no REDIS_URL (scripts/desk.sh runs
+    none on purpose) and an unreachable Redis both read as a plain
+    "unavailable" here, not a crash — the frontend uses this to decide
+    whether Collect/Benchmark/Price can be pressed at all, and a dependency
+    failure before this body even ran would give it nothing to read."""
     conn.execute("SELECT 1")
-    q.connection.ping()
-    return {"database": "ok", "redis": "ok"}
+    try:
+        get_queue().connection.ping()
+        redis_status = "ok"
+    except Exception:
+        redis_status = "unavailable"
+    return {"database": "ok", "redis": redis_status}
 
 
 # -------------------------------------------------------------- merchants

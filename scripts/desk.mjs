@@ -176,14 +176,14 @@ async function main() {
   async function printDealUrl(knownDealId, knownUsername) {
     let dealUrl, user = knownUsername || "deskdemo";
     if (knownDealId) {
-      dealUrl = `${WEB_URL}/deals/${knownDealId}/desk`;
+      dealUrl = `${WEB_URL}/deals/${knownDealId}`;
     } else {
       // Reused an already-running instance: ask it who the demo deal is.
       const seedOut2 = await captureOutput(
         VENV_PYTHON, ["scripts/seed_cellar_desk_demo.py"],
         { cwd: ROOT, env: { ...process.env, DATABASE_URL, PYTHONPATH: ROOT } }).catch(() => "");
       const id = /deal_id=(\S+)/.exec(seedOut2)?.[1];
-      dealUrl = id ? `${WEB_URL}/deals/${id}/desk` : `${WEB_URL}`;
+      dealUrl = id ? `${WEB_URL}/deals/${id}` : `${WEB_URL}`;
     }
     console.log("");
     console.log("  Cellar Desk is ready.");

@@ -386,14 +386,27 @@ to the penny is an operator note, never a gate).
 
 Operator accounts and sessions are built (`app/api/auth.py`,
 `scripts/manage_operators.py`). The Next.js operator console is in `web/`:
-deals and upload, one deal (identity, evidence, price, sign-off), the exception
-queue, and an issued offer.
+deals and upload, one deal (Cellar Desk by default; its pipeline detail —
+identity, evidence, price, sign-off — one click away), the exception queue,
+and an issued offer.
 
-Cellar Desk (`web/app/deals/[dealId]/desk/`) is a second view of a deal, for
-"what can I sell right now" rather than the existing deal page's own
-line-by-line pricing console: every priced line in one sortable, filterable
-table, a sticky footer with running totals, a buyer-preview dialog and a CSV
-export. Built from a real spec (`docs/research/cellar-desk-ui-spec.html`,
+Cellar Desk (`web/app/deals/[dealId]/page.jsx`) is the DEFAULT view of a
+deal — what a deal link from `/` lands on — for "what can I sell right
+now" rather than the pipeline console's own line-by-line, Collect/
+Benchmark/Price view, which moved to `web/app/deals/[dealId]/lines/` and is
+reached by an explicit "Pipeline details →" link: an operator has to go
+looking for it, never land on it by accident. Cellar Desk itself is: every
+priced line in one sortable, filterable table, a sticky footer with
+running totals, a buyer-preview dialog and a CSV export. The pipeline
+console's own Collect/Benchmark/Price buttons are disabled, with a
+one-line reason shown, whenever `GET /health`'s `redis` field is not
+`"ok"` — queuing a job nothing picks up is worse than refusing to; a
+button that cannot succeed should not be pressable. `/health` itself
+never 500s on a missing or unreachable queue (found live:
+`scripts/desk.sh` runs no worker on purpose) — it reads a plain
+`"unavailable"` instead of raising `Depends(queue)`'s own `RuntimeError`
+before the handler body runs, which gave the frontend nothing to read.
+Built from a real spec (`docs/research/cellar-desk-ui-spec.html`,
 commits e762402/ad3c0dd) a prior session built with Doug as an interactive
 HTML prototype, caught and fixed before being carried into real code: the
 prototype let every line reach the preview/export regardless of comp count,

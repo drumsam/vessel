@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { api, format, money, rate } from "../../../lib/api";
-import { Flags } from "../../state";
+import { api, format, money, rate } from "../../../../lib/api";
+import { Flags } from "../../../state";
 
 /** One line, opened: its evidence, its identity, and its price. */
 export default function LineDetail({ lineId, line, onChange }) {
