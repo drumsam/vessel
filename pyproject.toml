@@ -2,11 +2,27 @@
 name = "uk-fine-wine-pricer"
 version = "0.1.0"
 requires-python = ">=3.11"
-dependencies = ["fastapi", "uvicorn", "httpx", "psycopg[binary]", "redis", "rq", "selectolax", "pydantic",
+dependencies = ["fastapi", "uvicorn", "httpx", "psycopg[binary]", "redis", "rq",
+                # selectolax 1.0 removed the Modest backend (selectolax.parser.HTMLParser)
+                # outright -- an import that used to warn now raises. Both adapters that
+                # parse HTML (bordeaux_index.py, bordeaux_index_livetrade.py) still use it.
+                # Found the same way as the setuptools fix above: a clean `pip install`
+                # pulls 1.0 and breaks test collection. Pinned below 1.0 as a stopgap;
+                # migrating both call sites to selectolax.lexbor.LexborHTMLParser is real,
+                # separate work this fix does not attempt.
+                "selectolax<1.0", "pydantic",
                 "sqlalchemy", "alembic", "argon2-cffi"]
 
 [project.optional-dependencies]
 dev = ["pytest", "pytest-cov", "ruff", "fakeredis"]
+
+# Without this, `pip install -e ".[dev]"` refuses outright: setuptools' own
+# auto-discovery sees app/, web/, docker/ and migrations/ all sitting at the
+# repo root and can't guess which one is the package to ship. Found running
+# scripts/desk.sh on a genuinely clean checkout (no prior .venv) -- every
+# existing .venv had been created before this ambiguity existed to trip over.
+[tool.setuptools.packages.find]
+include = ["app*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

@@ -1,10 +1,14 @@
-"""One-off: seed a small, real-shaped Cellar Desk deal for manual UI testing.
+"""Seed a small, real-shaped Cellar Desk deal for manual UI testing.
 
 Not a fixture, not committed to any test suite -- a throwaway demo deal with
 a thin (one-merchant) line, a strong (two merchants, <10% apart) line and an
 "ok" (two merchants, >10% apart) line, matching the three badge tiers
 docs/research/cellar-desk-ui-spec.html distinguishes. Run with DATABASE_URL
 pointed at a real Postgres, then open the deal it prints in the browser.
+
+Idempotent: if the demo deal already exists (by name), this prints its id
+and returns rather than seeding a second copy -- scripts/desk.sh calls it on
+every run.
 """
 from __future__ import annotations
 
@@ -70,16 +74,26 @@ def seed_snapshot(conn, captured_at: datetime, wines: list[tuple[str, int, list[
                 (snap["snapshot_id"], offer_id, merchant_id, wine_id, vintage, price, captured_at))
 
 
+DEAL_NAME = "WFS Cellar · Champagne (desk demo)"
+
+
 def main() -> None:
     with transaction() as conn:
         operator_id = ensure_operator(conn)
+
+        existing = conn.execute("SELECT deal_id FROM deal WHERE name = %s",
+                                (DEAL_NAME,)).fetchone()
+        if existing is not None:
+            print(f"deal_id={existing['deal_id']}")
+            print(f"operator_username={OPERATOR_USERNAME}")
+            return
 
         krug = ensure_wine(conn, "Krug", "Grande Cuvée 167ᵉ")
         dp08 = ensure_wine(conn, "Dom Pérignon", "Vintage")
         dp10 = ensure_wine(conn, "Dom Pérignon", "Vintage")
 
         deal = repo.create_deal(conn, {
-            "name": "WFS Cellar · Champagne (desk demo)", "seller": "WFS",
+            "name": DEAL_NAME, "seller": "WFS",
             "source_file": None, "currency": "GBP", "target_margin": None,
             "buyer_discount": None, "margin_on_sale": None, "created_by": operator_id,
         }, [

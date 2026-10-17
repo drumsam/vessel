@@ -412,7 +412,24 @@ from `pricing_result` (`buyer_price_gbp`/`seller_price_gbp`/`gp`, set only
 when a line's own basis is `buyer_discount`) — nothing here recomputes a
 price from `uk_reference`. `scripts/seed_cellar_desk_demo.py` seeds a small,
 real-shaped deal (one thin line, one agreeing pair, one disagreeing pair)
-for exercising the screen by hand; not a fixture, not part of any suite.
+for exercising the screen by hand; not a fixture, not part of any suite,
+and idempotent (reuses the deal by name rather than seeding a second copy).
+
+`scripts/desk.sh` is the one command that gets Doug from nothing to that
+screen: no Docker, no psql, no Postgres.app on his machine, so it drives
+embedded Postgres (`scripts/desk.mjs`, the same package the Postgres test
+runs already use) rather than `docker compose`. It creates `.venv` and
+installs if either is missing, starts Postgres from a data directory under
+the repo at `.localdb/` (gitignored; deliberately not `/private/tmp`, where
+this feature's own embedded Postgres was once silently wiped mid-session,
+taking a day's work with it), runs migrations, runs the seed script, starts
+`uvicorn` and `next dev`, and prints the deal URL, username and password as
+the last thing on screen — nothing after it. No Redis, no worker: Cellar
+Desk reads prices that already exist, so the job queue is never needed, and
+the script does not start one or fail when Redis is absent. Idempotent:
+running it again while it's already running just reprints the URL; running
+it after a clean shutdown skips straight back to a running stack in a few
+seconds. Ctrl-C stops everything it started, Postgres included.
 
 The seller's spreadsheet is parsed **in the browser** (`web/lib/lines.js`,
 covered by `npm test`); the original row goes to the API verbatim as `raw_row`,

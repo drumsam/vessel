@@ -16,5 +16,18 @@ node_modules/
 test-results/
 playwright-report/
 
+# scripts/desk.sh symlinks this to web/node_modules so scripts/desk.mjs's
+# ESM import of "embedded-postgres" resolves -- a trailing-slash pattern
+# does not match a symlink in git, only a real directory, so it needs its
+# own line.
+scripts/node_modules
+
+# Local Cellar Desk run (scripts/desk.sh) -- an embedded Postgres data
+# directory and its logs. Kept under the repo, not /private/tmp: the
+# embedded Postgres used for the Postgres test runs lived there once and
+# was wiped mid-session, taking the whole Champagne sweep's data with it.
+# Under the repo it survives a reboot and is easy to find and delete.
+.localdb/
+
 # macOS
 .DS_Store
