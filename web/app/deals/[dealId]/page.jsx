@@ -25,6 +25,19 @@ import { api, money } from "../../../lib/api";
  * is already true for it with no extra logic here. Accepting it calls the
  * SAME /lines/{id}/pricing/acknowledge endpoint line.jsx already uses — no
  * new mechanism, per Doug's own instruction.
+ *
+ * Two states only, read from the engine, never invented here: a line is
+ * either "ready to send" or it "needs you" (`gated`, below) — the exact
+ * same boolean the gate itself uses. An earlier version of this file also
+ * tried to read a two-merchant line's own % spread as a third tier; that
+ * was wrong against the real engine, not just confusing — WIDE_SPREAD is
+ * deliberately NOT a review flag (CLAUDE.md: "with two or more independent
+ * merchants the Reference is sound even when the tail is long"), so a
+ * two-merchant line 40% apart is simply READY, same as one 1.5% apart.
+ * Confirmed live seeding the real 9 October Champagne sweep: 11 lines
+ * READY, including several with a wide spread, not only the ones that
+ * happen to agree closely. The spread is still real evidence — it just
+ * lives in the evidence row now, not the badge.
  */
 
 function gapPercent(floor, reference) {
@@ -32,13 +45,6 @@ function gapPercent(floor, reference) {
   const f = Number(floor), r = Number(reference);
   if (!f) return null;
   return Math.round(((r - f) / f) * 1000) / 10;
-}
-
-function tier(line) {
-  const n = line.pricing?.comp_count ?? 0;
-  if (n < 2) return "thin";
-  const gap = gapPercent(line.pricing?.uk_floor, line.pricing?.uk_reference);
-  return gap !== null && gap <= 10 ? "strong" : "ok";
 }
 
 function gated(line) {
@@ -55,10 +61,9 @@ function wineLabel(line, wines) {
 }
 
 const FILTERS = [
-  ["all", "All"],
-  ["strong", "Two merchants, agreeing"],
-  ["thin", "One merchant — check these"],
-  ["big", "Over market threshold"],
+  ["all", "Everything"],
+  ["ready", "Ready to send"],
+  ["needs", "Needs you"],
 ];
 
 export default function CellarDesk({ params }) {
@@ -117,9 +122,8 @@ export default function CellarDesk({ params }) {
 
   const priced = deal.lines.filter((l) => l.pricing?.sell_price && l.pricing?.uk_reference);
   const rows = priced.filter((l) => {
-    if (filter === "strong") return tier(l) === "strong";
-    if (filter === "thin") return tier(l) === "thin";
-    if (filter === "big") return Number(l.pricing.uk_reference) * l.quantity > 30000;
+    if (filter === "ready") return !gated(l);
+    if (filter === "needs") return gated(l);
     return true;
   }).sort((a, b) => {
     const key = (l) => {
@@ -190,12 +194,14 @@ export default function CellarDesk({ params }) {
 
       {error && <div className="notice bad">{error}</div>}
 
-      <div className="bar">
-        {FILTERS.map(([key, label]) => (
-          <button key={key} className={`pill ${filter === key ? "on" : ""}`}
-                  onClick={() => setFilter(key)}>{label}</button>
-        ))}
-      </div>
+      {priced.length >= 10 && (
+        <div className="bar">
+          {FILTERS.map(([key, label]) => (
+            <button key={key} className={`pill ${filter === key ? "on" : ""}`}
+                    onClick={() => setFilter(key)}>{label}</button>
+          ))}
+        </div>
+      )}
 
       <div className="card scroll">
         <table>
@@ -215,10 +221,8 @@ export default function CellarDesk({ params }) {
             {rows.map((line) => {
               const label = wineLabel(line, wines);
               const p = line.pricing;
-              const t = tier(line);
               const isOpen = open === line.line_id;
               const isGated = gated(line);
-              const gap = gapPercent(p.uk_floor, p.uk_reference);
               const checked = sel.has(line.line_id);
               return (
                 <Fragment key={line.line_id}>
@@ -246,13 +250,9 @@ export default function CellarDesk({ params }) {
                     <td className="num">{hk(Number(p.seller_price_gbp ?? p.sell_price) * line.quantity)}</td>
                     <td className="num">{hk(Number(p.gp ?? 0) * line.quantity)}</td>
                     <td>
-                      {t === "thin"
-                        ? <span className={`tag ${isGated ? "stop" : "ready"}`}>
-                            1 merchant {isGated ? "· needs you" : "· accepted"}
-                          </span>
-                        : <span className={`tag ${t === "strong" ? "ready" : "review"}`}>
-                            {p.comp_count} merchants, {gap}% apart
-                          </span>}
+                      <span className={`tag ${isGated ? "stop" : "ready"}`}>
+                        {isGated ? "Needs you" : "Ready"}
+                      </span>
                     </td>
                   </tr>
                   {isOpen && (
@@ -265,6 +265,15 @@ export default function CellarDesk({ params }) {
                         {evidence[line.line_id] && !evidence[line.line_id].error && (
                           <>
                             <strong>Read {new Date(evidence[line.line_id].as_of).toLocaleDateString("en-GB")}, UK In Bond, per bottle</strong>
+                            {p.comp_count >= 2 && (() => {
+                              const gap = gapPercent(p.uk_floor, p.uk_reference);
+                              return (
+                                <div className="muted" style={{ fontSize: 12.5, margin: "2px 0 6px" }}>
+                                  {p.comp_count} merchants{gap !== null ? `, ${gap}% apart` : ""} — informational;
+                                  two or more merchants is enough to send regardless of how far apart they are.
+                                </div>
+                              );
+                            })()}
                             <table>
                               <tbody>
                                 {evidence[line.line_id].comps
@@ -331,28 +340,30 @@ export default function CellarDesk({ params }) {
           <h2>What lands on the buyer's side</h2>
           <p className="muted">Agency settlement — the buyer pays the seller directly; Doug invoices
             8% commission separately. VESSEL never holds this money.</p>
-          {[...selected].sort((a, b) => Number(b.pricing.uk_reference) - Number(a.pricing.uk_reference))
-            .slice(0, 6).map((line) => {
-              const label = wineLabel(line, wines);
-              const p = line.pricing;
-              const offerPerBottle = Number(p.buyer_price_gbp ?? p.sell_price);
-              const mktPerBottle = Number(p.uk_reference);
-              const below = mktPerBottle ? Math.round((1 - offerPerBottle / mktPerBottle) * 100) : 0;
-              return (
-                <div className="bcard" key={line.line_id}>
-                  <div className="l">
-                    <strong>{label.producer}</strong> <em>{label.cuvee}</em><br />
-                    <span className="muted">{label.vintage} · {line.quantity} btls · UK In Bond</span>
+          <p className="muted" style={{ marginTop: -4 }}>{selected.length} line{selected.length === 1 ? "" : "s"}</p>
+          <div className="bcards">
+            {[...selected].sort((a, b) => Number(b.pricing.uk_reference) - Number(a.pricing.uk_reference))
+              .map((line) => {
+                const label = wineLabel(line, wines);
+                const p = line.pricing;
+                const offerPerBottle = Number(p.buyer_price_gbp ?? p.sell_price);
+                const mktPerBottle = Number(p.uk_reference);
+                const below = mktPerBottle ? Math.round((1 - offerPerBottle / mktPerBottle) * 100) : 0;
+                return (
+                  <div className="bcard" key={line.line_id}>
+                    <div className="l">
+                      <strong>{label.producer}</strong> <em>{label.cuvee}</em><br />
+                      <span className="muted">{label.vintage} · {line.quantity} btls · UK In Bond</span>
+                    </div>
+                    <div className="r">
+                      <p className="was">{hk(mktPerBottle)}</p>
+                      <p className="now">{hk(offerPerBottle)}</p>
+                      <p className="sv">{below}% below market</p>
+                    </div>
                   </div>
-                  <div className="r">
-                    <p className="was">{hk(mktPerBottle)}</p>
-                    <p className="now">{hk(offerPerBottle)}</p>
-                    <p className="sv">{below}% below market</p>
-                  </div>
-                </div>
-              );
-            })}
-          {selected.length > 6 && <p className="muted">…and {selected.length - 6} more lines</p>}
+                );
+              })}
+          </div>
           <button className="cls" onClick={() => dialogRef.current?.close()}>Close</button>
         </div>
       </dialog>

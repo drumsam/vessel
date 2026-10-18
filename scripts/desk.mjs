@@ -111,7 +111,7 @@ let pg;
 async function main() {
   const alreadyRunning = await httpUp(`${API_URL}/session`) && await httpUp(`${WEB_URL}/login`);
   if (alreadyRunning) {
-    await printDealUrl();
+    await printDealUrls();
     console.log("\n(Already running from another terminal -- this one is just showing you the URL again.)");
     console.log("Press Ctrl-C to stop watching; the other instance keeps running.");
     await new Promise(() => {}); // nothing more to do here; the other instance owns the processes
@@ -151,6 +151,13 @@ async function main() {
   const username = /operator_username=(\S+)/.exec(seedOut)?.[1];
   if (!dealId || !username) throw new Error(`could not read the seed script's output: ${seedOut}`);
 
+  console.log("Loading the real Champagne sweep…");
+  const realSeedOut = await captureOutput(
+    VENV_PYTHON, ["scripts/seed_cellar_desk_real.py"],
+    { cwd: ROOT, env: { ...env, PYTHONPATH: ROOT } });
+  const realDealId = /deal_id=(\S+)/.exec(realSeedOut)?.[1];
+  if (!realDealId) throw new Error(`could not read the real seed script's output: ${realSeedOut}`);
+
   console.log("Starting the API…");
   const apiLog = logFd("api.log");
   spawnTracked(VENV_PYTHON, ["-m", "uvicorn", "app.api.main:app", "--port", String(API_PORT)], {
@@ -169,26 +176,29 @@ async function main() {
   });
   await waitUntil("the web app", () => httpUp(`${WEB_URL}/login`), { timeoutMs: 180_000 });
 
-  await printDealUrl(dealId, username);
+  await printDealUrls(dealId, realDealId, username);
   console.log("\nPress Ctrl-C to stop.");
   await new Promise(() => {}); // run until Ctrl-C
 
-  async function printDealUrl(knownDealId, knownUsername) {
-    let dealUrl, user = knownUsername || "deskdemo";
-    if (knownDealId) {
-      dealUrl = `${WEB_URL}/deals/${knownDealId}`;
-    } else {
-      // Reused an already-running instance: ask it who the demo deal is.
-      const seedOut2 = await captureOutput(
-        VENV_PYTHON, ["scripts/seed_cellar_desk_demo.py"],
-        { cwd: ROOT, env: { ...process.env, DATABASE_URL, PYTHONPATH: ROOT } }).catch(() => "");
-      const id = /deal_id=(\S+)/.exec(seedOut2)?.[1];
-      dealUrl = id ? `${WEB_URL}/deals/${id}` : `${WEB_URL}`;
+  async function printDealUrls(knownDealId, knownRealDealId, knownUsername) {
+    let dealId_ = knownDealId, realDealId_ = knownRealDealId, user = knownUsername || "deskdemo";
+    if (!dealId_ || !realDealId_) {
+      // Reused an already-running instance: both seed scripts are
+      // idempotent, so re-running them just hands back the existing ids.
+      const envLocal = { ...process.env, DATABASE_URL, PYTHONPATH: ROOT };
+      const out1 = await captureOutput(VENV_PYTHON, ["scripts/seed_cellar_desk_demo.py"],
+        { cwd: ROOT, env: envLocal }).catch(() => "");
+      const out2 = await captureOutput(VENV_PYTHON, ["scripts/seed_cellar_desk_real.py"],
+        { cwd: ROOT, env: envLocal }).catch(() => "");
+      dealId_ = dealId_ || /deal_id=(\S+)/.exec(out1)?.[1];
+      realDealId_ = realDealId_ || /deal_id=(\S+)/.exec(out2)?.[1];
     }
     console.log("");
     console.log("  Cellar Desk is ready.");
     console.log("");
-    console.log(`  Open:      ${dealUrl}`);
+    console.log(`  Your real Champagne sweep:  ${WEB_URL}/deals/${realDealId_}`);
+    console.log(`  Fast three-line fixture:    ${WEB_URL}/deals/${dealId_}`);
+    console.log("");
     console.log(`  Username:  ${user}`);
     console.log(`  Password:  desk-demo-password`);
     // decision 0032: never leave it ambiguous whether this is demo data or

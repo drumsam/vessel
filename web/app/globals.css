@@ -172,11 +172,13 @@ tr.evrow .sub2 { padding: 2px 16px 2px 0; border: 0; background: none; }
 .act button.go { background: var(--wine); color: #fff; }
 dialog.preview {
   border: 1px solid var(--line); border-radius: 10px; background: var(--card);
-  color: var(--ink); max-width: 32rem; width: 92vw; padding: 0;
+  color: var(--ink); max-width: 32rem; width: 92vw; max-height: 85vh; padding: 0;
 }
 dialog.preview::backdrop { background: rgba(0, 0, 0, 0.45); }
-dialog.preview .dlg { padding: 20px 22px; }
+dialog.preview .dlg { padding: 20px 22px; display: flex; flex-direction: column; max-height: 85vh; }
 dialog.preview h2 { margin: 0 0 4px; font-size: 17px; }
+/* The whole selected set, not a preview of it -- this IS the offer. */
+.bcards { overflow-y: auto; flex: 1 1 auto; margin-right: -6px; padding-right: 6px; }
 .bcard {
   border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px;
   margin-bottom: 8px; display: flex; justify-content: space-between; gap: 16px; align-items: center;

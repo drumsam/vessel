@@ -427,6 +427,37 @@ price from `uk_reference`. `scripts/seed_cellar_desk_demo.py` seeds a small,
 real-shaped deal (one thin line, one agreeing pair, one disagreeing pair)
 for exercising the screen by hand; not a fixture, not part of any suite,
 and idempotent (reuses the deal by name rather than seeding a second copy).
+`scripts/seed_cellar_desk_real.py` seeds the real thing instead: the 30
+lines the 9 October 2026 Champagne sweep actually priced, reconstructed
+from `docs/research/cellar-desk-ui-spec.html`'s own real `ROWS` data (each
+`sources[].p` there is already FX-converted for display; confirmed by
+dividing by the spec's own 10.37 and finding it lands on that line's `ref`
+to the penny, so this script undoes that conversion rather than seeding
+HK$ amounts as if they were GBP) — real producers, real cuvées, real
+per-merchant GBP asks, fed through the real benchmark and pricer so the
+engine derives its own floor/reference/state exactly as it did live,
+nothing hardcoded. Three demo rows cannot tell Doug whether the screen
+actually works for him; thirty real ones can. `scripts/desk.sh` seeds
+both, every run, and prints both URLs.
+
+Found seeding that real data and fixed: this file's own badge/filter logic
+had invented a third tier ("two merchants, agreeing" vs not) from the
+gap between two merchant-bests, which is not how the real engine gates at
+all — `WIDE_SPREAD` is deliberately not a review flag (CLAUDE.md itself:
+"with two or more independent merchants the Reference is sound even when
+the tail is long"), so a two-merchant line 57% apart is READY, same as
+one 1.5% apart; only `ONE_COMP` gates. Confirmed against the real sweep:
+11 lines READY, several of them wide-spread, not only the ones that
+happen to agree closely. The badge and the two real filters ("Everything",
+"Ready to send", "Needs you" — Doug's own plain-language correction of an
+earlier "two merchants, agreeing") now read that same boolean the gate
+itself uses, nothing invented; the filter bar hides itself under ten
+priced lines, where it is clutter rather than a tool. The spread itself
+is still shown, as evidence, one click down in the row's own expansion —
+informational, same as the engine's own `WIDE_SPREAD` flag, never a gate.
+The buyer preview shows every selected line, scrollable, not a top six
+and a count of the rest: with thirty real lines, the preview **is** the
+offer, not a sample of it.
 
 `scripts/desk.sh` is the one command that gets Doug from nothing to that
 screen: no Docker, no psql, no Postgres.app on his machine, so it drives
