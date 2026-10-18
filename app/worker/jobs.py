@@ -495,7 +495,8 @@ def price_deal(deal_id: str, priced_by: str, fx_rates: Optional[dict] = None,
             fx = fx_rates.get(row["cost_currency"] or "GBP", {})
             try:
                 result = price_line(
-                    uk_reference=run["uk_reference"], cost=row["cost"],
+                    uk_reference=run["uk_reference"], uk_floor=run["uk_floor"],
+                    cost=row["cost"],
                     cost_currency=row["cost_currency"],
                     fx_rate=Decimal(fx["rate"]) if fx.get("rate") else None,
                     manual_price=row["manual_price"], line_margin=row["target_margin"],

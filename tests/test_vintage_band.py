@@ -83,10 +83,20 @@ def test_mugneret_gibourg_2020_six_pack_is_a_high_outlier():
     """Lea & Sandeman £1,200, Bordeaux Index £2,070 for 2020 Mugneret-Gibourg
     Vosne-Romanée 6x75 In Bond. Two merchants, so the Reference is the dearer:
     the line would price off a number 72% above a live UK ask. BI's own
-    neighbouring vintages sit in a £1,223-£1,489 band."""
+    neighbouring vintages sit in a £1,223-£1,489 band.
+
+    This exact shape — Reference the dearer of exactly two disagreeing
+    comps — is decision 0033's own evidence: WIDE_SPREAD now gates at
+    comp_count == 2, so `before` is REVIEW already, before the vintage
+    band ever runs. The band still matters: it is what explains WHY
+    (£2,070 sits above BI's own neighbouring vintages) and what is left
+    (ONE_COMP at £1,200) once the outlier is actually excluded, not just
+    flagged as something to look at.
+    """
     comps = [LS_2020, BI_2020]
     before = benchmark(line(), comps, as_of=AS_OF)
-    assert before.uk_reference == Decimal("2070.00") and before.state is State.READY
+    assert before.uk_reference == Decimal("2070.00") and before.state is State.REVIEW
+    assert Flag.WIDE_SPREAD in before.flags
 
     check = check_vintage_band(line(), before.comparables, neighbour_offers=BI_NEIGHBOURS,
                                as_of=AS_OF, tiers=RED)

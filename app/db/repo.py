@@ -774,7 +774,7 @@ def latest_pricing(conn: psycopg.Connection, line_id: str) -> Optional[dict]:
 #: REVIEW_FLAGS, which is about evidence quality: these are commercial, and only
 #: the two that would make the client document untrue or the trade a loss.
 #: COST_ABOVE_UK_REFERENCE and DEEP_DISCOUNT stay context. See decision 0008.
-EXPORT_GATE_FLAGS = ("NEGATIVE_GP", "SELL_ABOVE_UK_REFERENCE")
+EXPORT_GATE_FLAGS = ("NEGATIVE_GP", "SELL_ABOVE_UK_REFERENCE", "SELL_AT_OR_ABOVE_UK_FLOOR")
 
 #: Benchmark states that also gate, for the other half of the question: not
 #: "is this trade sensible" but "did we measure the market at all". See 0010.
@@ -901,9 +901,13 @@ def _offer_line(conn: psycopg.Connection, line: dict, ask: dict) -> dict:
         # against AND the price is actually below it. No reference, or a price
         # above the market, means no row: nothing for a document to print.
         # A price above the market is not a negative discount, it is not a
-        # discount (decision 0010).
+        # discount (decision 0010). SELL_AT_OR_ABOVE_UK_FLOOR (decision 0033)
+        # suppresses the claim unconditionally, acceptance of the export gate
+        # or not: at or above the cheapest ask actually found, "below market"
+        # is false regardless of who accepted it.
         "claim": (_claim(pricing) if pricing["uk_reference"]
-                  and pricing["sell_price"] <= pricing["uk_reference"] else None),
+                  and pricing["sell_price"] <= pricing["uk_reference"]
+                  and "SELL_AT_OR_ABOVE_UK_FLOOR" not in pricing["flags"] else None),
     }
 
 

@@ -287,6 +287,13 @@ class BenchmarkResult:
             floor = prices[0]
             if floor > 0 and all((p - floor) / floor <= AGREEMENT_THRESHOLD for p in prices):
                 gating = gating - {Flag.DERIVED_FROM_CASE}
+        # Decision 0033, correcting flags.py's own "revisit if operators
+        # disagree in practice": with exactly two comps the tail IS the
+        # whole sample, so WIDE_SPREAD gates here — never in REVIEW_FLAGS
+        # itself, which would also gate the 3+-comp case the flag is
+        # still correct to leave alone.
+        if Flag.WIDE_SPREAD in self.flags and self.comp_count == 2:
+            gating = gating | {Flag.WIDE_SPREAD}
         return State.REVIEW if gating else State.READY
 
 

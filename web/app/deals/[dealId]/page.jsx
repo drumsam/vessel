@@ -28,16 +28,19 @@ import { api, money } from "../../../lib/api";
  *
  * Two states only, read from the engine, never invented here: a line is
  * either "ready to send" or it "needs you" (`gated`, below) — the exact
- * same boolean the gate itself uses. An earlier version of this file also
- * tried to read a two-merchant line's own % spread as a third tier; that
- * was wrong against the real engine, not just confusing — WIDE_SPREAD is
- * deliberately NOT a review flag (CLAUDE.md: "with two or more independent
- * merchants the Reference is sound even when the tail is long"), so a
- * two-merchant line 40% apart is simply READY, same as one 1.5% apart.
- * Confirmed live seeding the real 9 October Champagne sweep: 11 lines
- * READY, including several with a wide spread, not only the ones that
- * happen to agree closely. The spread is still real evidence — it just
- * lives in the evidence row now, not the badge.
+ * same boolean the gate itself uses, never a third tier computed from the
+ * gap between two merchant-bests. An earlier version of this file DID
+ * compute one, and read it as "WIDE_SPREAD is deliberately not a review
+ * flag, so a two-merchant line 40% apart is READY, same as one 1.5%
+ * apart" — correct for 3+ comps, wrong for exactly two (decision 0033,
+ * found checking the real 9 October Champagne sweep by hand: four
+ * two-comp lines were pricing AT OR ABOVE the cheapest ask actually
+ * found while still carrying a "below market" claim). `WIDE_SPREAD` now
+ * gates when `comp_count == 2`, and a new flag, `SELL_AT_OR_ABOVE_UK_
+ * FLOOR`, catches the claim itself regardless of spread. Both are
+ * already folded into `requires_acknowledgement` server-side, so `gated`
+ * needs no changes here to read them correctly — READY on this sweep
+ * fell from 11 to 7 the moment the engine was fixed, not this file.
  */
 
 function gapPercent(floor, reference) {
@@ -267,10 +270,20 @@ export default function CellarDesk({ params }) {
                             <strong>Read {new Date(evidence[line.line_id].as_of).toLocaleDateString("en-GB")}, UK In Bond, per bottle</strong>
                             {p.comp_count >= 2 && (() => {
                               const gap = gapPercent(p.uk_floor, p.uk_reference);
+                              const gapText = gap !== null ? `, ${gap}% apart` : "";
+                              // Decision 0033: with exactly two comps the spread is not
+                              // merely informational — Reference is the dearer of the
+                              // two, so a wide enough gap gates on its own (WIDE_SPREAD)
+                              // and, win or lose that gate, can still make the "below
+                              // market" claim itself false (SELL_AT_OR_ABOVE_UK_FLOOR).
+                              // With three or more it stays exactly what it always was.
                               return (
                                 <div className="muted" style={{ fontSize: 12.5, margin: "2px 0 6px" }}>
-                                  {p.comp_count} merchants{gap !== null ? `, ${gap}% apart` : ""} — informational;
-                                  two or more merchants is enough to send regardless of how far apart they are.
+                                  {p.comp_count} merchants{gapText} — {p.comp_count === 2
+                                    ? (isGated
+                                        ? "exactly two, and the spread here is itself why this line needs you."
+                                        : "exactly two, close enough that this line is still ready to send.")
+                                    : "informational; three or more merchants is enough to send regardless of spread."}
                                 </div>
                               );
                             })()}
@@ -288,9 +301,10 @@ export default function CellarDesk({ params }) {
                             </table>
                             {isGated && (
                               <div className="gate">
-                                <strong>One source only.</strong> This line is REVIEW
-                                (invariant 12) until a named operator looks at it — it cannot
-                                reach a buyer until then.
+                                <strong>{p.comp_count < 2 ? "One source only."
+                                        : "Two sources, far enough apart to need a look."}</strong>{" "}
+                                This line is REVIEW (invariant 12) until a named operator
+                                looks at it — it cannot reach a buyer until then.
                                 <button className="accept" disabled={busy === line.line_id}
                                         onClick={() => accept(line.line_id)}>
                                   {busy === line.line_id ? "Accepting…" : "Accept this price"}

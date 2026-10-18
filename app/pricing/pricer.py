@@ -42,6 +42,14 @@ price is always below Reference and the buyer price always below Reference, by
 construction. `DEEP_DISCOUNT` still fires if a deal sets `buyer_discount` deeper
 than `deep_discount_threshold` — that is still worth a look.
 
+It CAN still produce `SELL_AT_OR_ABOVE_UK_FLOOR` (decision 0033) — "below
+Reference by construction" is not "below Floor by construction". With
+exactly two comps, Reference is the dearer of the two, so `uk_reference *
+(1 - BUYER_DISCOUNT)` can land at or above the cheaper one's own ask: found
+live on four real Champagne lines, one of them only 1.7% above Floor. The
+flag is computed from `uk_floor` directly, the same real figure every
+other screen already shows, never re-derived from the chain's own numbers.
+
 Two of the system's three rounding points are here: the FX conversion of a
 non-GBP cost into GBP, and the final sell price. Both go to whole pence with
 ROUND_HALF_EVEN. The third is the Median, in app/core/benchmark.py. Nothing
@@ -119,7 +127,8 @@ def convert_cost(cost: Decimal, cost_currency: str, *, fx_rate: Optional[Decimal
 
 
 def price_line(*, uk_reference: Optional[Decimal], cost: Optional[Decimal],
-               cost_currency: Optional[str], fx_rate: Optional[Decimal] = None,
+               cost_currency: Optional[str], uk_floor: Optional[Decimal] = None,
+               fx_rate: Optional[Decimal] = None,
                manual_price: Optional[Decimal] = None,
                line_margin: Optional[Decimal] = None,
                line_discount: Optional[Decimal] = None,
@@ -170,6 +179,12 @@ def price_line(*, uk_reference: Optional[Decimal], cost: Optional[Decimal],
         flags.add(Flag.COST_ABOVE_UK_REFERENCE)
     if uk_reference is not None and sell > uk_reference:
         flags.add(Flag.SELL_ABOVE_UK_REFERENCE)
+    # Decision 0033: with exactly two comps, Reference is the DEARER of the
+    # two, so a price below Reference can still sit at or above the
+    # cheapest ask actually found — "below market" must mean below the
+    # Floor, not below whichever number the benchmark called Reference.
+    if uk_floor is not None and sell >= uk_floor:
+        flags.add(Flag.SELL_AT_OR_ABOVE_UK_FLOOR)
     if gp is not None and gp < 0:
         flags.add(Flag.NEGATIVE_GP)
     if uk_reference is not None and sell < uk_reference * (Decimal(1) - deep_discount_threshold):

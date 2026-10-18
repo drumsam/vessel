@@ -69,7 +69,11 @@ The invariants, in short:
    way — never Floor, Reference or Median, however much better the evidence
    is than an ordinary ask. A single merchant's own bid and ask disagreeing
    by more than `WIDE_SPREAD_THRESHOLD` is flagged `TWO_SIDED_WIDE_SPREAD`,
-   informational like `WIDE_SPREAD` itself. See 0026.
+   informational like `WIDE_SPREAD` itself for 3+ comps — but `WIDE_SPREAD`
+   GATES when `comp_count == 2` (decision 0033): with exactly two comps the
+   tail is the whole sample, and Reference is just the dearer of two
+   numbers that contradict each other, not one outlier against a body of
+   agreement. See 0026, 0033.
 6. Zero comparables ⇒ `NO_MARKET`.
 7. Money is `Decimal` in Python and `numeric(14,2)` in Postgres. No float ever
    touches a price. Exactly four places round, all ROUND_HALF_EVEN to pence:
@@ -89,14 +93,24 @@ The invariants, in short:
     buyer export. Never blur the two.
 11. Line status is **derived on read** from the line and its latest run, never
     stored. A stored status drifts from the benchmark it describes.
-12. `NEGATIVE_GP` and `SELL_ABOVE_UK_REFERENCE` gate the buyer export until a
-    named operator accepts them (decision 0008), and so do the benchmark states
+12. `NEGATIVE_GP`, `SELL_ABOVE_UK_REFERENCE` and `SELL_AT_OR_ABOVE_UK_FLOOR`
+    gate the buyer export until a named operator accepts them (decision 0008;
+    the Floor guard is 0033 — a listed price may never equal or exceed the
+    cheapest ask actually found, found live on four real two-comp Champagne
+    lines where Reference, the dearer of the two, still let a 20% discount
+    land above the cheaper one's own ask), and so do the benchmark states
     `NO_MARKET` and `REVIEW` (0010). `COST_ABOVE_UK_REFERENCE` and
     `DEEP_DISCOUNT` are context: selling below market is the product.
 15. **A line with no UK Reference may not carry a market claim.** No "UK
     Market", no "% below" — absent, not blank. `buyer_offer_market_claim` has a
     NOT NULL reference, so a line without one has no row and a document has
-    nothing to print. See 0010.
+    nothing to print. See 0010. Nor may a line priced at or above the UK Floor
+    (`SELL_AT_OR_ABOVE_UK_FLOOR`, decision 0033): the claim would be false —
+    "below market" has to mean below the cheapest ask we actually found, not
+    below whichever number the benchmark called Reference — and this holds
+    even once a named operator has accepted the export gate itself; accepting
+    a price is not the same as the document being entitled to call it a
+    bargain.
 16. Collection has two modes: the sweep (`collect_snapshot`) and the search
     (`deep_search`, for merchants that answer per producer and vintage). Search
     keys are read from the merchant's own index, never guessed. See 0011.
@@ -138,7 +152,11 @@ they reach a run through `inherited_flags`, so the band can hold a line in
 review and can never release one. `DERIVED_FROM_CASE` is the one named
 exception to "membership alone decides" (decisions 0023, 0028): still a
 member, still gates a single comp, but `BenchmarkResult.state` — not this set —
-stops it gating a 2+-comp line once the band confirms agreement. The buyer
+stops it gating a 2+-comp line once the band confirms agreement. `WIDE_SPREAD`
+runs the same override in the other direction (decision 0033): never a member
+here, so a 3+-comp line with a long tail is still READY, but `state` adds it
+to the gating set when `comp_count == 2` — exactly two comps means the tail
+is the whole sample, not an outlier against agreement. The buyer
 *export* is a separate gate; see invariant 12 and decision 0008.
 
 A benchmark run is self-contained: it records every contributing capture and
@@ -458,6 +476,13 @@ informational, same as the engine's own `WIDE_SPREAD` flag, never a gate.
 The buyer preview shows every selected line, scrollable, not a top six
 and a count of the rest: with thirty real lines, the preview **is** the
 offer, not a sample of it.
+
+That "only `ONE_COMP` gates" reading did not survive its own next look.
+Doug checked the 11 READY lines by hand and found four of them pricing
+ABOVE the cheapest ask actually found — decision 0033,
+`SELL_AT_OR_ABOVE_UK_FLOOR`, and the comp-count==2 exception to
+`WIDE_SPREAD`'s own non-gating rule. READY on this same real sweep is 7,
+not 11, as of that decision.
 
 `scripts/desk.sh` is the one command that gets Doug from nothing to that
 screen: no Docker, no psql, no Postgres.app on his machine, so it drives

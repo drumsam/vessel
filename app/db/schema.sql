@@ -674,14 +674,18 @@ CREATE TABLE pricing_result (
 
     -- Derived from the flags and the benchmark state, so it cannot drift from
     -- either: a price that is below cost, or above the UK market the client
-    -- document quotes it against, or that rests on evidence an operator has to
-    -- look at (REVIEW) or on no evidence at all (NO_MARKET), needs a named
-    -- operator to accept it before it can be exported. See decision 0010.
+    -- document quotes it against, or at or above the cheapest ask actually
+    -- found (SELL_AT_OR_ABOVE_UK_FLOOR, decision 0033 -- below Reference is
+    -- not below Floor when a line rests on exactly two comps), or that rests
+    -- on evidence an operator has to look at (REVIEW) or on no evidence at
+    -- all (NO_MARKET), needs a named operator to accept it before it can be
+    -- exported. See decision 0010.
     -- COST_ABOVE_UK_REFERENCE and DEEP_DISCOUNT do not gate: buying badly is a
     -- commercial fact, and selling below market is the product.
     requires_acknowledgement boolean NOT NULL
                       GENERATED ALWAYS AS (flags && ARRAY['NEGATIVE_GP',
-                                           'SELL_ABOVE_UK_REFERENCE']::text[]
+                                           'SELL_ABOVE_UK_REFERENCE',
+                                           'SELL_AT_OR_ABOVE_UK_FLOOR']::text[]
                                            OR state IN ('NO_MARKET','REVIEW')) STORED,
 
     UNIQUE (pricing_id, requires_acknowledgement),

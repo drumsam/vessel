@@ -954,6 +954,36 @@ def test_a_tight_two_sided_market_is_not_flagged():
     assert Flag.TWO_SIDED_WIDE_SPREAD not in r.flags
 
 
+def test_wide_spread_gates_at_exactly_two_comps_but_not_three_or_more():
+    """Decision 0033. Real evidence: Taittinger Comtes de Champagne 2006,
+    9 October 2026 — Bordeaux Index £94.99, Goedhuis £149.18, 57% apart.
+    With exactly two comps the tail IS the whole sample, and Reference is
+    just the dearer of two numbers that contradict each other — flags.py's
+    own "revisit if operators disagree in practice" instruction, acted on.
+    With three or more the original reasoning still holds exactly as
+    written: a long tail against a body of agreement does not gate."""
+    two = benchmark(line(), [offer(merchant_id="bordeaux-index", price=Decimal("94.99")),
+                             offer(merchant_id="goedhuis", price=Decimal("149.18"))])
+    assert Flag.WIDE_SPREAD in two.flags
+    assert two.state is State.REVIEW
+
+    three = benchmark(line(), [offer(merchant_id="bordeaux-index", price=Decimal("94.99")),
+                               offer(merchant_id="goedhuis", price=Decimal("149.18")),
+                               offer(merchant_id="farr", price=Decimal("100.00"))])
+    assert Flag.WIDE_SPREAD in three.flags
+    assert three.state is State.READY          # unchanged: 3+ comps still never gates
+
+
+def test_two_comps_agreeing_closely_still_ready():
+    """Dom Pérignon Vintage 2008, same sweep — Bordeaux Index £162.49,
+    Justerini & Brooks £165.00, 1.5% apart: nowhere near WIDE_SPREAD_THRESHOLD,
+    so decision 0033 must not touch this line at all."""
+    r = benchmark(line(), [offer(merchant_id="bordeaux-index", price=Decimal("162.49")),
+                          offer(merchant_id="justerini-brooks", price=Decimal("165.00"))])
+    assert Flag.WIDE_SPREAD not in r.flags
+    assert r.state is State.READY
+
+
 @pytest.mark.parametrize("kw", [
     dict(vintage=2012), dict(pack_size=6, price=Decimal("5448.00")), dict(bottle_ml=1500),
     dict(currency="EUR"), dict(duty_status=DutyStatus.DUTY_PAID),

@@ -271,6 +271,47 @@ def test_the_chain_never_pays_the_seller_more_than_the_buyer_pays():
         assert Flag.SELL_ABOVE_UK_REFERENCE not in p.flags
 
 
+def test_two_comps_wide_apart_can_price_above_the_cheaper_ask():
+    """Real evidence, decision 0033: Taittinger Comtes de Champagne 2006,
+    9 October 2026 — Bordeaux Index £94.99, Goedhuis £149.18. With exactly
+    two comps Reference is the dearer one, so the chain's 20% buyer
+    discount off £149.18 still lands at £119.34 — 25.6% ABOVE the £94.99
+    ask actually found. "Below Reference" is not "below Floor", and
+    without this flag the line would carry a false "below market" claim.
+    """
+    p = price_line(uk_reference=D("149.18"), uk_floor=D("94.99"),
+                   cost=None, cost_currency=None)
+    assert p.buyer_price_gbp == D("119.34")
+    assert p.buyer_price_gbp > D("94.99")
+    assert Flag.SELL_AT_OR_ABOVE_UK_FLOOR in p.flags
+
+
+def test_a_price_exactly_at_the_floor_still_flags():
+    """"May never equal or exceed" (decision 0033) — equal counts too, not
+    only above."""
+    p = price_line(uk_reference=REF, uk_floor=D("800.00"),
+                   cost=None, cost_currency=None, manual_price=D("800.00"))
+    assert Flag.SELL_AT_OR_ABOVE_UK_FLOOR in p.flags
+
+
+def test_agreeing_comps_never_flag_at_or_above_the_floor():
+    """Real evidence, same sweep: Dom Pérignon 2008 — Bordeaux Index
+    £162.49, Justerini & Brooks £165.00, 1.5% apart. The chain prices at
+    £132 (165.00 x 0.80), comfortably below the £162.49 floor — this is
+    exactly the shape 0033 must NOT gate, or every two-comp line would."""
+    p = price_line(uk_reference=D("165.00"), uk_floor=D("162.49"),
+                   cost=None, cost_currency=None)
+    assert p.buyer_price_gbp < D("162.49")
+    assert Flag.SELL_AT_OR_ABOVE_UK_FLOOR not in p.flags
+
+
+def test_no_floor_known_never_flags():
+    """uk_floor is optional and defaults to None — every call site that
+    predates decision 0033 keeps working exactly as before, un-gated."""
+    p = price_line(uk_reference=REF, cost=None, cost_currency=None)
+    assert Flag.SELL_AT_OR_ABOVE_UK_FLOOR not in p.flags
+
+
 def test_a_buyer_discount_deeper_than_the_threshold_still_flags_deep_discount():
     """The chain's own settings can still trip the generic DEEP_DISCOUNT
     flag: a 30% buyer discount against the default 25% threshold is still

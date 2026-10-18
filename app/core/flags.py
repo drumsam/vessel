@@ -55,6 +55,18 @@ class Flag(str, Enum):
     SELL_ABOVE_UK_REFERENCE = "SELL_ABOVE_UK_REFERENCE"
     NEGATIVE_GP = "NEGATIVE_GP"
     DEEP_DISCOUNT = "DEEP_DISCOUNT"
+    #: sell_price >= uk_floor (decision 0033). With exactly two comps,
+    #: Reference is the DEARER of the two, so a buyer_discount price below
+    #: Reference can still land at or above the cheapest ask we actually
+    #: found — found live on four real Champagne lines, one of them only
+    #: 1.7% above floor. "Below market" must mean below the cheapest ask,
+    #: not below whichever number the benchmark happened to call Reference.
+    #: Same family as NEGATIVE_GP/SELL_ABOVE_UK_REFERENCE (an operator can
+    #: still accept and export it), but the market claim is a stronger,
+    #: unconditional rule: this flag's own presence suppresses the claim
+    #: outright, acceptance or not (app/db/repo.py's own `_claim`) — "X%
+    #: below market" would be false regardless of who accepted the gate.
+    SELL_AT_OR_ABOVE_UK_FLOOR = "SELL_AT_OR_ABOVE_UK_FLOOR"
 
 
 #: A line carrying any of these cannot be READY, with one named exception
@@ -77,9 +89,19 @@ REVIEW_FLAGS: frozenset[Flag] = frozenset({
     Flag.LOW_COMP_OUT_OF_BAND,
 })
 
-#: WIDE_SPREAD is deliberately NOT a review flag. With two or more independent
-#: merchants the Reference is sound even when the tail is long; the spread is
-#: shown to the operator as context. Revisit if operators disagree in practice.
+#: WIDE_SPREAD is deliberately NOT a review flag for THREE OR MORE
+#: independent merchants — there the Reference is sound even when the tail
+#: is long, and the spread is shown to the operator as context. "Revisit
+#: if operators disagree in practice" was this comment's own instruction,
+#: and decision 0033 is that revisit: with EXACTLY two comps the reasoning
+#: does not hold — the tail IS the whole sample, and the Reference is just
+#: the dearer of two numbers that contradict each other, not one outlier
+#: against a body of agreement. `BenchmarkResult.state` (benchmark.py) adds
+#: WIDE_SPREAD to the gating set specifically when `comp_count == 2`; this
+#: set and membership here are both unchanged, matching how 0028 already
+#: overrides DERIVED_FROM_CASE's own gating in the same property rather
+#: than here. The original reasoning was correct as written and
+#: incomplete, not wrong — it is still exactly right for 3+ comps.
 #:
 #: TWO_SIDED_WIDE_SPREAD is the same kind of context, for a different shape of
 #: evidence: a bid is never a comparable (the KIND screen excludes it exactly
