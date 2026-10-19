@@ -10,3 +10,21 @@ export function wineLabel(line, wines) {
     vintage: line.vintage === 1000 ? "NV" : String(line.vintage ?? ""),
   };
 }
+
+// Shared between the operator's own offer document (/deals/{id}/offer) and
+// the public, no-login one (/share/{token}): how a merchant's own unit is
+// described on the evidence table, from CompOut's own pack_size/bottle_ml —
+// "6 x 75cl case" when it was a case, never just "75cl" on its own.
+export function clLabel(bottleMl) {
+  const cl = bottleMl / 10;
+  return (Number.isInteger(cl) ? cl : cl.toFixed(1)) + "cl";
+}
+
+export function listedAs(packSize, bottleMl) {
+  const unit = clLabel(bottleMl);
+  return packSize === 1 ? `1 x ${unit}, In Bond` : `${packSize} x ${unit} case, In Bond`;
+}
+
+export function formatDate(iso) {
+  return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+}

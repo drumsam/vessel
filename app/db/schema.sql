@@ -434,6 +434,26 @@ CREATE TABLE seller_line_identity_history (
     changed_at      timestamptz NOT NULL DEFAULT now()
 );
 
+-- ========================================== shared offer links (decision 0035)
+
+-- A signed, unguessable, read-only, time-boxed public view of a chosen set
+-- of a deal's lines -- for a buyer or a seller who has no operator session
+-- and never will. `kind` decides which fields app/offerlink/repo.py ever
+-- populates for it: buyer never sees cost or commission, seller may see
+-- commission but never the deal's own name or the rest of the cellar.
+-- No open-receipt or analytics column exists on purpose.
+CREATE TABLE shared_offer_link (
+    link_id      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    token        text NOT NULL UNIQUE,
+    deal_id      uuid NOT NULL REFERENCES deal(deal_id) ON DELETE CASCADE,
+    line_ids     uuid[] NOT NULL CHECK (array_length(line_ids, 1) > 0),
+    kind         text NOT NULL CHECK (kind IN ('buyer', 'seller')),
+    fx_rate      numeric(10,4),
+    created_by   uuid NOT NULL REFERENCES operator(operator_id),
+    created_at   timestamptz NOT NULL DEFAULT now(),
+    expires_at   timestamptz NOT NULL
+);
+
 -- ================================================= AI decision audit (provenance)
 
 -- One row per AI-assisted decision. Provider-neutral by construction: the

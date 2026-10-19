@@ -1383,7 +1383,13 @@ def test_cost_above_the_reference_is_a_commercial_fact_not_a_gate(client):
     p = client.get(f"/lines/{line_id}/pricing").json()
     assert {"COST_ABOVE_UK_REFERENCE", "SELL_ABOVE_UK_REFERENCE"} <= set(p["flags"])
     r = client.post(f"/lines/{line_id}/pricing/acknowledge", json={})
-    assert r.json()["acknowledgement"]["flags"] == ["SELL_ABOVE_UK_REFERENCE"]
+    # Decision 0033, found after this test was written: a single-comp line's
+    # own Floor equals its Reference, so a price above Reference is also
+    # at or above Floor — SELL_AT_OR_ABOVE_UK_FLOOR gates alongside
+    # SELL_ABOVE_UK_REFERENCE here, not instead of it. COST_ABOVE_UK_REFERENCE
+    # is still never among them: it never gates, whatever else does.
+    assert r.json()["acknowledgement"]["flags"] == \
+        ["SELL_ABOVE_UK_REFERENCE", "SELL_AT_OR_ABOVE_UK_FLOOR"]
 
 
 @pg

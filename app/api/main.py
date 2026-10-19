@@ -29,6 +29,7 @@ from app.auction.evidence import InvalidAuctionEvidence
 from app.core.enums import StockType
 from app.core.flags import claims_a_saving
 from app.db import repo
+from app.offerlink import repo as offerlink_repo
 from app.market.parcel import SAME_PRICE_AS_ANOTHER_MERCHANT
 from app.db.connection import transaction
 from app.worker import jobs
@@ -217,6 +218,35 @@ def get_deal(deal_id: UUID, conn: psycopg.Connection = Depends(db)):
     if deal is None:
         raise HTTPException(404, "deal not found")
     return _deal_out(conn, deal)
+
+
+@protected.post("/deals/{deal_id}/offer-links", response_model=s.OfferLinkOut, status_code=201)
+def create_offer_link(deal_id: UUID, body: s.OfferLinkIn, conn: psycopg.Connection = Depends(db),
+                      operator: dict = Depends(current_operator)):
+    """A signed, unguessable, read-only public link for a chosen set of a
+    deal's lines (decision 0035) — never for a line still gated under
+    invariant 12, whatever the caller asks for."""
+    try:
+        with conn.transaction():
+            link = offerlink_repo.create_link(
+                conn, deal_id=str(deal_id), line_ids=[str(i) for i in body.line_ids],
+                kind=body.kind, fx_rate=body.fx_rate, created_by=operator["operator_id"])
+    except (offerlink_repo.LineNotInDeal, offerlink_repo.LineNotSendable) as e:
+        raise HTTPException(422, str(e))
+    return link
+
+
+@app.get("/public/offer-links/{token}", response_model=s.PublicOfferOut,
+         response_model_exclude_none=True)
+def get_public_offer(token: str, conn: psycopg.Connection = Depends(db)):
+    """No session, by design — this is the one screen in the whole app a
+    buyer or a seller can open directly. An unknown or an expired token
+    reads identically, a plain 404: a stale link should never confirm to
+    whoever is holding it that it once worked."""
+    link = offerlink_repo.get_valid_link(conn, token)
+    if link is None:
+        raise HTTPException(404, "link not found or expired")
+    return offerlink_repo.build_public_payload(conn, link)
 
 
 @protected.put("/lines/{line_id}/identity", response_model=s.LineOut)

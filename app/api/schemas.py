@@ -672,6 +672,51 @@ class MarketClaimOut(_Out):
     below_reference: Decimal
 
 
+class OfferLinkIn(_In):
+    """Decision 0035. Which lines a shareable public link covers, and which
+    of the two safe views it shows — never guessed, never defaulted."""
+    line_ids: list[UUID] = Field(min_length=1)
+    kind: Literal["buyer", "seller"]
+    fx_rate: Optional[Decimal] = Field(default=None, gt=0)
+
+
+class OfferLinkOut(_Out):
+    token: str
+    kind: Literal["buyer", "seller"]
+    expires_at: datetime
+
+
+class PublicOfferLineOut(_Out):
+    """One line of a shared public offer. seller_price_gbp/commission_gbp
+    are only ever set by the server for a kind == "seller" link
+    (app/offerlink/repo.py::build_public_payload) — absent, not null, on a
+    buyer-kind one. No field here names the deal, the seller, or a cost."""
+    line_id: UUID
+    producer: str
+    cuvee: str
+    vintage: Optional[int]
+    bottle_ml: Optional[int]
+    quantity: int
+    uk_floor: Optional[Money]
+    uk_reference: Optional[Money]
+    offer_price_gbp: Money
+    floor_saving_claim: Optional[Decimal] = None
+    comp_count: int
+    price_basis: str
+    buyer_discount: Optional[Decimal] = None
+    as_of: Optional[datetime] = None
+    comps: list[CompOut] = []
+    seller_price_gbp: Optional[Money] = None
+    commission_gbp: Optional[Money] = None
+
+
+class PublicOfferOut(_Out):
+    kind: Literal["buyer", "seller"]
+    fx_rate: Optional[Decimal] = None
+    expires_at: datetime
+    lines: list[PublicOfferLineOut]
+
+
 class BuyerOfferLineOut(_Out):
     line_no: int
     line_id: UUID

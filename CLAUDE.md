@@ -520,6 +520,40 @@ Reference — still sellable, just not advertisable as a discount.
 `PricingOut.floor_saving_claim` is the one place this is computed; the Desk
 and the new client document both read it, neither recomputes it.
 
+"Needs you" on the Desk used to be a bare badge. Doug had to ask why three
+real lines carried it before he could act on any of them — the engine
+already knew (`ONE_COMP`, `DERIVED_FROM_CASE`, `QUANTITY_SHORTFALL`,
+`WIDE_SPREAD` at `comp_count == 2`, the pricing flags that gate export),
+this file just never said so. `reasonFor()` in
+`web/app/deals/[dealId]/page.jsx` maps every one of those flags to one
+short human phrase, on the row, no click — "1 merchant", "1 merchant ·
+case divided", "2 merchants, 57% apart", "stock basis unconfirmed" — and
+the same mapping now drives the evidence row's own gate box, so the two
+never disagree. It decides nothing: `gated()` already read
+`requires_acknowledgement` straight from the server, and still does.
+
+The client document still needed a document nobody but Doug could open —
+"how might I message them?" was the next, obvious gap. Decision 0035:
+`shared_offer_link` is a signed, unguessable, time-boxed public link
+(`/share/{token}`, no login, 7-day expiry) for a chosen set of a deal's
+lines, in one of two shapes — a buyer never sees cost or commission
+(structurally: `build_public_payload` never adds the key for that kind,
+not a null one), a seller may see commission but never the rest of the
+cellar. A line still gated under invariant 12 cannot be put behind one —
+a public link is itself a kind of export. The Desk's own offer document
+gained a composer: a kind toggle, a generated link, and a pre-filled,
+editable WhatsApp message naming the top three lines and their per-bottle
+prices, opened on WhatsApp's own share sheet (`wa.me`, decision 0025's
+exact mechanism, reused) or copied as plain text for WeChat or a group.
+Testing it with a genuinely cookie-less browser context — the shape of
+visit a real buyer always is — found a latent bug in `web/app/chrome.jsx`
+that had nothing to do with this feature: its public-path check governed
+only what rendered, not the redirect effect sitting above it, so a
+first-time visitor to ANY public page (VESSEL's own, a member's own, and
+now a shared offer link) got bounced to `/login` the instant their
+sessionless check came back "out", which it always does. Fixed once,
+centrally (`isPublicPath()`), for all four.
+
 The seller's spreadsheet is parsed **in the browser** (`web/lib/lines.js`,
 covered by `npm test`); the original row goes to the API verbatim as `raw_row`,
 which the API requires and refuses empty.

@@ -6,6 +6,20 @@ import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 
 /** Navigation, and the sign-in gate. Every page below assumes an operator. */
+/** Paths with no operator session behind them at all: VESSEL's seller- and
+ * buyer-facing screens, a member's own invite/landing pages (decision
+ * 0025), and a shared public offer link (decision 0035) — all reachable
+ * by an anonymous visitor who has never signed in and never will. Read
+ * by BOTH the redirect effect and the render below; checking it only in
+ * the render left the effect still firing `router.replace("/login")` out
+ * from under a public page the instant its own session check came back
+ * "out" — which it always does, for a visitor with no cookie at all. */
+function isPublicPath(pathname) {
+  return pathname === "/login" || pathname.startsWith("/vessel")
+      || pathname.startsWith("/i/") || pathname.startsWith("/member")
+      || pathname.startsWith("/share/");
+}
+
 export default function Chrome({ children }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -29,20 +43,10 @@ export default function Chrome({ children }) {
   const settled = session.path === pathname;
 
   useEffect(() => {
-    if (settled && session.status === "out" && pathname !== "/login") router.replace("/login");
+    if (settled && session.status === "out" && !isPublicPath(pathname)) router.replace("/login");
   }, [settled, session.status, pathname, router]);
 
-  // VESSEL's seller- and buyer-facing screens have no operator session behind
-  // them at all (drop one: reachable by the link, like v3/v4 both leave it —
-  // KYC and a door policy are named as still-open operational items, not a
-  // developer's call to make silently). They never go through this gate.
-  // /i/* (the invite landing/accept page) and /member/* (a member's own,
-  // link-only page) are the same discipline, extended as far as the
-  // referral programme needs it (decision 0025) — a member has no
-  // password and no session either.
-  if (pathname === "/login" || pathname.startsWith("/vessel")
-      || pathname.startsWith("/i/") || pathname.startsWith("/member"))
-    return <main>{children}</main>;
+  if (isPublicPath(pathname)) return <main>{children}</main>;
   if (!settled) return <main><p className="muted">Loading…</p></main>;
   if (session.status === "out") return <main><p className="muted">Signing in…</p></main>;
   const operator = session.operator;

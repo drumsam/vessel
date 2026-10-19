@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Suspense, use, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { api, money, rate } from "../../../../lib/api";
-import { wineLabel } from "../../../../lib/wine";
+import { clLabel, formatDate, listedAs, wineLabel } from "../../../../lib/wine";
 
 /** The real client offer document — decision 0034, replacing the Cellar
  * Desk's own buyer-preview modal. "Get it from Doug — vessel-client-
@@ -26,20 +26,6 @@ import { wineLabel } from "../../../../lib/wine";
  * the per-bottle figure it was divided into — never just the result, per
  * Doug's own instruction: "the client must see that derivation."
  */
-
-function clLabel(bottleMl) {
-  const cl = bottleMl / 10;
-  return (Number.isInteger(cl) ? cl : cl.toFixed(1)) + "cl";
-}
-
-function listedAs(packSize, bottleMl) {
-  const unit = clLabel(bottleMl);
-  return packSize === 1 ? `1 x ${unit}, In Bond` : `${packSize} x ${unit} case, In Bond`;
-}
-
-function formatDate(iso) {
-  return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
-}
 
 function provenance(p, run, fx) {
   const floor = money(p.uk_floor);
@@ -64,6 +50,101 @@ function provenance(p, run, fx) {
       "price divided, not estimated — shown both ways below."
     : "";
   return `${read} ${basis}${derivedNote}`;
+}
+
+/** Decision 0035. "A document he can't send is just a document" — the one
+ * link a buyer or a seller can actually open with no login, and the
+ * pre-filled WhatsApp text to put it in front of them, exactly the
+ * wa.me mechanism decision 0025 already built (web/app/member/[memberId]/
+ * page.jsx), reused rather than reinvented. The default message text
+ * below is a factual placeholder, not Doug's own wording — he drafted
+ * three messages separately and his text replaces this once he gives it.
+ */
+function ShareComposer({ dealId, lineIds, fx, ready, wines }) {
+  const [kind, setKind] = useState("buyer");
+  const [link, setLink] = useState(null);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedText, setCopiedText] = useState(false);
+
+  const hk = (gbp) => "HK$" + Math.round(gbp * Number(fx || 1)).toLocaleString("en-GB");
+
+  async function generate() {
+    setBusy(true);
+    setError(null);
+    setCopiedLink(false);
+    setCopiedText(false);
+    try {
+      const body = { line_ids: lineIds, kind, fx_rate: fx || null };
+      const result = await api.post(`/deals/${dealId}/offer-links`, body);
+      const url = `${window.location.origin}/share/${result.token}`;
+      setLink({ url, expiresAt: result.expires_at });
+
+      const top = [...ready]
+        .sort((a, b) => Number(b.pricing.uk_floor) - Number(a.pricing.uk_floor))
+        .slice(0, 3)
+        .map((l) => {
+          const label = wineLabel(l, wines);
+          const perBottle = Number(l.pricing.buyer_price_gbp ?? l.pricing.sell_price);
+          return `${label.producer} ${label.cuvee} ${label.vintage} (${hk(perBottle)}/bottle)`;
+        });
+      setText(kind === "buyer"
+        ? `${ready.length} wine${ready.length === 1 ? "" : "s"} from a private cellar, offered ` +
+          `through VESSEL. ${top.join("; ")}. Full offer with evidence: ${url}`
+        : `Here's the current offer on your wine and what you'd net, through VESSEL: ${url}`);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <h2>Share this offer</h2>
+      <p className="muted" style={{ fontSize: 13.5 }}>
+        A signed, read-only link — no login needed, open for 7 days. The buyer view never shows
+        cost or commission; the seller view may show commission, never the rest of the cellar.
+      </p>
+      <div className="bar" style={{ marginBottom: 10 }}>
+        <button className={`pill ${kind === "buyer" ? "on" : ""}`} onClick={() => setKind("buyer")}>
+          For the buyer
+        </button>
+        <button className={`pill ${kind === "seller" ? "on" : ""}`} onClick={() => setKind("seller")}>
+          For the seller
+        </button>
+      </div>
+      <button className="quiet" disabled={busy} onClick={generate}>
+        {busy ? "Generating…" : link ? "Generate a new link" : "Generate link"}
+      </button>
+      {error && <div className="notice bad" style={{ marginTop: 10 }}>{error}</div>}
+      {link && (
+        <div className="card" style={{ marginTop: 12, padding: 14 }}>
+          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+            <input readOnly value={link.url} style={{ flex: 1 }} onFocus={(e) => e.target.select()} />
+            <button className="small" onClick={() => {
+              navigator.clipboard?.writeText(link.url);
+              setCopiedLink(true);
+            }}>{copiedLink ? "Copied" : "Copy link"}</button>
+          </div>
+          <textarea rows={4} style={{ width: "100%", font: "inherit" }}
+                    value={text} onChange={(e) => setText(e.target.value)} />
+          <div className="act" style={{ marginTop: 10 }}>
+            <button className="go"
+                    onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank")}>
+              Share on WhatsApp
+            </button>
+            <button className="quiet" onClick={() => {
+              navigator.clipboard?.writeText(text);
+              setCopiedText(true);
+            }}>{copiedText ? "Copied" : "Copy text"}</button>
+          </div>
+        </div>
+      )}
+    </>
+  );
 }
 
 function OfferDocument({ dealId }) {
@@ -223,6 +304,8 @@ function OfferDocument({ dealId }) {
             <li><strong>Condition.</strong> Stated as declared by the owner and as seen by the warehouse. We do not
               claim a condition report we did not carry out.</li>
           </ol>
+
+          <ShareComposer dealId={dealId} lineIds={lineIds} fx={fx} ready={ready} wines={wines} />
 
           <footer className="ofooter">
             <p>Prices read on {captureDate} and valid for 7 days from that date; the UK market moves and we
