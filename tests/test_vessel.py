@@ -863,11 +863,30 @@ def test_record_payment_refuses_an_agency_reservation(conn):
     listing = _listed_listing(conn)   # AGENCY by default
     reservation = vrepo.reserve_listing(conn, str(listing["listing_id"]), buyer_contact="a@x.com",
                                         as_of=AS_OF)
-    with pytest.raises(vrepo.AgencyMandate):
+    with pytest.raises(vrepo.AgencyMandate) as exc:
         vrepo.record_payment(conn, reference=reservation["payment_reference"],
                              amount=Decimal(listing["vessel_price"]), currency="HKD",
                              received_at=AS_OF)
+    # Decision 0037: never the reservation's own UUID in a message a
+    # person reads.
+    assert str(reservation["reservation_id"]) not in str(exc.value)
     assert conn.execute("SELECT count(*) AS n FROM vessel_payment").fetchone()["n"] == 0
+
+
+@pg
+def test_reserving_an_already_reserved_listing_names_no_uuid(conn):
+    """Decision 0037: the race-condition refusal a buyer's own BUY button
+    can trigger live must read as English, not as `listing {uuid} is
+    RESERVED, not LISTED`."""
+    from app.vessel import repo as vrepo
+
+    listing = _listed_listing(conn)
+    vrepo.reserve_listing(conn, str(listing["listing_id"]), buyer_contact="a@x.com", as_of=AS_OF)
+    with pytest.raises(vrepo.AlreadyReserved) as exc:
+        vrepo.reserve_listing(conn, str(listing["listing_id"]), buyer_contact="b@x.com", as_of=AS_OF)
+    assert str(listing["listing_id"]) not in str(exc.value)
+    assert "RESERVED" not in str(exc.value)
+    assert "not available to reserve" in str(exc.value)
 
 
 @pg

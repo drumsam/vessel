@@ -1,12 +1,25 @@
 // The operator's whole day, in one pass: sign in, upload a seller's list,
 // approve identities, benchmark, price, sign off what gates, issue an offer.
 //
+// There is exactly one route from a cellar to a buyer in the browser —
+// the Cellar Desk — ever since decision 0037 removed the pipeline page's
+// own Client+Terms+checkboxes form (`issue.jsx`): it predated the Desk,
+// the offer document and the share links, and had no acceptance step at
+// all. The buyer_offer API and its records are untouched, so this test
+// still drives `POST /deals/{id}/buyer-offers` directly where it needs
+// to (`issueOffer`, below) to keep covering what that document itself
+// may say — just never through a browser button, because there isn't
+// one any more.
+//
 // Every assertion here is a rule that has already gone wrong once, or that
 // would rot silently if it did:
 //   * signing in must land on the deals page (a stale session check bounced it
 //     back to /login);
-//   * the offer form must count the lines that were priced after it rendered
-//     (it said "Issue 0 line(s)" with everything unticked);
+//   * a line still gated must refuse the issue with a message naming the
+//     WINE and the reason, in plain English — never the UUID, never the
+//     bare state name (decision 0037, found live: "line b76ec9c8-...-...
+//     is priced REVIEW and has not been acknowledged" was the error an
+//     operator actually saw);
 //   * a line with no UK Reference must carry no market claim anywhere on the
 //     client document (decision 0010);
 //   * NO_MARKET and REVIEW must stop an export until a named operator accepts.
@@ -23,8 +36,19 @@ if (typeof XLSX.set_fs === "function") XLSX.set_fs(fs);
 const OPERATOR = { username: process.env.E2E_USER || "e2e",
                    password: process.env.E2E_PASSWORD || "e2e-password" };
 const DATABASE_URL = process.env.E2E_DATABASE_URL;
+const API_URL = process.env.E2E_API_URL || "http://localhost:8077";
 
 test.skip(!DATABASE_URL, "E2E_DATABASE_URL is not set; see e2e/README.md");
+
+/** `POST /deals/{id}/buyer-offers` directly: the one route left to create a
+ * buyer_offer record now that issue.jsx is gone (decision 0037). Uses
+ * `page.request`, which shares the signed-in browser context's own
+ * cookies, so no credential is handled by this file at all. */
+async function issueOffer(page, dealId, client, lineIds) {
+  return page.request.post(`${API_URL}/deals/${dealId}/buyer-offers`, {
+    data: { client, currency: "GBP", lines: lineIds.map((line_id) => ({ line_id })) },
+  });
+}
 
 function sellerList(directory) {
   const file = path.join(directory, "seller-list.xlsx");
@@ -70,6 +94,7 @@ test("a seller's list becomes a buyer offer", async ({ page }, testInfo) => {
     await expect(page.getByRole("heading", { name: /Load a seller/ })).toBeVisible();
   });
 
+  let dealId;
   await test.step("the seller's spreadsheet is read and loaded", async () => {
     await page.setInputFiles("#file", file);
     await expect(page.locator("#deal-name")).toBeVisible();
@@ -79,7 +104,12 @@ test("a seller's list becomes a buyer offer", async ({ page }, testInfo) => {
     await page.fill("#deal-name", name);
     await page.fill("#margin", "25");
     await page.getByRole("button", { name: /Load 2 lines/ }).click();
-    await expect(page).toHaveURL(/\/deals\//);
+    // Lands on the Cellar Desk, the default view of a deal; the pipeline
+    // work below (identity, benchmark, price, accept) is one click further,
+    // at /deals/{id}/lines, same as an operator has to go looking for it.
+    await expect(page).toHaveURL(/\/deals\/[0-9a-f-]+$/);
+    dealId = new URL(page.url()).pathname.split("/").pop();
+    await page.goto(`/deals/${dealId}/lines`);
     await expect(page.getByRole("heading", { name })).toBeVisible();
   });
 
@@ -102,23 +132,31 @@ test("a seller's list becomes a buyer offer", async ({ page }, testInfo) => {
     await expect(rows.nth(0)).toContainText("£650.00");      // the UK Reference
   });
 
+  let lineIds;
   await test.step("the no-market line cannot be offered unsigned", async () => {
     await expect(rows.nth(1)).toContainText("needs sign-off");
-    await page.fill("#client", "A Merchant Ltd");
-    // The form must have counted the lines priced after it first rendered.
-    const issue = page.getByRole("button", { name: /Issue 2 line\(s\)/ });
-    await expect(issue).toBeEnabled();
-    await issue.click();
-    await expect(page.locator(".notice.bad")).toContainText("NO_MARKET");
+    const deal = await (await page.request.get(`${API_URL}/deals/${dealId}`)).json();
+    lineIds = deal.lines.map((l) => l.line_id);
+
+    // There is no button for this on any screen any more (decision 0037) —
+    // issue.jsx is gone — so the gate is driven directly, the one route
+    // left to reach create_buyer_offer at all.
+    const refused = await issueOffer(page, dealId, "A Merchant Ltd", lineIds);
+    expect(refused.status()).toBe(409);
+    const body = await refused.text();
+    expect(body).toContain(UNSEARCHED);           // names the wine
+    expect(body).not.toContain("NO_MARKET");       // never the bare state
+    expect(body).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}/);  // never a UUID
   });
 
   await test.step("a named operator accepts it", async () => {
     await rows.nth(1).getByRole("button", { name: "Open" }).click();
     await page.getByRole("button", { name: "Accept this price" }).click();
     await expect(page.getByText(/Accepted by /)).toBeVisible();
+
+    const issued = await issueOffer(page, dealId, "A Merchant Ltd", lineIds);
+    expect(issued.status(), await issued.text()).toBe(201);
     await page.reload();
-    await page.fill("#client", "A Merchant Ltd");
-    await page.getByRole("button", { name: /Issue 2 line\(s\)/ }).click();
     await expect(page.getByRole("link", { name: "A Merchant Ltd" })).toBeVisible();
   });
 

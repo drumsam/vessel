@@ -83,7 +83,7 @@ def retract_auction_evidence(conn: psycopg.Connection, auction_evidence_id: str,
         RETURNING *""",
         (as_of, retracted_by, reason, auction_evidence_id)).fetchone()
     if row is None:
-        raise LookupError(f"no live auction evidence {auction_evidence_id}")
+        raise LookupError("this auction lot is no longer active")
     return row
 
 
@@ -110,7 +110,7 @@ def line_auction_health(conn: psycopg.Connection, line_id: str, *,
         "SELECT wine_id, vintage, bottle_ml FROM seller_line WHERE line_id = %s",
         (line_id,)).fetchone()
     if line is None or line["wine_id"] is None:
-        raise LookupError(f"line {line_id} has no approved identity")
+        raise LookupError("this line has no approved identity yet")
     cutoff = (as_of - timedelta(days=AUCTION_HEALTH_WINDOW_DAYS)).date()
     lots = conn.execute(
         """SELECT * FROM auction_evidence

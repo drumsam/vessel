@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api, format, money, rate } from "../../../../lib/api";
+import { reasonFor } from "../../../../lib/pricingReasons";
 import { Flags } from "../../../state";
 
 /** One line, opened: its evidence, its identity, and its price. */
@@ -195,8 +196,7 @@ export default function LineDetail({ lineId, line, onChange }) {
               </p>
             ) : (
               <div className="notice bad" style={{ marginTop: 10 }}>
-                This price is {pricing.flags.filter((f) => ["NEGATIVE_GP", "SELL_ABOVE_UK_REFERENCE"].includes(f))
-                  .map((f) => f.replaceAll("_", " ").toLowerCase()).join(" and ")}.
+                This line {reasonFor(line)}.
                 It cannot be sent to a buyer until you accept it.
                 <div style={{ marginTop: 8 }}>
                   <button className="small" onClick={acknowledge} disabled={busy}>Accept this price</button>

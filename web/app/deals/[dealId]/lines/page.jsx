@@ -5,7 +5,6 @@ import { useCallback, useEffect, useState } from "react";
 import { use } from "react";
 import { api, format, money, rate } from "../../../../lib/api";
 import { Flags, StateTag } from "../../../state";
-import IssueOffer from "./issue";
 import LineDetail from "./line";
 
 /** Poll a queued job until it stops running, then hand back its result. */
@@ -74,8 +73,6 @@ export default function DealPage({ params }) {
   }
 
   if (!deal) return <p className="muted">{error || "Loading…"}</p>;
-
-  const priced = deal.lines.filter((l) => l.pricing?.sell_price);
 
   return (
     <>
@@ -153,7 +150,12 @@ export default function DealPage({ params }) {
                            line={deal.lines.find((l) => l.line_id === open)} />}
 
       <h2>Buyer offers</h2>
-      <IssueOffer deal={deal} priced={priced} onIssued={load} />
+      <p className="muted">
+        There is exactly one route from here to a buyer, and it isn&apos;t this page — it&apos;s{" "}
+        <Link href={`/deals/${dealId}`}>the Cellar Desk</Link>, which chooses the lines, gates on
+        acceptance, and generates the client document and the shareable link. This page cannot
+        send wine to anyone.
+      </p>
       {offers.length > 0 && (
         <div className="card scroll">
           <table>

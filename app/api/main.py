@@ -470,7 +470,9 @@ def resolve_lwin_conflict(conflict_id: UUID, body: s.LwinConflictResolution,
     if row is None:
         raise HTTPException(404, "conflict not found")
     if row["resolution"] is not None:
-        raise HTTPException(409, f"already resolved as {row['resolution']}")
+        resolved_as = "one wine under two names" if row["resolution"] == "same_wine" \
+            else "two different wines"
+        raise HTTPException(409, f"this conflict was already resolved as {resolved_as}")
     try:
         with conn.transaction():
             if body.resolution == "same_wine":

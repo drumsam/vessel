@@ -572,6 +572,40 @@ never was — `deal.city`, nullable free text entered once by the
 operator, is the fix; null is never guessed at, only ever omitted from
 the sentence it would have filled.
 
+Doug, on the pipeline page's own legacy buyer-offer form: `line
+b76ec9c8-672d-4fdf-a11c-cd2a9a0053e0 is priced REVIEW and has not been
+acknowledged` — "that message is unacceptable and it is the third time."
+Decision 0037, in two parts. First, every error string the API can
+return to a screen was audited in one pass, not patched instance by
+instance: `app/db/repo.py::gate_reason_phrase` builds one English clause
+from the real flags behind `requires_acknowledgement` ("rests on one
+merchant", "would lose money"), `_wine_display_name` is the one name
+every such error now uses to refer to a line — never a line_id, never a
+wine_id — and `create_buyer_offer` collects every unaccepted line across
+a submission into one message, singular at one line and plural at
+several, rather than stopping at the first. The same pass removed raw
+ids and raw state/flag names from VESSEL's mandate, listing and
+reservation errors, the LWIN conflict resolution, auction evidence
+retraction, a benchmark comp reinstatement, and two worker-job
+`LookupError`s that stringify straight into the RQ traceback the
+pipeline page already shows verbatim. `web/lib/pricingReasons.js`
+extracts the Cellar Desk's own "needs you" phrase logic so
+`web/app/deals/[dealId]/lines/line.jsx`'s "this price needs accepting"
+notice reads from the same function instead of a second, incomplete one
+(`.replaceAll("_"," ")` on two hardcoded flags, missing a third decision
+0033 had already added).
+
+Second: `issue.jsx` — the pipeline page's own Client+Terms+checkboxes
+form, and how Doug found that message at all — predates the Desk, the
+offer document and the share link, and has no acceptance step: its
+"needs sign-off first" tag was informational only, never a disabled
+button. Deleted outright. "There should be exactly ONE route from a
+cellar to a buyer, and it should be the one with the gate in it" — the
+pipeline page's own "Buyer offers" section is now one sentence and a
+link to the Desk; its read-only history of already-issued offers stays,
+since nothing asked for the records or the API to change, only the UI
+that could create one without a gate.
+
 The seller's spreadsheet is parsed **in the browser** (`web/lib/lines.js`,
 covered by `npm test`); the original row goes to the API verbatim as `raw_row`,
 which the API requires and refuses empty.

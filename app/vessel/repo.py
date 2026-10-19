@@ -246,6 +246,23 @@ def recommended_listings(conn: psycopg.Connection, deal_id: str) -> list[dict]:
 SETTLEMENT_MODES = frozenset({"AGENCY", "PRINCIPAL"})
 DEFAULT_SETTLEMENT_MODE = "AGENCY"
 
+#: Plain English for the settlement_mode values a message in this file
+#: ever has to name to a person — never the bare value itself. Same
+#: discipline as app/vessel/engine.py's own MARKET_LABELS.
+SETTLEMENT_MODE_LABELS = {"AGENCY": "an agency sale", "PRINCIPAL": "a principal sale"}
+
+#: Same, for vessel_listing.state.
+LISTING_STATE_LABELS = {
+    "RECOMMENDED": "recommended, not yet approved",
+    "DECLINED": "declined",
+    "APPROVED": "approved, not yet listed",
+    "LISTED": "listed and available",
+    "RESERVED": "already reserved by a buyer",
+    "PAID": "already paid",
+    "TRANSFERRING": "already transferring",
+    "SETTLED": "already settled",
+}
+
 #: AGENCY (decision 0022, the only mode Doug actually uses): the buyer pays
 #: the seller directly, VESSEL never holds the money, and invoices an 8%
 #: commission on each wine once sold.
@@ -325,8 +342,8 @@ def approve_mandate(conn: psycopg.Connection, deal_id: str, *, move_line_ids: li
         "SELECT count(*) AS n FROM vessel_listing WHERE mandate_id = %s",
         (mandate["mandate_id"],)).fetchone()["n"]
     if moved != len(move_line_ids):
-        raise ValueError("one or more lines were not RECOMMENDED for this deal; "
-                         "nothing was approved")
+        raise ValueError("one or more of the selected lines are not available to approve right "
+                         "now (they may already be approved or declined); nothing was approved")
     return mandate
 
 
@@ -353,11 +370,12 @@ def commission_invoice(conn: psycopg.Connection, mandate_id: str) -> dict:
     mandate = conn.execute("SELECT * FROM vessel_mandate WHERE mandate_id = %s",
                            (mandate_id,)).fetchone()
     if mandate is None:
-        raise LookupError(f"no mandate {mandate_id}")
+        raise LookupError("no matching mandate")
     if mandate["settlement_mode"] != "AGENCY":
+        label = SETTLEMENT_MODE_LABELS.get(mandate["settlement_mode"], mandate["settlement_mode"])
         raise ValueError(
-            f"mandate {mandate_id} settles as {mandate['settlement_mode']}: VESSEL already "
-            "deducted its fee before paying the seller, there is nothing to invoice")
+            f"this mandate settles as {label}: VESSEL already deducted its fee before paying "
+            "the seller, there is nothing to invoice")
 
     rows = conn.execute(
         """SELECT listing_id, display_producer, display_wine, vintage, release_code,
@@ -463,9 +481,10 @@ def reserve_listing(conn: psycopg.Connection, listing_id: str, *, buyer_contact:
     """
     listing = get_listing(conn, listing_id)
     if listing is None:
-        raise LookupError(f"listing {listing_id} not found")
+        raise LookupError("this listing could not be found")
     if listing["state"] != "LISTED":
-        raise AlreadyReserved(f"listing {listing_id} is {listing['state']}, not LISTED")
+        label = LISTING_STATE_LABELS.get(listing["state"], listing["state"])
+        raise AlreadyReserved(f"this listing is {label}, not available to reserve")
 
     hold = hold_duration(Decimal(str(listing["vessel_price"])), listing["currency"],
                          Decimal(str(listing["fx_hkd_per_gbp"])) if listing["fx_hkd_per_gbp"] else None)
@@ -486,9 +505,9 @@ def reserve_listing(conn: psycopg.Connection, listing_id: str, *, buyer_contact:
                     AND state = 'LISTED' RETURNING listing_id""", (listing_id,)
             ).fetchone()
             if updated is None:
-                raise AlreadyReserved(f"listing {listing_id} was reserved first")
+                raise AlreadyReserved("this listing was reserved by someone else first")
     except UniqueViolation:
-        raise AlreadyReserved(f"listing {listing_id} already has a live reservation")
+        raise AlreadyReserved("this listing already has a live reservation")
     return reservation
 
 
@@ -504,10 +523,9 @@ def submit_proof_of_payment(conn: psycopg.Connection, reservation_id: str, *,
         """SELECT * FROM vessel_reservation WHERE reservation_id = %s AND state = 'HELD'""",
         (reservation_id,)).fetchone()
     if row is None:
-        raise LookupError(f"no live reservation {reservation_id}")
+        raise LookupError("no active reservation found")
     if row["proof_submitted_at"] is not None:
-        raise AlreadyExtended(
-            f"reservation {reservation_id} already used its one extension")
+        raise AlreadyExtended("this reservation has already used its one extension")
     return conn.execute(
         """UPDATE vessel_reservation SET expires_at = %s, proof_submitted_at = %s
             WHERE reservation_id = %s RETURNING *""",
@@ -560,7 +578,7 @@ def cancel_reservation(conn: psycopg.Connection, reservation_id: str, *,
             WHERE reservation_id = %s AND state = 'HELD' RETURNING *""",
         (as_of, reservation_id)).fetchone()
     if reservation is None:
-        raise LookupError(f"no live reservation {reservation_id}")
+        raise LookupError("no active reservation found")
     conn.execute(
         """UPDATE vessel_listing SET state = 'LISTED' WHERE listing_id = %s AND state = 'RESERVED'""",
         (reservation["listing_id"],))
@@ -583,11 +601,12 @@ def confirm_seller_receipt(conn: psycopg.Connection, reservation_id: str, *,
              JOIN vessel_mandate m ON m.mandate_id = l.mandate_id
             WHERE r.reservation_id = %s AND r.state = 'HELD'""", (reservation_id,)).fetchone()
     if reservation is None:
-        raise LookupError(f"no live reservation {reservation_id}")
+        raise LookupError("no active reservation found")
     if reservation["settlement_mode"] != "AGENCY":
+        label = SETTLEMENT_MODE_LABELS.get(reservation["settlement_mode"], reservation["settlement_mode"])
         raise AgencyMandate(
-            f"reservation {reservation_id} is under a {reservation['settlement_mode']} "
-            "mandate: confirm_seller_receipt is the AGENCY path, use record_payment")
+            f"this reservation is under {label} terms: confirm_seller_receipt is the agency "
+            "path, use record_payment instead")
     updated = conn.execute(
         """UPDATE vessel_reservation
               SET state = 'FULFILLED', fulfilled_at = %s,
@@ -626,8 +645,8 @@ def record_payment(conn: psycopg.Connection, *, reference: str, amount: Decimal,
             WHERE r.payment_reference = %s AND r.state = 'HELD'""", (reference,)).fetchone()
     if reservation is not None and reservation["settlement_mode"] == "AGENCY":
         raise AgencyMandate(
-            f"reservation {reservation['reservation_id']} is under an AGENCY mandate: "
-            "VESSEL never holds funds for it, use confirm_seller_receipt instead")
+            "this reservation is under an agency mandate: VESSEL never holds funds for it, "
+            "use confirm_seller_receipt instead")
     matched = bool(
         reservation
         and reservation["listing_currency"] == currency

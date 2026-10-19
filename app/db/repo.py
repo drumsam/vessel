@@ -143,7 +143,7 @@ def create_alias(conn: psycopg.Connection, *, wine_id: str, producer_text: str,
 
     owner = conn.execute("SELECT wine_id FROM wine WHERE wine_key = %s", (key,)).fetchone()
     if owner and str(owner["wine_id"]) != str(wine_id):
-        raise Conflict(f"{key!r} is the canonical key of wine {owner['wine_id']}")
+        raise Conflict(f"{key!r} already belongs to a different wine")
 
     for a, b in STRUCTURAL_EXCLUSIONS:
         if {key, target["wine_key"]} == {a, b}:
@@ -163,7 +163,8 @@ def create_alias(conn: psycopg.Connection, *, wine_id: str, producer_text: str,
             {"x": owner["wine_id"], "y": wine_id},
         ).fetchone()
         if excluded:
-            raise Conflict(f"wine_exclusion: {excluded['reason']}")
+            raise Conflict(f"these two wines are excluded from matching each other: "
+                           f"{excluded['reason']}")
 
     return conn.execute(
         """INSERT INTO wine_alias (wine_key, wine_id, source, approved_by, note)
@@ -781,11 +782,58 @@ EXPORT_GATE_FLAGS = ("NEGATIVE_GP", "SELL_ABOVE_UK_REFERENCE", "SELL_AT_OR_ABOVE
 EXPORT_GATE_STATES = ("NO_MARKET", "REVIEW")
 
 
-def gate_reasons(pricing: dict) -> list[str]:
-    reasons = sorted(set(pricing["flags"]) & set(EXPORT_GATE_FLAGS))
-    if pricing["state"] in EXPORT_GATE_STATES:
-        reasons.append(pricing["state"])
-    return reasons
+#: Review-causing flags (REVIEW_FLAGS, app/core/flags.py) in plain English,
+#: for the one place outside the Cellar Desk that still has to explain why
+#: a line needs a person: an error message a human reads. ONE_COMP and
+#: WIDE_SPREAD (at comp_count == 2) are handled separately in
+#: `gate_reason_phrase`, below, because they need the comp count, not a
+#: fixed phrase — the same split web/app/deals/[dealId]/page.jsx's own
+#: `reasonFor()` uses for the Cellar Desk's "needs you" badge. The two are
+#: independent implementations that happen to agree, by project
+#: discipline, not by sharing code across the Python/JS boundary.
+_REVIEW_REASON_PHRASES = {
+    "DERIVED_FROM_CASE": "a comparison derived from a different case size",
+    "CONDITION_REVIEW": "a condition flag on its comparables",
+    "STOCK_BASIS_UNCONFIRMED": "an unconfirmed stock basis",
+    "NAME_REVIEW": "a name that still needs confirming",
+    "FORMAT_REVIEW": "a format that still needs confirming",
+    "COMP_EXCLUDED_VINTAGE_BAND": "a comparable excluded as an outlier",
+    "LOW_COMP_OUT_OF_BAND": "a comparable flagged as unusually cheap",
+}
+
+#: Commercial flags that also gate export (EXPORT_GATE_FLAGS, above), in
+#: plain English.
+_EXPORT_GATE_PHRASES = {
+    "NEGATIVE_GP": "would lose money",
+    "SELL_ABOVE_UK_REFERENCE": "is priced above the market",
+    "SELL_AT_OR_ABOVE_UK_FLOOR": "is not actually priced below the market",
+}
+
+
+def gate_reason_phrase(pricing: dict) -> str:
+    """One English clause for why a line still needs a person — built from
+    the real flags behind `requires_acknowledgement`. Never a flag
+    constant, never a bare state name: "A UUID and a flag constant... the
+    API is behaving correctly and explaining it in its own vocabulary.
+    Every error a human sees must name the wine and the action" (Doug, 21
+    October 2026). His own example: "Krug Grande Cuvée 167ᵉ rests on one
+    merchant and hasn't been accepted."
+    """
+    flags = set(pricing["flags"])
+    clauses = []
+    if pricing["comp_count"] == 1:
+        clauses.append("rests on one merchant")
+    elif pricing["comp_count"] == 2 and "WIDE_SPREAD" in flags:
+        clauses.append("rests on two merchants far enough apart to need a look")
+    for flag, phrase in _REVIEW_REASON_PHRASES.items():
+        if flag in flags:
+            clauses.append(f"rests on {phrase}")
+    for flag, phrase in _EXPORT_GATE_PHRASES.items():
+        if flag in flags:
+            clauses.append(phrase)
+    if not clauses and pricing.get("state") == "NO_MARKET":
+        clauses.append("has no market found for it")
+    return "; ".join(clauses) if clauses else "needs a look before it can be sent"
 
 
 def acknowledge_pricing(conn: psycopg.Connection, pricing_id: str, *,
@@ -868,25 +916,44 @@ def prune_snapshots(conn: psycopg.Connection, keep: int) -> list[str]:
 # ------------------------------------------------------------- buyer offers
 
 
-def _offer_line(conn: psycopg.Connection, line: dict, ask: dict) -> dict:
-    """One line of an issued offer, from that line's latest price. Refuses
-    rather than guesses: an unpriced line, a price that needs an operator's
-    acknowledgement and has not had one, or a currency that is not the offer's.
-    """
-    line_id = str(line["line_id"])
-    pricing = latest_pricing(conn, line_id)
-    if pricing is None or pricing["sell_price"] is None:
-        raise Conflict(f"line {line_id} has no price")
-    if pricing["requires_acknowledgement"] and pricing["acknowledgement"] is None:
-        raise Conflict(f"line {line_id} is priced {', '.join(gate_reasons(pricing))} "
-                       "and has not been acknowledged")
-    wine = get_wine(conn, line["wine_id"]) if line["wine_id"] else None
-    quantity = ask.get("quantity") or line["quantity"]
-    description = ask.get("description") or " ".join(filter(None, [
-        wine["producer"] if wine else line["raw_description"],
-        wine["cuvee"] if wine else "",
+class LineNotReady(Exception):
+    """A line whose price needs an operator's acknowledgement and has not
+    had one, with a human description already attached — never a flag
+    constant, never a UUID. Caught by `create_buyer_offer` so several
+    unready lines are reported together, not one at a time across
+    repeated submissions."""
+
+
+def _wine_display_name(line: dict, wine: Optional[dict]) -> str:
+    """Producer + cuvée + vintage where identity is approved; the seller's
+    own wording otherwise. The one name every error about a line uses to
+    refer to it — never a line_id, never a wine_id."""
+    if wine is None:
+        return line["raw_description"]
+    return " ".join(filter(None, [
+        wine["producer"], wine["cuvee"],
         "NV" if line["vintage"] == 1000 else str(line["vintage"] or ""),
     ])).strip()
+
+
+def _offer_line(conn: psycopg.Connection, line: dict, ask: dict) -> dict:
+    """One line of an issued offer, from that line's latest price. Refuses
+    rather than guesses: an unpriced line stops the whole document at once
+    (`Conflict`); a price that needs an operator's acknowledgement and has
+    not had one is collected instead (`LineNotReady`), so
+    `create_buyer_offer` can name every such line in one message rather
+    than stopping at the first.
+    """
+    line_id = str(line["line_id"])
+    wine = get_wine(conn, line["wine_id"]) if line["wine_id"] else None
+    name = _wine_display_name(line, wine)
+    pricing = latest_pricing(conn, line_id)
+    if pricing is None or pricing["sell_price"] is None:
+        raise Conflict(f"{name} has no price yet")
+    if pricing["requires_acknowledgement"] and pricing["acknowledgement"] is None:
+        raise LineNotReady(f"{name} {gate_reason_phrase(pricing)}")
+    quantity = ask.get("quantity") or line["quantity"]
+    description = ask.get("description") or name
     return {
         "line_id": line_id, "pricing_id": pricing["pricing_id"], "description": description,
         "vintage": line["vintage"], "bottle_ml": line["bottle_ml"],
@@ -918,20 +985,37 @@ def _claim(pricing: dict) -> dict:
                                 / pricing["uk_reference"]).quantize(RATE)}
 
 
+def _not_accepted_message(problems: list[str]) -> str:
+    """Doug's own example, generalised to several lines at once: name
+    every wine and its reason, never truncate to the first failure.
+    Singular wording at one line, plural at more than one."""
+    if len(problems) == 1:
+        return f"{problems[0]} and hasn't been accepted. Accept it or remove it from this offer."
+    return ("; ".join(problems) + " — none of these have been accepted. "
+            "Accept them or remove them from this offer.")
+
+
 def create_buyer_offer(conn: psycopg.Connection, *, deal_id: str, client: str, currency: str,
                        terms: str | None, issued_by: str, asks: list[dict]) -> dict:
     """The offer as issued. Its line figures are copied from the pricing results
     they came from, so the document stays reproducible after the market moves."""
     by_id = {str(r["line_id"]): r for r in deal_lines(conn, deal_id)}
     rows = []
+    not_ready = []
     for ask in asks:
         line = by_id.get(str(ask["line_id"]))
         if line is None:
-            raise LookupError(f"line {ask['line_id']} is not in this deal")
-        row = _offer_line(conn, line, ask)
+            raise LookupError("one of the selected lines is not part of this deal")
+        try:
+            row = _offer_line(conn, line, ask)
+        except LineNotReady as e:
+            not_ready.append(str(e))
+            continue
         if row.pop("sell_currency") != currency:
-            raise Conflict(f"line {row['line_id']} is priced in another currency")
+            raise Conflict(f"{row['description']} is priced in a currency other than this offer's")
         rows.append(row)
+    if not_ready:
+        raise Conflict(_not_accepted_message(not_ready))
     if not rows:
         raise Conflict("an offer needs at least one line")
 
@@ -1217,7 +1301,7 @@ def record_reinstatement(conn: psycopg.Connection, exclusion_id: str, *, reinsta
         RETURNING *""",
         (reinstated_by, reason, replacement_run_id, exclusion_id)).fetchone()
     if row is None:
-        raise Conflict(f"exclusion {exclusion_id} is not open")
+        raise Conflict("this exclusion has already been put back")
     return row
 
 

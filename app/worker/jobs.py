@@ -325,7 +325,7 @@ def collect_targeted(merchant_id: str, wine_id: str, vintage: int, params: dict,
     with transaction() as conn:
         wine = repo.get_wine(conn, wine_id)
         if wine is None:
-            raise LookupError(f"wine {wine_id} not found")
+            raise LookupError("wine not found")
         if merchant_id not in _approved(conn):
             raise ValueError(f"{merchant_id!r} is not an approved merchant")
         snapshot_id = repo.create_snapshot(conn, captured_at=_now(),
@@ -355,7 +355,7 @@ def benchmark_deal(deal_id: str, as_of: Optional[str] = None) -> dict:
     runs, unapproved, no_coverage, excluded = {}, [], [], {}
     with transaction() as conn:
         if repo.get_deal(conn, deal_id) is None:
-            raise LookupError(f"deal {deal_id} not found")
+            raise LookupError("deal not found")
         for row in repo.deal_lines(conn, deal_id):
             line = repo.seller_line_for_benchmark(row)
             if line is None:
@@ -450,11 +450,11 @@ def reinstate_comp(exclusion_id: str, reinstated_by: str, reason: str) -> dict:
     with transaction() as conn:
         row = repo.open_exclusion(conn, exclusion_id)
         if row is None:
-            raise LookupError(f"no open exclusion {exclusion_id}")
+            raise LookupError("this exclusion has already been put back")
         line_row = repo.get_line(conn, str(row["line_id"]))
         line = repo.seller_line_for_benchmark(line_row)
         if line is None:
-            raise LookupError(f"line {row['line_id']} no longer has an approved identity")
+            raise LookupError("this line no longer has an approved identity")
         when = row["as_of"]
         res = repo.resolve_offers(conn, wine_id=line.wine_id, vintage=line.vintage, as_of=when)
         already = [str(x["offer_pk"]) for x in repo.run_exclusions(conn, str(row["run_id"]))
@@ -485,7 +485,7 @@ def price_deal(deal_id: str, priced_by: str, fx_rates: Optional[dict] = None,
     with transaction() as conn:
         deal = repo.get_deal(conn, deal_id)
         if deal is None:
-            raise LookupError(f"deal {deal_id} not found")
+            raise LookupError("deal not found")
         for row in repo.deal_lines(conn, deal_id):
             line_id = str(row["line_id"])
             run = repo.latest_run(conn, row["line_id"])

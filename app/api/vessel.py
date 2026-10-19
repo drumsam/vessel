@@ -143,7 +143,7 @@ def create_drop(body: s.DropIn, conn: psycopg.Connection = Depends(db),
 def add_to_drop(drop_id: UUID, body: s.AddToDropIn, conn: psycopg.Connection = Depends(db)):
     added = repo.add_to_drop(conn, str(drop_id), [str(i) for i in body.listing_ids])
     if added == 0:
-        raise HTTPException(409, "none of these listings were APPROVED")
+        raise HTTPException(409, "none of these listings are approved and ready to drop")
     drop = conn.execute("SELECT * FROM vessel_drop WHERE drop_id = %s",
                         (str(drop_id),)).fetchone()
     return drop

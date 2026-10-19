@@ -933,7 +933,11 @@ def test_alias_may_not_steal_another_wines_canonical_key(client):
     r = client.post(f"/wines/{a}/aliases", json={
         "producer_text": R, "cuvee_text": "Chambertin Clos de Beze",
         "source": "operator"})
-    assert r.status_code == 409 and b in r.text
+    # The error names the key, never the other wine's raw UUID (Doug, 21
+    # October 2026: never a UUID anywhere a human can see it).
+    assert r.status_code == 409
+    assert "chambertin clos de beze" in r.text.lower()
+    assert b not in r.text
 
 
 @pg
@@ -1720,7 +1724,11 @@ def test_an_unacknowledged_flagged_price_stops_the_whole_document(client):
     _price(client, deal_id)
     r = client.post(f"/deals/{deal_id}/buyer-offers", json={
         "client": "A Merchant Ltd", "lines": [{"line_id": line_id}]})
-    assert r.status_code == 409 and "NEGATIVE_GP" in r.text
+    # The error names the wine and the reason in plain English -- never the
+    # flag constant itself, never the line's UUID (Doug, 21 October 2026).
+    assert r.status_code == 409
+    assert "would lose money" in r.text and "hasn't been accepted" in r.text
+    assert "NEGATIVE_GP" not in r.text and line_id not in r.text
     assert _sql("SELECT count(*) AS n FROM buyer_offer")[0]["n"] == 0
 
     client.post(f"/lines/{line_id}/pricing/acknowledge", json={"note": "clearing stock"})
@@ -1747,6 +1755,73 @@ def test_a_line_from_another_deal_cannot_be_offered(client):
     r = client.post(f"/deals/{deal_id}/buyer-offers", json={
         "client": "A Merchant Ltd", "lines": [{"line_id": other_line}]})
     assert r.status_code == 404
+    assert other_line not in r.text
+
+
+def test_gate_reason_phrase_never_leaks_a_flag_constant_or_a_bare_state_name():
+    """Doug, 21 October 2026: "A UUID and a flag constant... Every error a
+    human sees must name the WINE and the ACTION." This is the clause
+    half of that sentence — the wine name itself is prepended by whoever
+    calls it (`_offer_line`)."""
+    from app.db.repo import gate_reason_phrase
+
+    one_comp = {"flags": ["ONE_COMP"], "comp_count": 1, "state": "REVIEW"}
+    assert gate_reason_phrase(one_comp) == "rests on one merchant"
+
+    wide_spread = {"flags": ["WIDE_SPREAD"], "comp_count": 2, "state": "REVIEW"}
+    assert gate_reason_phrase(wide_spread) == \
+        "rests on two merchants far enough apart to need a look"
+
+    negative_gp = {"flags": ["NEGATIVE_GP"], "comp_count": 3, "state": "READY"}
+    assert gate_reason_phrase(negative_gp) == "would lose money"
+
+    no_market = {"flags": [], "comp_count": 0, "state": "NO_MARKET"}
+    assert gate_reason_phrase(no_market) == "has no market found for it"
+
+    for case in (one_comp, wide_spread, negative_gp, no_market):
+        phrase = gate_reason_phrase(case)
+        for flag in case["flags"]:
+            assert flag not in phrase
+        assert case["state"] not in phrase
+
+
+def test_not_accepted_message_is_singular_at_one_line_and_plural_at_several():
+    from app.db.repo import _not_accepted_message
+
+    assert _not_accepted_message(["Krug Grande Cuvée 167ᵉ rests on one merchant"]) == (
+        "Krug Grande Cuvée 167ᵉ rests on one merchant and hasn't been accepted. "
+        "Accept it or remove it from this offer.")
+
+    msg = _not_accepted_message(
+        ["Krug Grande Cuvée 167ᵉ rests on one merchant",
+         "Louis Roederer Cristal 2007 is priced above the market"])
+    assert "Krug Grande Cuvée 167ᵉ rests on one merchant" in msg
+    assert "Louis Roederer Cristal 2007 is priced above the market" in msg
+    assert "none of these have been accepted" in msg
+    assert "Accept them or remove them from this offer." in msg
+
+
+@pg
+def test_an_unaccepted_one_merchant_line_names_the_wine_never_a_uuid_or_a_flag(client):
+    """The exact shape of Doug's own complaint: a seller_line resting on a
+    single merchant (ONE_COMP, state REVIEW) stops a buyer-offer issue
+    with a sentence a human can act on, not the engine's own vocabulary."""
+    wid = _seed_wine(client, cuvee="Charmes-Chambertin Grand Cru")
+    client.post(f"/wines/{wid}/aliases", json={
+        "producer_text": R, "cuvee_text": "Charmes-Chambertin", "source": "operator"})
+    _collect(client)                              # Farr only: exactly one merchant
+    deal_id, line_id = _deal(client, wid, quantity=1)
+    _benchmark(client, deal_id)
+    _price(client, deal_id)
+    r = client.post(f"/deals/{deal_id}/buyer-offers", json={
+        "client": "A Merchant Ltd", "lines": [{"line_id": line_id}]})
+    assert r.status_code == 409
+    assert "rests on one merchant" in r.text
+    assert "hasn't been accepted" in r.text
+    assert "Accept it or remove it from this offer." in r.text
+    assert line_id not in r.text
+    for leaked in ("ONE_COMP", "REVIEW"):
+        assert leaked not in r.text
 
 
 # --- overviews the operator screens are built on ------------------------------
@@ -1899,7 +1974,11 @@ def test_the_benchmark_state_gates_the_export_too(client, state, gated):
         "client": "A Merchant Ltd", "lines": [{"line_id": line_id}]})
     assert (r.status_code == 409) is gated, r.text
     if gated:
-        assert state in r.text
+        # Never the bare state name -- the real reason behind it instead
+        # (here, the same single merchant _collect seeded regardless of
+        # which state was forced over it by raw SQL above).
+        assert "rests on one merchant" in r.text
+        assert state not in r.text
         client.post(f"/lines/{line_id}/pricing/acknowledge", json={})
         ack = client.get(f"/lines/{line_id}/pricing").json()["acknowledgement"]
         assert ack["state"] == state
