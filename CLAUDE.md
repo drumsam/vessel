@@ -554,6 +554,24 @@ now a shared offer link) got bounced to `/login` the instant their
 sessionless check came back "out", which it always does. Fixed once,
 centrally (`isPublicPath()`), for all four.
 
+Decision 0035's composer shipped with a placeholder message, by its own
+admission — Doug drafted three real ones separately, and decision 0036
+wires them in. Three, not two: a buyer alone reads differently from a
+buyer group (which gets the wine names and the link, no price, no top
+lines at all). `web/lib/offerMessages.js` holds all three, and the rules
+Doug gave "to enforce in code, not the copy" are properties of that code:
+a buyer message cannot reach a seller/commission/cost/margin figure
+because no buyer builder has a branch that touches those fields, checked
+a second time by `assertBuyerSafe()` scanning the finished string; no
+percentage prints where decision 0034 would have suppressed it, whether
+one selected line's own claim is null or the whole drop's blended figure
+falls under the same threshold; and a message past roughly 600
+characters drops from three top lines to two before it is ever shown.
+The templates reference `{city}` as an existing fact on the deal that
+never was — `deal.city`, nullable free text entered once by the
+operator, is the fix; null is never guessed at, only ever omitted from
+the sentence it would have filled.
+
 The seller's spreadsheet is parsed **in the browser** (`web/lib/lines.js`,
 covered by `npm test`); the original row goes to the API verbatim as `raw_row`,
 which the API requires and refuses empty.

@@ -163,6 +163,10 @@ class LineIn(_In):
 class DealIn(_In):
     name: str = Field(min_length=1)
     seller: Optional[str] = None
+    #: Where the cellar physically sits (decision 0036) — free text, read by
+    #: the shared-offer-link message composer; omitted entirely, never
+    #: guessed, where it is null.
+    city: Optional[str] = None
     source_file: Optional[str] = None
     currency: Optional[Currency] = None
     #: The deal's global margin, used for any line with no margin or discount.
@@ -486,6 +490,7 @@ class DealOut(_Out):
     deal_id: UUID
     name: str
     seller: Optional[str]
+    city: Optional[str] = None
     source_file: Optional[str]
     currency: Optional[str]
     target_margin: Optional[Decimal]

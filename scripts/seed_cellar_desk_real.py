@@ -117,7 +117,7 @@ def main() -> None:
         wine_ids = [ensure_wine(conn, ln["producer"], ln["cuvee"]) for ln in LINES]
 
         deal = repo.create_deal(conn, {
-            "name": DEAL_NAME, "seller": "WFS",
+            "name": DEAL_NAME, "seller": "WFS", "city": "Hong Kong",
             "source_file": "docs/research/cellar-wfs-normalised.csv", "currency": "GBP",
             "target_margin": None, "buyer_discount": None, "margin_on_sale": None,
             "created_by": operator_id,

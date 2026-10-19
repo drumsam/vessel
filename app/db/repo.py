@@ -265,12 +265,12 @@ def list_merchants(conn: psycopg.Connection) -> list[dict]:
 
 def create_deal(conn: psycopg.Connection, deal: dict, lines: list[dict]) -> dict:
     row = conn.execute(
-        """INSERT INTO deal (name, seller, source_file, currency, target_margin,
+        """INSERT INTO deal (name, seller, city, source_file, currency, target_margin,
                              buyer_discount, margin_on_sale, created_by)
-           VALUES (%(name)s, %(seller)s, %(source_file)s, %(currency)s, %(target_margin)s,
+           VALUES (%(name)s, %(seller)s, %(city)s, %(source_file)s, %(currency)s, %(target_margin)s,
                    %(buyer_discount)s, %(margin_on_sale)s, %(created_by)s)
            RETURNING *""",
-        {**deal, "buyer_discount": deal.get("buyer_discount"),
+        {**deal, "city": deal.get("city"), "buyer_discount": deal.get("buyer_discount"),
          "margin_on_sale": deal.get("margin_on_sale")},
     ).fetchone()
     for ln in lines:

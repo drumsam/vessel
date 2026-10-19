@@ -360,6 +360,11 @@ CREATE TABLE deal (
     deal_id      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     name         text NOT NULL,
     seller       text,
+    -- Where the cellar physically sits. Free text, entered once by the
+    -- operator (decision 0036) -- never guessed, never backfilled for a
+    -- deal that predates this column, which is why every reader of it
+    -- treats null as "omit the mention", not as a blank to fill in.
+    city         text,
     source_file  text,
     currency     char(3),                        -- confirmed by the operator on import
     target_margin numeric(6,4),                  -- the deal's global margin; see 0007

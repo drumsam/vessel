@@ -5,6 +5,7 @@ import { Suspense, use, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { api, money, rate } from "../../../../lib/api";
 import { clLabel, formatDate, listedAs, wineLabel } from "../../../../lib/wine";
+import { buyerGroupMessage, buyerIndividualMessage, sellerMessage } from "../../../../lib/offerMessages";
 
 /** The real client offer document — decision 0034, replacing the Cellar
  * Desk's own buyer-preview modal. "Get it from Doug — vessel-client-
@@ -56,12 +57,19 @@ function provenance(p, run, fx) {
  * link a buyer or a seller can actually open with no login, and the
  * pre-filled WhatsApp text to put it in front of them, exactly the
  * wa.me mechanism decision 0025 already built (web/app/member/[memberId]/
- * page.jsx), reused rather than reinvented. The default message text
- * below is a factual placeholder, not Doug's own wording — he drafted
- * three messages separately and his text replaces this once he gives it.
+ * page.jsx), reused rather than reinvented.
+ *
+ * The three message bodies are Doug's own drafted wording
+ * (web/lib/offerMessages.js), not invented here — this component only
+ * supplies the real figures the tokens stand for. The rules he gave "to
+ * enforce in code, not in the copy" live in that file, not this one:
+ * a buyer message structurally cannot reach a seller/commission/cost/
+ * margin figure, and no percentage prints where decision 0034 suppressed
+ * it, individually or blended.
  */
-function ShareComposer({ dealId, lineIds, fx, ready, wines }) {
+function ShareComposer({ dealId, lineIds, fx, ready, wines, dealLines, city }) {
   const [kind, setKind] = useState("buyer");
+  const [style, setStyle] = useState("individual");   // buyer only: individual | group
   const [link, setLink] = useState(null);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -69,7 +77,18 @@ function ShareComposer({ dealId, lineIds, fx, ready, wines }) {
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedText, setCopiedText] = useState(false);
 
-  const hk = (gbp) => "HK$" + Math.round(gbp * Number(fx || 1)).toLocaleString("en-GB");
+  const priceFmt = (gbp) => fx ? "HK$" + Math.round(gbp * Number(fx)).toLocaleString("en-GB")
+                                : money(gbp);
+
+  function composeText(url, expiresAt) {
+    const expiryDays = Math.max(1, Math.round((new Date(expiresAt) - new Date()) / 86400000));
+    if (kind === "seller") {
+      return sellerMessage({ ready, dealLines, sharedLineIds: lineIds, link: url, priceFmt });
+    }
+    return style === "group"
+      ? buyerGroupMessage({ ready, wines, city, link: url })
+      : buyerIndividualMessage({ ready, wines, city, link: url, expiryDays, priceFmt });
+  }
 
   async function generate() {
     setBusy(true);
@@ -81,19 +100,7 @@ function ShareComposer({ dealId, lineIds, fx, ready, wines }) {
       const result = await api.post(`/deals/${dealId}/offer-links`, body);
       const url = `${window.location.origin}/share/${result.token}`;
       setLink({ url, expiresAt: result.expires_at });
-
-      const top = [...ready]
-        .sort((a, b) => Number(b.pricing.uk_floor) - Number(a.pricing.uk_floor))
-        .slice(0, 3)
-        .map((l) => {
-          const label = wineLabel(l, wines);
-          const perBottle = Number(l.pricing.buyer_price_gbp ?? l.pricing.sell_price);
-          return `${label.producer} ${label.cuvee} ${label.vintage} (${hk(perBottle)}/bottle)`;
-        });
-      setText(kind === "buyer"
-        ? `${ready.length} wine${ready.length === 1 ? "" : "s"} from a private cellar, offered ` +
-          `through VESSEL. ${top.join("; ")}. Full offer with evidence: ${url}`
-        : `Here's the current offer on your wine and what you'd net, through VESSEL: ${url}`);
+      setText(composeText(url, result.expires_at));
     } catch (e) {
       setError(e.message);
     } finally {
@@ -116,6 +123,16 @@ function ShareComposer({ dealId, lineIds, fx, ready, wines }) {
           For the seller
         </button>
       </div>
+      {kind === "buyer" && (
+        <div className="bar" style={{ marginBottom: 10 }}>
+          <button className={`pill ${style === "individual" ? "on" : ""}`} onClick={() => setStyle("individual")}>
+            Message: to one person
+          </button>
+          <button className={`pill ${style === "group" ? "on" : ""}`} onClick={() => setStyle("group")}>
+            Message: to a group
+          </button>
+        </div>
+      )}
       <button className="quiet" disabled={busy} onClick={generate}>
         {busy ? "Generating…" : link ? "Generate a new link" : "Generate link"}
       </button>
@@ -129,7 +146,7 @@ function ShareComposer({ dealId, lineIds, fx, ready, wines }) {
               setCopiedLink(true);
             }}>{copiedLink ? "Copied" : "Copy link"}</button>
           </div>
-          <textarea rows={4} style={{ width: "100%", font: "inherit" }}
+          <textarea rows={7} style={{ width: "100%", font: "inherit" }}
                     value={text} onChange={(e) => setText(e.target.value)} />
           <div className="act" style={{ marginTop: 10 }}>
             <button className="go"
@@ -305,7 +322,8 @@ function OfferDocument({ dealId }) {
               claim a condition report we did not carry out.</li>
           </ol>
 
-          <ShareComposer dealId={dealId} lineIds={lineIds} fx={fx} ready={ready} wines={wines} />
+          <ShareComposer dealId={dealId} lineIds={lineIds} fx={fx} ready={ready} wines={wines}
+                        dealLines={deal.lines} city={deal.city} />
 
           <footer className="ofooter">
             <p>Prices read on {captureDate} and valid for 7 days from that date; the UK market moves and we

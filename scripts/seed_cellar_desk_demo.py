@@ -93,7 +93,7 @@ def main() -> None:
         dp10 = ensure_wine(conn, "Dom Pérignon", "Vintage")
 
         deal = repo.create_deal(conn, {
-            "name": DEAL_NAME, "seller": "WFS",
+            "name": DEAL_NAME, "seller": "WFS", "city": "Hong Kong",
             "source_file": None, "currency": "GBP", "target_margin": None,
             "buyer_discount": None, "margin_on_sale": None, "created_by": operator_id,
         }, [
