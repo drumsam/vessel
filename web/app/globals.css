@@ -169,29 +169,93 @@ tr.evrow .sub2 { padding: 2px 16px 2px 0; border: 0; background: none; }
 .foot dd.big { font-size: 20px; color: var(--wine); }
 .foot .gbp { font-size: 12px; color: var(--muted); font-weight: 400; }
 .act { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
-.act button.go { background: var(--wine); color: #fff; }
-dialog.preview {
-  border: 1px solid var(--line); border-radius: 10px; background: var(--card);
-  color: var(--ink); max-width: 32rem; width: 92vw; max-height: 85vh; padding: 0;
+.act a.go, .act button.go {
+  background: var(--wine); color: #fff; text-decoration: none; display: inline-block;
 }
-dialog.preview::backdrop { background: rgba(0, 0, 0, 0.45); }
-dialog.preview .dlg { padding: 20px 22px; display: flex; flex-direction: column; max-height: 85vh; }
-dialog.preview h2 { margin: 0 0 4px; font-size: 17px; }
-/* The whole selected set, not a preview of it -- this IS the offer. */
-.bcards { overflow-y: auto; flex: 1 1 auto; margin-right: -6px; padding-right: 6px; }
-.bcard {
-  border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px;
-  margin-bottom: 8px; display: flex; justify-content: space-between; gap: 16px; align-items: center;
+.act a.go.disabled { opacity: 0.5; cursor: default; pointer-events: none; }
+
+/* Per-bottle-first price cell (Cellar Desk table): PER BOTTLE is the unit
+   everywhere a price is shown. HK$/bottle primary, GBP/bottle small, the
+   line total secondary and smaller — same cell, never a separate column. */
+.pcell { text-align: right; line-height: 1.25; }
+button.pcell {
+  background: none; border: 0; font: inherit; cursor: pointer; padding: 0;
+  display: block; width: 100%;
 }
-.bcard .l { font-size: 14px; }
-.bcard .r { text-align: right; white-space: nowrap; }
-.bcard .was { font-size: 11px; color: var(--muted); text-decoration: line-through; margin: 0; }
-.bcard .now { font-size: 15px; font-weight: 650; margin: 0; }
-.bcard .sv { font-size: 11px; color: var(--wine); font-weight: 600; margin: 0; }
-dialog.preview .cls {
-  margin-top: 12px; font: 600 13px inherit; background: var(--ink); color: var(--bg);
-  border: 0; border-radius: 6px; padding: 8px 14px; cursor: pointer;
+button.pcell .pb { text-decoration: underline; color: var(--wine); }
+.pcell .pb { font-weight: 600; font-size: 14px; }
+.pcell .pbgbp { font-size: 11px; }
+.pcell .pbtot { font-size: 11px; }
+
+/* The client offer document (web/app/deals/[dealId]/offer) */
+.offerdoc {
+  max-width: 48rem; margin: 0 auto; font-family: ui-serif, Georgia, "Times New Roman", serif;
 }
+.offerdoc .mark {
+  font: 600 .85rem/1 ui-sans-serif, system-ui, sans-serif; letter-spacing: .3em;
+  text-transform: uppercase; margin: 0 0 .6rem; color: var(--wine);
+}
+.offerdoc .to {
+  margin: 1.4rem 0 1.8rem; padding: 1rem 1.2rem; background: var(--card);
+  border: 1px solid var(--line); border-radius: 6px; font-size: .93rem;
+}
+.offerdoc h2 {
+  font: 600 .74rem/1 ui-sans-serif, system-ui, sans-serif; letter-spacing: .15em;
+  text-transform: uppercase; color: var(--muted); margin: 2.2rem 0 1rem;
+  padding-bottom: .5rem; border-bottom: 1px solid var(--line);
+}
+.offline-note { font-size: .85rem; color: var(--stop); }
+.oline {
+  background: var(--card); border: 1px solid var(--line); border-radius: 6px;
+  padding: 1.1rem 1.3rem; margin-bottom: .8rem;
+}
+.oline .ohead { display: flex; gap: 1.5rem; justify-content: space-between; flex-wrap: wrap; }
+.oline h3 { margin: 0 0 .2rem; font-size: 1.05rem; }
+.oline h3 em { font-style: normal; font-weight: 400; color: var(--muted); }
+.oline .ometa { margin: 0; font-size: .84rem; color: var(--muted); }
+.oline .oprice { text-align: right; min-width: 11rem; }
+.oline .owas { margin: 0; font-size: .76rem; color: var(--muted); }
+.oline .onow { margin: .3rem 0 0; font-size: 1.35rem; font-weight: 650; }
+.oline .onow .oper {
+  display: block; font-size: .65rem; font-weight: 400; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .04em;
+}
+.oline .ogbp { font-size: .78rem; color: var(--muted); margin: .1rem 0 0; }
+.oline .osave { margin: .25rem 0 0; font-size: .85rem; font-weight: 600; color: var(--wine); }
+.oline .otot { margin: .4rem 0 0; font-size: .8rem; color: var(--muted); }
+.oline details { margin-top: .85rem; border-top: 1px solid var(--line); padding-top: .65rem; }
+.oline summary {
+  cursor: pointer; font: 600 .8rem ui-sans-serif, system-ui, sans-serif; color: var(--wine);
+}
+table.oev { width: 100%; border-collapse: collapse; margin: .65rem 0 .5rem; font-size: 13.5px; }
+table.oev th {
+  text-align: left; font-size: .65rem; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--muted); padding: .3rem .5rem; border-bottom: 1px solid var(--line);
+}
+table.oev td { padding: .35rem .5rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.oev .n { text-align: right; font-variant-numeric: tabular-nums; }
+table.oev .u { color: var(--muted); font-size: .8rem; }
+.oprov { font: 13px/1.55 ui-sans-serif, system-ui, sans-serif; color: var(--muted); margin: .5rem 0 0; }
+.ototals {
+  background: var(--wine-soft); border: 1px solid var(--line); border-radius: 6px;
+  padding: 1.1rem 1.3rem; margin: 1.4rem 0;
+}
+.ototals dl { margin: 0; display: grid; grid-template-columns: 1fr auto; gap: .5rem 1.4rem; }
+.ototals dt { color: var(--muted); font-size: .9rem; }
+.ototals dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.ototals .big { font-size: 1.25rem; font-weight: 650; padding-top: .55rem; border-top: 1px solid var(--line); }
+.ototals .bigl { padding-top: .55rem; border-top: 1px solid var(--line); font-weight: 600; }
+.ototals .sv { color: var(--wine); font-weight: 600; }
+.onote {
+  font-size: .88rem; color: var(--muted); border-left: 3px solid var(--line);
+  padding-left: 1rem; margin: 1.2rem 0;
+}
+.ofooter {
+  margin-top: 2.6rem; padding-top: 1.2rem; border-top: 1px solid var(--line);
+  color: var(--muted); font-size: .85rem;
+}
+.oactions { display: flex; gap: 10px; margin: 1.6rem 0; font-family: ui-sans-serif, system-ui, sans-serif; }
+@media print { .oactions, header.top { display: none; } }
 
 @media (max-width: 640px) {
   h1 { font-size: 19px; }

@@ -361,6 +361,14 @@ class PricingOut(_Out):
     #: this price cannot reach a buyer offer until an operator accepts it.
     requires_acknowledgement: bool
     acknowledgement: Optional[AcknowledgementOut] = None
+    #: Decision 0034: (1 - sell_price/uk_floor), computed here once and only
+    #: once — never recomputed client-side, never derived from uk_reference.
+    #: None whenever there is no Floor to measure against, OR the saving is
+    #: real but below MIN_CLAIM_THRESHOLD: a line that cannot carry a
+    #: percentage claim looks identical, over the API, to one with no Floor
+    #: at all. It can still be sold; it just cannot be advertised as a
+    #: discount. See app/core/flags.py::claims_a_saving.
+    floor_saving_claim: Optional[Decimal] = None
 
 
 class PricingIn(_In):

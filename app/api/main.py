@@ -27,6 +27,7 @@ from app.api.member import router as member_router
 from app.auction import repo as auction_repo
 from app.auction.evidence import InvalidAuctionEvidence
 from app.core.enums import StockType
+from app.core.flags import claims_a_saving
 from app.db import repo
 from app.market.parcel import SAME_PRICE_AS_ANOTHER_MERCHANT
 from app.db.connection import transaction
@@ -168,8 +169,12 @@ def _line_out(conn: psycopg.Connection, row: dict) -> s.LineOut:
 
 def _pricing_out(conn: psycopg.Connection, pricing: dict) -> dict:
     ack = pricing.get("acknowledgement")
+    uk_floor = Decimal(str(pricing["uk_floor"])) if pricing.get("uk_floor") is not None else None
+    sell_price = Decimal(str(pricing["sell_price"])) if pricing.get("sell_price") is not None else None
+    saving = claims_a_saving(sell_price, uk_floor) if sell_price is not None else None
     return {**_op(conn, pricing, "priced_by"),
-            "acknowledgement": _op(conn, ack, "acknowledged_by") if ack else None}
+            "acknowledgement": _op(conn, ack, "acknowledged_by") if ack else None,
+            "floor_saving_claim": saving}
 
 
 def _deal_out(conn: psycopg.Connection, deal: dict) -> s.DealOut:

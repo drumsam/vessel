@@ -110,7 +110,13 @@ The invariants, in short:
     below whichever number the benchmark called Reference — and this holds
     even once a named operator has accepted the export gate itself; accepting
     a price is not the same as the document being entitled to call it a
-    bargain.
+    bargain. Where a claim IS printed it is always `1 - sell_price/uk_floor`
+    (decision 0034, `floor_saving`/`claims_a_saving` in `app/core/flags.py`),
+    computed once, server-side, never from Reference and never averaged
+    across a drop — and even that real figure prints as nothing at all below
+    `MIN_CLAIM_THRESHOLD` (5% to start): a line a few pence under Floor is
+    still sellable, it just may not be advertised as a discount. Exposed as
+    `PricingOut.floor_saving_claim`; a client reads it, never recomputes it.
 16. Collection has two modes: the sweep (`collect_snapshot`) and the search
     (`deep_search`, for merchants that answer per producer and vintage). Search
     keys are read from the merchant's own index, never guessed. See 0011.
@@ -499,6 +505,20 @@ the script does not start one or fail when Redis is absent. Idempotent:
 running it again while it's already running just reprints the URL; running
 it after a clean shutdown skips straight back to a running stack in a few
 seconds. Ctrl-C stops everything it started, Postgres included.
+
+Decision 0033's own gate caught a line priced AT or ABOVE Floor. It said
+nothing about a line priced a few pence below it while still claiming a
+round 20% — decision 0034: Dom Pérignon Vintage 2010 at 0.9% below Floor
+and Louis Roederer Cristal 2007 at 4.0%, both real, both found the moment
+Floor replaced Reference as the basis for the number itself, not just the
+gate. Every percentage claim is now `1 - sell_price/uk_floor`
+(`app/core/flags.py::floor_saving`), computed once, server-side, never
+derived from Reference and never averaged across a drop; a real saving
+below `MIN_CLAIM_THRESHOLD` (5%, a starting value, Doug's own) prints as no
+claim at all, exactly as invariant 15 already treats a line with no UK
+Reference — still sellable, just not advertisable as a discount.
+`PricingOut.floor_saving_claim` is the one place this is computed; the Desk
+and the new client document both read it, neither recomputes it.
 
 The seller's spreadsheet is parsed **in the browser** (`web/lib/lines.js`,
 covered by `npm test`); the original row goes to the API verbatim as `raw_row`,

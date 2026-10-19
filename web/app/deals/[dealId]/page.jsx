@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, use, useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, use, useCallback, useEffect, useState } from "react";
 import { api, money } from "../../../lib/api";
+import { wineLabel } from "../../../lib/wine";
 
 /** Cellar Desk — the operator's own "what can I sell right now" view of a
  * deal, built from docs/research/cellar-desk-ui-spec.html (commit ad3c0dd).
@@ -41,6 +42,29 @@ import { api, money } from "../../../lib/api";
  * already folded into `requires_acknowledgement` server-side, so `gated`
  * needs no changes here to read them correctly — READY on this sweep
  * fell from 11 to 7 the moment the engine was fixed, not this file.
+ *
+ * PER BOTTLE IS THE UNIT, everywhere a price is shown (Doug, 19 October
+ * 2026): every money cell in the table is per-bottle HK$ first, GBP per
+ * bottle underneath in small type, and the line total — bottles x
+ * per-bottle — secondary and smaller in the same cell (`PriceCell`,
+ * below). Before this, the primary figure was the line TOTAL, which made
+ * a line un-checkable against what a merchant actually published: nobody
+ * compares a case's worth of HK$ against a merchant's own per-bottle ask
+ * in their head. `uk_reference`/`uk_floor`/`sell_price`/`buyer_price_gbp`/
+ * `seller_price_gbp`/`gp` are already per-bottle figures from the engine
+ * (this cellar's own lines are loose-bottle, pack_size 1 throughout — see
+ * CLAUDE.md's own Justerini & Brooks note) — this file was multiplying by
+ * quantity FIRST and showing only that, which is what buried the
+ * per-bottle figure in the first place.
+ *
+ * The buyer-preview dialog is gone. It was always the wrong shape for the
+ * thing actually sent to a client — a modal, not a document — and Doug
+ * said so after asking to see the real document six times: "Keep the Desk
+ * as the operator view... it was never the deliverable." The real
+ * document is `/deals/{dealId}/offer` (decision 0034's `floor_saving_
+ * claim`, read verbatim, never recomputed): this file only gets a
+ * client-ready set of lines TO it, via the selected line ids and the
+ * display rate in the query string.
  */
 
 function gapPercent(floor, reference) {
@@ -54,13 +78,19 @@ function gated(line) {
   return !!(line.pricing?.requires_acknowledgement && !line.pricing?.acknowledgement);
 }
 
-function wineLabel(line, wines) {
-  const w = line.wine_id ? wines.get(line.wine_id) : null;
-  if (!w) return { producer: line.raw_description, cuvee: "", vintage: "" };
-  return {
-    producer: w.producer, cuvee: w.cuvee,
-    vintage: line.vintage === 1000 ? "NV" : String(line.vintage ?? ""),
-  };
+/** Per-bottle HK$ primary, GBP/bottle small, line total secondary and
+ * smaller — same cell, every money column. `onClick` (optional) keeps the
+ * Market column's existing evidence-toggle behaviour. */
+function PriceCell({ perBottleGbp, quantity, hk, onClick }) {
+  const inner = (
+    <>
+      <div className="pb">{hk(Number(perBottleGbp))}</div>
+      <div className="pbgbp muted">£{Number(perBottleGbp).toFixed(2)} / btl</div>
+      <div className="pbtot muted">{quantity} btl{quantity === 1 ? "" : "s"} · {hk(Number(perBottleGbp) * quantity)}</div>
+    </>
+  );
+  if (onClick) return <button className="ev pcell" onClick={onClick}>{inner}</button>;
+  return <div className="pcell">{inner}</div>;
 }
 
 const FILTERS = [
@@ -82,7 +112,6 @@ export default function CellarDesk({ params }) {
   const [sortKey, setSortKey] = useState("mkt");
   const [sortDir, setSortDir] = useState(-1);
   const [fx, setFx] = useState("10.37");
-  const dialogRef = useRef(null);
 
   const load = useCallback(() => {
     api.get(`/deals/${dealId}`).then((d) => {
@@ -150,10 +179,7 @@ export default function CellarDesk({ params }) {
   const totalFee = selected.reduce((s, l) => s + Number(l.pricing.gp ?? 0) * l.quantity, 0);
   const totalBottles = selected.reduce((s, l) => s + l.quantity, 0);
   const hk = (gbp) => "HK$" + Math.round(gbp * Number(fx || 1)).toLocaleString("en-GB");
-
-  function openPreview() {
-    dialogRef.current?.showModal();
-  }
+  const offerHref = `/deals/${dealId}/offer?lines=${[...sel].join(",")}&fx=${encodeURIComponent(fx)}`;
 
   function downloadCsv() {
     const header = "wine,vintage,bottles,market_gbp,offer_gbp,seller_nets_gbp,commission_gbp,merchants,gap_pct\n";
@@ -245,13 +271,18 @@ export default function CellarDesk({ params }) {
                     </td>
                     <td className="num">{line.quantity}</td>
                     <td className="num">
-                      <button className="ev" onClick={() => toggleEvidence(line.line_id)}>
-                        {hk(Number(p.uk_reference) * line.quantity)}
-                      </button>
+                      <PriceCell perBottleGbp={p.uk_reference} quantity={line.quantity} hk={hk}
+                                 onClick={() => toggleEvidence(line.line_id)} />
                     </td>
-                    <td className="num w">{hk(Number(p.buyer_price_gbp ?? p.sell_price) * line.quantity)}</td>
-                    <td className="num">{hk(Number(p.seller_price_gbp ?? p.sell_price) * line.quantity)}</td>
-                    <td className="num">{hk(Number(p.gp ?? 0) * line.quantity)}</td>
+                    <td className="num w">
+                      <PriceCell perBottleGbp={p.buyer_price_gbp ?? p.sell_price} quantity={line.quantity} hk={hk} />
+                    </td>
+                    <td className="num">
+                      <PriceCell perBottleGbp={p.seller_price_gbp ?? p.sell_price} quantity={line.quantity} hk={hk} />
+                    </td>
+                    <td className="num">
+                      <PriceCell perBottleGbp={p.gp ?? 0} quantity={line.quantity} hk={hk} />
+                    </td>
                     <td>
                       <span className={`tag ${isGated ? "stop" : "ready"}`}>
                         {isGated ? "Needs you" : "Ready"}
@@ -340,47 +371,17 @@ export default function CellarDesk({ params }) {
           </div>
         )}
         <div className="act">
-          <button className="go" disabled={blocking.length > 0} onClick={openPreview}>
-            See what the buyer gets →
-          </button>
+          <Link href={blocking.length > 0 ? "#" : offerHref}
+                className={`go ${blocking.length > 0 ? "disabled" : ""}`}
+                aria-disabled={blocking.length > 0}
+                onClick={(e) => { if (blocking.length > 0) e.preventDefault(); }}>
+            Prepare client offer document →
+          </Link>
           <button className="quiet" disabled={blocking.length > 0} onClick={downloadCsv}>
             Download as CSV
           </button>
         </div>
       </div>
-
-      <dialog ref={dialogRef} className="preview">
-        <div className="dlg">
-          <h2>What lands on the buyer's side</h2>
-          <p className="muted">Agency settlement — the buyer pays the seller directly; Doug invoices
-            8% commission separately. VESSEL never holds this money.</p>
-          <p className="muted" style={{ marginTop: -4 }}>{selected.length} line{selected.length === 1 ? "" : "s"}</p>
-          <div className="bcards">
-            {[...selected].sort((a, b) => Number(b.pricing.uk_reference) - Number(a.pricing.uk_reference))
-              .map((line) => {
-                const label = wineLabel(line, wines);
-                const p = line.pricing;
-                const offerPerBottle = Number(p.buyer_price_gbp ?? p.sell_price);
-                const mktPerBottle = Number(p.uk_reference);
-                const below = mktPerBottle ? Math.round((1 - offerPerBottle / mktPerBottle) * 100) : 0;
-                return (
-                  <div className="bcard" key={line.line_id}>
-                    <div className="l">
-                      <strong>{label.producer}</strong> <em>{label.cuvee}</em><br />
-                      <span className="muted">{label.vintage} · {line.quantity} btls · UK In Bond</span>
-                    </div>
-                    <div className="r">
-                      <p className="was">{hk(mktPerBottle)}</p>
-                      <p className="now">{hk(offerPerBottle)}</p>
-                      <p className="sv">{below}% below market</p>
-                    </div>
-                  </div>
-                );
-              })}
-          </div>
-          <button className="cls" onClick={() => dialogRef.current?.close()}>Close</button>
-        </div>
-      </dialog>
     </>
   );
 

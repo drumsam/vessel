@@ -9,7 +9,7 @@ from decimal import Decimal as D
 
 import pytest
 
-from app.core.flags import Flag
+from app.core.flags import Flag, claims_a_saving, floor_saving
 from app.pricing.pricer import CannotPrice, convert_cost, price_line, round_money
 
 REF = D("1000.00")
@@ -310,6 +310,45 @@ def test_no_floor_known_never_flags():
     predates decision 0033 keeps working exactly as before, un-gated."""
     p = price_line(uk_reference=REF, cost=None, cost_currency=None)
     assert Flag.SELL_AT_OR_ABOVE_UK_FLOOR not in p.flags
+
+
+def test_floor_saving_is_computed_against_floor_never_reference():
+    """Decision 0034: the saving a client document may show is (1 -
+    sell/floor), full stop — not derived from Reference, which decision
+    0033 already showed can itself be the dearer of only two numbers."""
+    assert floor_saving(D("119.34"), D("94.99")) == D("-0.2563")
+    assert floor_saving(D("132.00"), D("162.49")) == D("0.1876")
+
+
+def test_floor_saving_is_none_with_no_floor():
+    assert floor_saving(D("132.00"), None) is None
+    assert floor_saving(D("132.00"), D("0")) is None
+
+
+def test_claims_a_saving_suppresses_dom_perignon_vintage_2010():
+    """Real evidence, decision 0034: floor £143.33, offer £142.00 — 0.9%
+    below Floor. Technically a saving, but not one that may be advertised:
+    below MIN_CLAIM_THRESHOLD, this prints as no claim at all, same as a
+    line with no Floor."""
+    saving = floor_saving(D("142.00"), D("143.33"))
+    assert saving == D("0.0093")
+    assert claims_a_saving(D("142.00"), D("143.33")) is None
+
+
+def test_claims_a_saving_suppresses_louis_roederer_cristal_2007():
+    """Real evidence, decision 0034: floor £158.33, offer £152.00 — 4.0%
+    below Floor, still short of the 5% minimum."""
+    saving = floor_saving(D("152.00"), D("158.33"))
+    assert saving == D("0.0400")
+    assert claims_a_saving(D("152.00"), D("158.33")) is None
+
+
+def test_claims_a_saving_allows_a_real_saving_above_the_threshold():
+    assert claims_a_saving(D("132.00"), D("162.49")) == D("0.1876")
+
+
+def test_claims_a_saving_is_none_with_no_floor():
+    assert claims_a_saving(D("132.00"), None) is None
 
 
 def test_a_buyer_discount_deeper_than_the_threshold_still_flags_deep_discount():

@@ -19,6 +19,7 @@ line's state.
 from __future__ import annotations
 from decimal import Decimal
 from enum import Enum
+from typing import Optional
 
 from .enums import ConditionFlag
 
@@ -209,3 +210,39 @@ REQUIRE_QUANTITY_COVER = False
 #: (or after it, or at an unknown time) is rejected as STALE. It cannot become a
 #: Floor, a Reference or a Median, however cheap it is.
 MAX_OFFER_AGE_DAYS = 14
+
+#: Decision 0034. A line below this saving against Floor carries no percentage
+#: claim at all — same discipline as a line with no UK Reference (invariant
+#: 15): absent, not a number too small to be worth printing. A starting value,
+#: not a measured one ("I'd start at 5%" — Doug, 19 October 2026); revisit
+#: once more real drops have gone out the door than this one.
+MIN_CLAIM_THRESHOLD = Decimal("0.05")
+
+
+def floor_saving(sell_price: Decimal, uk_floor: Optional[Decimal]) -> Optional[Decimal]:
+    """(1 - sell/floor), or None if there is no Floor to measure against.
+
+    Decision 0034: every percentage claim is computed against Floor, the
+    cheapest ask actually found — never against Reference, which decision
+    0033 already showed can itself be the dearer of only two numbers. Pure
+    arithmetic from figures already stored on `pricing_result`; nothing here
+    is a price and nothing here is recomputed by a client — this is the one
+    place it is computed, and every caller (the Desk, a client document)
+    reads the result, never the two figures it came from.
+    """
+    if uk_floor is None or uk_floor <= 0:
+        return None
+    return ((uk_floor - sell_price) / uk_floor).quantize(Decimal("0.0001"))
+
+
+def claims_a_saving(sell_price: Decimal, uk_floor: Optional[Decimal]) -> Optional[Decimal]:
+    """`floor_saving`, but None also when it exists and is too small to print
+    (decision 0034's own `MIN_CLAIM_THRESHOLD`) — Dom Pérignon Vintage 2010 at
+    0.9% below Floor and Louis Roederer Cristal 2007 at 4.0%, both real, both
+    found the moment Floor replaced Reference as the basis: a line that is
+    barely below the cheapest ask is not advertisable as a discount, though
+    it is still perfectly sellable at that price."""
+    saving = floor_saving(sell_price, uk_floor)
+    if saving is None or saving < MIN_CLAIM_THRESHOLD:
+        return None
+    return saving
