@@ -30,6 +30,7 @@ from app.identity.resolver import (
     producers_excluded,
     wine_key,
 )
+from app.identity.want_list import is_want_list_producer
 
 CENT = Decimal("0.01")
 #: Rates (margins, discounts, "% below the UK market") are numeric(6,4). They
@@ -87,11 +88,16 @@ def load_registry(conn: psycopg.Connection) -> Registry:
 def create_wine(conn: psycopg.Connection, *, producer: str, cuvee: str,
                 region: str | None, colour: str | None, lwin7: str | None,
                 release_code: str | None = None) -> dict:
+    """`want_list` (decision 0038) is set here, once, from the producer
+    field alone -- never from the cuvée, never re-derived on read. A
+    producer added to the ten later needs its own migration to backfill
+    existing rows; this only ever decides it going forward."""
     return conn.execute(
-        """INSERT INTO wine (producer, cuvee, region, colour, lwin7, release_code, wine_key)
-           VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING *""",
+        """INSERT INTO wine (producer, cuvee, region, colour, lwin7, release_code, wine_key,
+                             want_list)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING *""",
         (producer, cuvee, region, colour, lwin7, release_code,
-         wine_key(producer, cuvee, release_code)),
+         wine_key(producer, cuvee, release_code), is_want_list_producer(producer)),
     ).fetchone()
 
 
@@ -851,6 +857,26 @@ def acknowledge_pricing(conn: psycopg.Connection, pricing_id: str, *,
          acknowledged_by, note)).fetchone()
 
 
+def acknowledge_want_list(conn: psycopg.Connection, line_id: str, *, acknowledged_by: str) -> dict:
+    """The one-time want-list acknowledgement (decision 0038) — tied to
+    the line's own identity, not to any one pricing run: `acknowledge_
+    pricing` above inserts a new row every time because the price it
+    describes changes; this sets two columns on the line itself, once,
+    because the fact it records ("a named operator confirmed this really
+    is the want-list wine") does not change when the market does.
+    Re-acknowledging is harmless and simply updates who and when."""
+    line = get_line(conn, line_id)
+    if line is None:
+        raise LookupError("line not found")
+    wine = get_wine(conn, line["wine_id"]) if line["wine_id"] else None
+    if wine is None or not wine["want_list"]:
+        raise Conflict("this line is not a want-list producer")
+    return conn.execute(
+        """UPDATE seller_line SET want_list_ack_by = %s, want_list_ack_at = now()
+            WHERE line_id = %s RETURNING *""",
+        (acknowledged_by, line_id)).fetchone()
+
+
 # --------------------------------------------------------- alias suggestions
 
 
@@ -924,7 +950,7 @@ class LineNotReady(Exception):
     repeated submissions."""
 
 
-def _wine_display_name(line: dict, wine: Optional[dict]) -> str:
+def wine_display_name(line: dict, wine: Optional[dict]) -> str:
     """Producer + cuvée + vintage where identity is approved; the seller's
     own wording otherwise. The one name every error about a line uses to
     refer to it — never a line_id, never a wine_id."""
@@ -946,12 +972,18 @@ def _offer_line(conn: psycopg.Connection, line: dict, ask: dict) -> dict:
     """
     line_id = str(line["line_id"])
     wine = get_wine(conn, line["wine_id"]) if line["wine_id"] else None
-    name = _wine_display_name(line, wine)
+    name = wine_display_name(line, wine)
     pricing = latest_pricing(conn, line_id)
     if pricing is None or pricing["sell_price"] is None:
         raise Conflict(f"{name} has no price yet")
     if pricing["requires_acknowledgement"] and pricing["acknowledgement"] is None:
         raise LineNotReady(f"{name} {gate_reason_phrase(pricing)}")
+    # decision 0038: a listing-side requirement, independent of the
+    # pricing gate above — a want-list line can be READY, two merchants
+    # agreeing, and still need the one-time identity check.
+    if wine and wine["want_list"] and line["want_list_ack_at"] is None:
+        raise LineNotReady(f"{name} is on the client want list and needs a one-time "
+                           "identity check")
     quantity = ask.get("quantity") or line["quantity"]
     description = ask.get("description") or name
     return {

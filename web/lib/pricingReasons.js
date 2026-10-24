@@ -17,8 +17,18 @@ export function gapPercent(floor, reference) {
   return Math.round(((r - f) / f) * 1000) / 10;
 }
 
+/** decision 0038: the want-list acknowledgement is a SEPARATE gate from
+ * pricing's own requires_acknowledgement — a line can be READY, two
+ * merchants agreeing, and still need this one extra click, because it
+ * is checking a different thing (is this really Domaine Leroy, not
+ * Maison Leroy) that pricing has no way to know about. */
+export function wantListGated(line) {
+  return !!(line.want_list && !line.want_list_acknowledged_at);
+}
+
 export function gated(line) {
-  return !!(line.pricing?.requires_acknowledgement && !line.pricing?.acknowledgement);
+  return !!(line.pricing?.requires_acknowledgement && !line.pricing?.acknowledgement)
+      || wantListGated(line);
 }
 
 /** Evidence-quality and identity flags that gate (REVIEW_FLAGS in
@@ -57,27 +67,32 @@ export const PRICING_FLAG_PHRASES = {
  * used to make it. */
 export function reasonFor(line) {
   if (!gated(line)) return null;
-  const b = line.benchmark, p = line.pricing;
-  const bFlags = new Set(b?.flags || []);
-  const pFlags = new Set(p?.flags || []);
   const parts = [];
 
-  if (b?.state === "NO_MARKET") {
-    parts.push("no merchant found");
-  } else if (p.comp_count === 1) {
-    parts.push("1 merchant");
-  } else if (p.comp_count === 2 && bFlags.has("WIDE_SPREAD")) {
-    const gap = gapPercent(p.uk_floor, p.uk_reference);
-    parts.push(gap !== null ? `2 merchants, ${gap}% apart` : "2 merchants, far apart");
+  if (line.pricing?.requires_acknowledgement && !line.pricing?.acknowledgement) {
+    const b = line.benchmark, p = line.pricing;
+    const bFlags = new Set(b?.flags || []);
+    const pFlags = new Set(p?.flags || []);
+
+    if (b?.state === "NO_MARKET") {
+      parts.push("no merchant found");
+    } else if (p.comp_count === 1) {
+      parts.push("1 merchant");
+    } else if (p.comp_count === 2 && bFlags.has("WIDE_SPREAD")) {
+      const gap = gapPercent(p.uk_floor, p.uk_reference);
+      parts.push(gap !== null ? `2 merchants, ${gap}% apart` : "2 merchants, far apart");
+    }
+
+    for (const [flag, phrase] of Object.entries(BENCHMARK_FLAG_PHRASES)) {
+      if (bFlags.has(flag)) parts.push(phrase);
+    }
+    if (bFlags.has("QUANTITY_SHORTFALL")) parts.push("fewer bottles");
+    for (const [flag, phrase] of Object.entries(PRICING_FLAG_PHRASES)) {
+      if (pFlags.has(flag)) parts.push(phrase);
+    }
   }
 
-  for (const [flag, phrase] of Object.entries(BENCHMARK_FLAG_PHRASES)) {
-    if (bFlags.has(flag)) parts.push(phrase);
-  }
-  if (bFlags.has("QUANTITY_SHORTFALL")) parts.push("fewer bottles");
-  for (const [flag, phrase] of Object.entries(PRICING_FLAG_PHRASES)) {
-    if (pFlags.has(flag)) parts.push(phrase);
-  }
+  if (wantListGated(line)) parts.push("want list");
 
   return parts.length ? parts.join(" · ") : "needs a look";
 }

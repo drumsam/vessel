@@ -49,11 +49,24 @@ def create_link(conn: psycopg.Connection, *, deal_id: str, line_ids: list[str],
         raise LineNotInDeal(f"not lines of this deal: {', '.join(str(i) for i in unknown)}")
 
     for line_id in line_ids:
+        line = repo.get_line(conn, str(line_id))
+        wine = repo.get_wine(conn, str(line["wine_id"])) if line["wine_id"] else None
+        name = repo.wine_display_name(line, wine)
         pricing = repo.latest_pricing(conn, str(line_id))
         if pricing is None:
-            raise LineNotSendable(f"line {line_id} has not been priced")
+            raise LineNotSendable(f"{name} has no price yet")
+        # Decision 0037: never the bare state name or a flag constant —
+        # name the wine and the reason. Decision 0038: a want-list line
+        # gates here too, independently of the pricing flags, the same
+        # listing-side requirement _offer_line enforces for the legacy
+        # buyer_offer path — this IS the one route now, so the check
+        # belongs here, not only there.
         if pricing["requires_acknowledgement"] and not pricing["acknowledgement"]:
-            raise LineNotSendable(f"line {line_id} is still REVIEW and has not been accepted")
+            raise LineNotSendable(f"{name} {repo.gate_reason_phrase(pricing)} and hasn't "
+                                  "been accepted")
+        if wine and wine["want_list"] and line["want_list_ack_at"] is None:
+            raise LineNotSendable(f"{name} is on the client want list and needs a "
+                                  "one-time identity check")
 
     token = secrets.token_urlsafe(TOKEN_BYTES)
     expires_at = datetime.now(timezone.utc) + timedelta(days=ttl_days)

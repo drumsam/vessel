@@ -104,6 +104,19 @@ export default function LineDetail({ lineId, line, onChange }) {
     }
   }
 
+  async function acknowledgeWantList() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(`/lines/${lineId}/want-list/acknowledge`, {});
+      onChange();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const pricing = line?.pricing;
   const comps = run?.comps || [];
   const byRole = (role) => comps.filter((c) => c.role === role);
@@ -162,6 +175,25 @@ export default function LineDetail({ lineId, line, onChange }) {
           Your name is taken from your session.
         </p>
       </form>
+
+      {line?.want_list && (
+        line.want_list_acknowledged_by ? (
+          <p className="muted" style={{ fontSize: 13 }}>
+            Client want list — confirmed by {line.want_list_acknowledged_by.display_name} on{" "}
+            {new Date(line.want_list_acknowledged_at).toLocaleString("en-GB")}.
+          </p>
+        ) : (
+          <div className="notice bad" style={{ marginTop: 10 }}>
+            This line is on the client want list and needs a one-time identity check — these
+            producers are easily confused with a much cheaper namesake (decision 0038).
+            <div style={{ marginTop: 8 }}>
+              <button className="small" onClick={acknowledgeWantList} disabled={busy}>
+                Confirm this identity
+              </button>
+            </div>
+          </div>
+        )
+      )}
 
       {pricing && (
         <>

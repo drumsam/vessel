@@ -579,7 +579,7 @@ Decision 0037, in two parts. First, every error string the API can
 return to a screen was audited in one pass, not patched instance by
 instance: `app/db/repo.py::gate_reason_phrase` builds one English clause
 from the real flags behind `requires_acknowledgement` ("rests on one
-merchant", "would lose money"), `_wine_display_name` is the one name
+merchant", "would lose money"), `wine_display_name` is the one name
 every such error now uses to refer to a line — never a line_id, never a
 wine_id — and `create_buyer_offer` collects every unaccepted line across
 a submission into one message, singular at one line and plural at
@@ -605,6 +605,36 @@ pipeline page's own "Buyer offers" section is now one sentence and a
 link to the Desk; its read-only history of already-issued offers stays,
 since nothing asked for the records or the API to change, only the UI
 that could create one without a gate.
+
+Doug's biggest clients have a standing want list of ten Burgundy
+producers — six of the ten ambiguous in a way worth 5–20×, which makes
+identity rules load-bearing before any price is attached. Decision 0038
+builds `docs/research/want-list-producer-rules.md` verbatim:
+`app/identity/want_list.py` matches raw, unsplit supplier text against
+ten require/exclude rules — a SUGGESTION only, never an auto-resolve, and
+a different job from the resolver's own exact wine_key lookup, which
+only ever judges text an adapter has already split into producer and
+cuvée. A bare "Leroy" never auto-resolves even on a clean match, because
+Maison Leroy is a legitimate different market at a fraction of the
+price; "comte" alone never identifies Comtes Lafon, because Héritiers du
+Comte Lafon is the family's own Mâcon estate; "morey" is never a
+standalone token for Pierre-Yves Colin-Morey, because Morey-St-Denis is
+an appellation and punctuation-stripped text can bring "colin" and
+"morey" adjacent across a comma that was never meant to join them.
+`wine.want_list` is set once, from the producer alone, at creation; a
+line resolving to a want-list wine requires a named operator's
+acknowledgement once — "even when identity resolves cleanly and even
+when two merchants agree" — tied to the LINE itself
+(`seller_line.want_list_ack_by`/`_at`), not to any one pricing run, so it
+survives a reprice, and checked wherever decision 0037 already checks
+the pricing gate: the legacy `create_buyer_offer` path and the
+shareable-link path alike, both using the same human-message machinery
+that decision built. Not a new flag in `app/core/` — "a listing-side
+requirement, the same way decision 0025's invite gate sits outside the
+engine." Auditing the shareable-link path for where to add this found
+the exact raw-UUID leak decision 0037 was meant to close, missed there —
+fixed in the same pass, using the same `wine_display_name`/
+`gate_reason_phrase` helpers, now public across the module boundary.
 
 The seller's spreadsheet is parsed **in the browser** (`web/lib/lines.js`,
 covered by `npm test`); the original row goes to the API verbatim as `raw_row`,

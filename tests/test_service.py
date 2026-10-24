@@ -548,6 +548,16 @@ def _deal(client, wine_id, quantity=6, pack=1, flags=()) -> tuple[str, str]:
         "wine_id": wine_id, "vintage": 2011, "bottle_ml": 750, "pack_size": pack,
         "source": "operator", "flags": list(flags)})
     assert r.status_code == 200, r.text
+    # R (the default test producer, "Domaine Armand Rousseau") is one of
+    # the ten client want-list producers (decision 0038) — real on
+    # purpose, for the identity-resolution tests that need it, but a
+    # second gate none of THESE tests are about. Acknowledged here, once,
+    # so every existing caller of this fixture keeps behaving as it did
+    # before the want list existed; tests/test_want_list.py exercises the
+    # gate itself with its own fixtures, deliberately left unacknowledged.
+    if r.json()["want_list"]:
+        ack = client.post(f"/lines/{line_id}/want-list/acknowledge", json={})
+        assert ack.status_code == 200, ack.text
     return deal["deal_id"], line_id
 
 
@@ -2542,6 +2552,9 @@ def test_a_line_with_only_a_reference_prices_from_the_market_chain(client):
     assert client.put(f"/lines/{line_id}/identity", json={
         "wine_id": wid, "vintage": 2011, "bottle_ml": 750, "pack_size": 1,
         "source": "operator", "flags": []}).status_code == 200
+    # R ("Domaine Armand Rousseau") is a want-list producer (decision
+    # 0038) — a second, unrelated gate this test is not about.
+    assert client.post(f"/lines/{line_id}/want-list/acknowledge", json={}).status_code == 200
     _benchmark(client, deal["deal_id"])
     j = _price(client, deal["deal_id"])
     assert j["status"] == "finished" and list(j["result"]["priced"]) == [line_id]

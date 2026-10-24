@@ -161,8 +161,14 @@ def _line_state(row: dict, run: Optional[dict]) -> str:
 def _line_out(conn: psycopg.Connection, row: dict) -> s.LineOut:
     run = repo.latest_run(conn, row["line_id"])
     pricing = repo.latest_pricing(conn, row["line_id"])
-    out = s.LineOut.model_validate({**_op(conn, row, "wine_id_approved_by"),
-                                    "line_state": _line_state(row, run)})
+    wine = repo.get_wine(conn, str(row["wine_id"])) if row["wine_id"] else None
+    resolved = _op(conn, row, "wine_id_approved_by", "want_list_ack_by")
+    out = s.LineOut.model_validate({
+        **resolved, "line_state": _line_state(row, run),
+        "want_list": bool(wine and wine["want_list"]),
+        "want_list_acknowledged_by": resolved["want_list_ack_by"],
+        "want_list_acknowledged_at": row["want_list_ack_at"],
+    })
     out.benchmark = s.RunSummary.model_validate(run) if run else None
     out.pricing = s.PricingOut.model_validate(_pricing_out(conn, pricing)) if pricing else None
     return out
@@ -370,6 +376,23 @@ def get_line_pricing(line_id: UUID, conn: psycopg.Connection = Depends(db)):
     if pricing is None:
         raise HTTPException(404, "line has not been priced")
     return _pricing_out(conn, pricing)
+
+
+@protected.post("/lines/{line_id}/want-list/acknowledge", response_model=s.LineOut)
+def acknowledge_want_list(line_id: UUID, conn: psycopg.Connection = Depends(db),
+                          operator: dict = Depends(current_operator)):
+    """A named operator confirming, once, that this line really is one of
+    the ten want-list producers and not its cheaper namesake (decision
+    0038) — tied to the line's own identity, never to a single pricing
+    run, so it survives a reprice."""
+    try:
+        with conn.transaction():
+            repo.acknowledge_want_list(conn, str(line_id), acknowledged_by=operator["operator_id"])
+    except LookupError as e:
+        raise HTTPException(404, str(e))
+    except repo.Conflict as e:
+        raise HTTPException(409, str(e))
+    return _line_out(conn, repo.get_line(conn, str(line_id)))
 
 
 # --------------------------------------------------------------- auction evidence

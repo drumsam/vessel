@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Fragment, use, useCallback, useEffect, useState } from "react";
 import { api, money } from "../../../lib/api";
 import { wineLabel } from "../../../lib/wine";
-import { gapPercent, gated, reasonFor } from "../../../lib/pricingReasons";
+import { gapPercent, gated, reasonFor, wantListGated } from "../../../lib/pricingReasons";
 
 /** Cellar Desk — the operator's own "what can I sell right now" view of a
  * deal, built from docs/research/cellar-desk-ui-spec.html (commit ad3c0dd).
@@ -132,6 +132,19 @@ export default function CellarDesk({ params }) {
     setError(null);
     try {
       await api.post(`/lines/${lineId}/pricing/acknowledge`, { note: null });
+      load();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function acknowledgeWantList(lineId) {
+    setBusy(lineId);
+    setError(null);
+    try {
+      await api.post(`/lines/${lineId}/want-list/acknowledge`, {});
       load();
     } catch (e) {
       setError(e.message);
@@ -298,10 +311,12 @@ export default function CellarDesk({ params }) {
                               // and, win or lose that gate, can still make the "below
                               // market" claim itself false (SELL_AT_OR_ABOVE_UK_FLOOR).
                               // With three or more it stays exactly what it always was.
+                              const wideSpreadGates = p.comp_count === 2
+                                && (line.benchmark?.flags || []).includes("WIDE_SPREAD");
                               return (
                                 <div className="muted" style={{ fontSize: 12.5, margin: "2px 0 6px" }}>
                                   {p.comp_count} merchants{gapText} — {p.comp_count === 2
-                                    ? (isGated
+                                    ? (wideSpreadGates
                                         ? "exactly two, and the spread here is itself why this line needs you."
                                         : "exactly two, close enough that this line is still ready to send.")
                                     : "informational; three or more merchants is enough to send regardless of spread."}
@@ -325,10 +340,18 @@ export default function CellarDesk({ params }) {
                                 <strong>{reasonFor(line)}.</strong>{" "}
                                 This line is REVIEW (invariant 12) until a named operator
                                 looks at it — it cannot reach a buyer until then.
-                                <button className="accept" disabled={busy === line.line_id}
-                                        onClick={() => accept(line.line_id)}>
-                                  {busy === line.line_id ? "Accepting…" : "Accept this price"}
-                                </button>
+                                {p.requires_acknowledgement && !p.acknowledgement && (
+                                  <button className="accept" disabled={busy === line.line_id}
+                                          onClick={() => accept(line.line_id)}>
+                                    {busy === line.line_id ? "Accepting…" : "Accept this price"}
+                                  </button>
+                                )}
+                                {wantListGated(line) && (
+                                  <button className="accept" disabled={busy === line.line_id}
+                                          onClick={() => acknowledgeWantList(line.line_id)}>
+                                    {busy === line.line_id ? "Confirming…" : "Confirm this identity"}
+                                  </button>
+                                )}
                               </div>
                             )}
                           </>
@@ -353,10 +376,10 @@ export default function CellarDesk({ params }) {
         </dl>
         {blocking.length > 0 && (
           <div className="warn">
-            <strong>{blocking.length} selected line{blocking.length > 1 ? "s" : ""} rest{blocking.length > 1 ? "" : "s"} on
-            one merchant and {blocking.length > 1 ? "have" : "has"} not been accepted.</strong>{" "}
+            <strong>{blocking.length} selected line{blocking.length > 1 ? "s" : ""} still need
+            {blocking.length > 1 ? "" : "s"} you.</strong>{" "}
             Nothing goes to a buyer until {blocking.length > 1 ? "they're" : "it's"} looked at —
-            click the market price to see the evidence and accept.
+            click the market price to see why and accept it.
           </div>
         )}
         <div className="act">

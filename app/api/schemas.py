@@ -98,6 +98,9 @@ class WineOut(_Out):
     lwin7: Optional[str]
     release_code: Optional[str] = None
     wine_key: str
+    #: One of the ten client want-list producers (decision 0038), set once
+    #: at creation from the producer field alone.
+    want_list: bool = False
 
 
 class AliasIn(_In):
@@ -449,6 +452,13 @@ class LineOut(_Out):
     line_state: LineState
     benchmark: Optional[RunSummary] = None
     pricing: Optional[PricingOut] = None
+    #: decision 0038. True only once wine_id is approved AND that wine is
+    #: one of the ten client want-list producers — read from the wine,
+    #: not the line, but surfaced here so a screen never has to join it
+    #: separately.
+    want_list: bool = False
+    want_list_acknowledged_by: Optional[OperatorRef] = None
+    want_list_acknowledged_at: Optional[datetime] = None
 
 
 class DealSummaryOut(_Out):

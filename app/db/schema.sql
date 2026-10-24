@@ -50,6 +50,12 @@ CREATE TABLE wine (
     -- vintage=1000 line with no code can never resolve to a wine that has one.
     release_code text,
     wine_key     text NOT NULL UNIQUE,          -- normalised producer|cuvee[|release_code]
+    -- The client want list (decision 0038): one of the ten canonical
+    -- producers in app/identity/want_list.py, set at creation from the
+    -- producer field alone -- never from a cuvee, never from raw supplier
+    -- text. A listing-side acknowledgement requirement reads this, never
+    -- app/core/ or app/pricing/.
+    want_list    boolean NOT NULL DEFAULT false,
     created_at   timestamptz NOT NULL DEFAULT now()
 );
 
@@ -411,12 +417,25 @@ CREATE TABLE seller_line (
                       CHECK (flags <@ ARRAY['NAME_REVIEW','FORMAT_REVIEW',
                                             'DERIVED_FROM_CASE']::text[]),
 
+    -- The want-list acknowledgement (decision 0038): a named operator
+    -- confirming, once, that a line resolving to a want_list wine really
+    -- is that wine and not its cheaper namesake. Tied to the LINE's own
+    -- identity, not to any one pricing run, so it survives a reprice --
+    -- "ONCE even when identity resolves cleanly and even when two
+    -- merchants agree" (Doug, 23 October 2026). Both set together or
+    -- neither, same discipline as wine_id_approved_by/_at above.
+    want_list_ack_by  uuid REFERENCES operator(operator_id),
+    want_list_ack_at  timestamptz,
+
     UNIQUE (deal_id, row_index),
     CONSTRAINT seller_line_identity_approved CHECK (
         (wine_id IS NULL AND wine_id_source IS NULL
          AND wine_id_approved_by IS NULL AND wine_id_approved_at IS NULL)
      OR (wine_id IS NOT NULL AND wine_id_source IS NOT NULL
-         AND wine_id_approved_by IS NOT NULL AND wine_id_approved_at IS NOT NULL))
+         AND wine_id_approved_by IS NOT NULL AND wine_id_approved_at IS NOT NULL)),
+    CONSTRAINT seller_line_want_list_ack_paired CHECK (
+        (want_list_ack_by IS NULL AND want_list_ack_at IS NULL)
+     OR (want_list_ack_by IS NOT NULL AND want_list_ack_at IS NOT NULL))
 );
 
 -- Every identity or line-flag change, old and new, by whom, when, and how.

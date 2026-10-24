@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { gated, reasonFor } from "../lib/pricingReasons.js";
+import { gated, reasonFor, wantListGated } from "../lib/pricingReasons.js";
 
 function line({ compCount, benchmarkFlags = [], pricingFlags = [], floor, reference,
-               gatedOverride = true } = {}) {
+               gatedOverride = true, wantList = false, wantListAckAt = null } = {}) {
   return {
+    want_list: wantList, want_list_acknowledged_at: wantListAckAt,
     benchmark: { flags: benchmarkFlags, state: compCount === 0 ? "NO_MARKET" : "REVIEW" },
     pricing: {
       comp_count: compCount, flags: pricingFlags, uk_floor: floor, uk_reference: reference,
@@ -47,6 +48,26 @@ test("an evidence-quality flag with no shape reason reads alone, no merchant cou
 test("a commercial gate flag reads even when the benchmark itself is agreeing", () => {
   const l = line({ compCount: 3, pricingFlags: ["SELL_AT_OR_ABOVE_UK_FLOOR"] });
   assert.equal(reasonFor(l), "not actually below market");
+});
+
+test("a want-list line gates even when pricing is fully READY and agreeing", () => {
+  const l = line({ compCount: 3, gatedOverride: false, wantList: true });
+  assert.equal(wantListGated(l), true);
+  assert.equal(gated(l), true);
+  assert.equal(reasonFor(l), "want list");
+});
+
+test("a want-list line stops gating once acknowledged, independent of pricing", () => {
+  const l = line({ compCount: 3, gatedOverride: false, wantList: true,
+                   wantListAckAt: "2026-10-24T00:00:00Z" });
+  assert.equal(wantListGated(l), false);
+  assert.equal(gated(l), false);
+  assert.equal(reasonFor(l), null);
+});
+
+test("a want-list line that is ALSO pricing-gated shows both reasons", () => {
+  const l = line({ compCount: 1, benchmarkFlags: ["ONE_COMP"], wantList: true });
+  assert.equal(reasonFor(l), "1 merchant · want list");
 });
 
 test("every phrase this module can produce is free of the flag constants behind it", () => {
