@@ -1,0 +1,68 @@
+producer,cuvee,appellation,classification,colour,monopole,source,notes
+Domaine de la Romanée-Conti,Romanée-Conti,Romanée-Conti,Grand Cru,Red,yes,Wikipedia + BBR,1.8ha monopole. Only DRC can make this.
+Domaine de la Romanée-Conti,La Tâche,La Tâche,Grand Cru,Red,yes,Wikipedia + BBR,6.06ha monopole. Only DRC.
+Domaine de la Romanée-Conti,Richebourg,Richebourg,Grand Cru,Red,no,Wikipedia + BBR,"3.51ha. ALSO MADE BY Leroy, Méo-Camuzet, Gros, Grivot, Hudelot-Noëllat."
+Domaine de la Romanée-Conti,Romanée-St-Vivant,Romanée-St-Vivant,Grand Cru,Red,no,Wikipedia + BBR,"5.28ha. ALSO MADE BY Leroy, Cathiard, Arnoux-Lachaux, Dujac, Hudelot-Noëllat."
+Domaine de la Romanée-Conti,Grands-Échézeaux,Grands-Échézeaux,Grand Cru,Red,no,Wikipedia + BBR,3.52ha. Also made by others.
+Domaine de la Romanée-Conti,Échézeaux,Échézeaux,Grand Cru,Red,no,Wikipedia + BBR,4.67ha. Also made by many.
+Domaine de la Romanée-Conti,Montrachet,Montrachet,Grand Cru,White,no,Wikipedia + BBR,"0.67ha. Also made by Leflaive, Lafon and others."
+Domaine de la Romanée-Conti,Vosne-Romanée Cuvée Duvault-Blochet,Vosne-Romanée,1er Cru,Red,no,BBR live,Made only in abundant years. Far cheaper than the grands crus.
+Domaine de la Romanée-Conti,Corton,Corton,Grand Cru,Red,no,UNVERIFIED - my knowledge,Since 2009. NOT on the Wikipedia holdings list. CONFIRM.
+Domaine de la Romanée-Conti,Bâtard-Montrachet,Bâtard-Montrachet,Grand Cru,White,no,UNVERIFIED,Wikipedia lists an unnamed 0.17ha Chardonnay holding; citation suggests Bâtard. CONFIRM.
+Domaine Leroy,Chambertin,Chambertin,Grand Cru,Red,no,BBR live,
+Domaine Leroy,Musigny,Musigny,Grand Cru,Red,no,BBR live,
+Domaine Leroy,Richebourg,Richebourg,Grand Cru,Red,no,BBR live,
+Domaine Leroy,Romanée-St-Vivant,Romanée-St-Vivant,Grand Cru,Red,no,BBR live,"BBR listed 1997 at £9,100/btl"
+Domaine Leroy,Clos de Vougeot,Clos de Vougeot,Grand Cru,Red,no,BBR live,
+Domaine Leroy,Latricières-Chambertin,Latricières-Chambertin,Grand Cru,Red,no,BBR live,
+Domaine Leroy,Vosne-Romanée Les Beaux Monts,Vosne-Romanée,1er Cru,Red,no,BBR live,
+Domaine Leroy,Vosne-Romanée Aux Brulées,Vosne-Romanée,1er Cru,Red,no,BBR live,"BBR shows 'Release' years in titles - a release code, like Krug editions"
+Domaine Leroy,Vosne-Romanée Les Genaivrières,Vosne-Romanée,Village,Red,no,BBR live,classification not stated by BBR - CONFIRM
+Domaine Leroy,Gevrey-Chambertin Aux Combottes,Gevrey-Chambertin,1er Cru,Red,no,BBR live,
+Domaine Leroy,Gevrey-Chambertin,Gevrey-Chambertin,Village,Red,no,BBR live,
+Domaine Leroy,Nuits-St-Georges Aux Allots,Nuits-St-Georges,Village,Red,no,BBR live,classification not stated - CONFIRM
+Domaine Leroy,Nuits-St-Georges Aux Bas de Combe,Nuits-St-Georges,Village,Red,no,BBR live,classification not stated - CONFIRM
+Domaine Leroy,Nuits-St-Georges Aux Lavières,Nuits-St-Georges,Village,Red,no,BBR live,classification not stated - CONFIRM
+Domaine Leroy,Savigny-lès-Beaune Les Narbantons,Savigny-lès-Beaune,1er Cru,Red,no,BBR live,
+Domaine Leroy,Auxey-Duresses Blanc Les Lavières,Auxey-Duresses,Village,White,no,BBR live,the only white seen
+Domaine Leflaive,Montrachet,Montrachet,Grand Cru,White,no,Wikipedia,0.0821ha - tiny
+Domaine Leflaive,Chevalier-Montrachet,Chevalier-Montrachet,Grand Cru,White,no,Wikipedia,1.99ha
+Domaine Leflaive,Bâtard-Montrachet,Bâtard-Montrachet,Grand Cru,White,no,Wikipedia,1.91ha
+Domaine Leflaive,Bienvenues-Bâtard-Montrachet,Bienvenues-Bâtard-Montrachet,Grand Cru,White,no,Wikipedia,1.15ha
+Domaine Leflaive,Puligny-Montrachet Les Pucelles,Puligny-Montrachet,1er Cru,White,no,Wikipedia,
+Domaine Leflaive,Puligny-Montrachet Les Folatières,Puligny-Montrachet,1er Cru,White,no,Wikipedia,
+Domaine Leflaive,Puligny-Montrachet Les Combettes,Puligny-Montrachet,1er Cru,White,no,Wikipedia,
+Domaine Leflaive,Puligny-Montrachet Le Clavoillon,Puligny-Montrachet,1er Cru,White,no,Wikipedia,
+Domaine Leflaive,Meursault sous le Dos d'Âne,Meursault,1er Cru,White,no,Wikipedia,
+Domaine Leflaive,Puligny-Montrachet,Puligny-Montrachet,Village,White,no,Wikipedia,"7 climats, 4.64ha total"
+Domaine Leflaive,Bourgogne Blanc,Bourgogne,Regional,White,no,Wikipedia,3.24ha
+Domaine Armand Rousseau,Chambertin,Chambertin,Grand Cru,Red,no,BBR live,top tier with Clos de Bèze
+Domaine Armand Rousseau,Chambertin Clos de Bèze,Chambertin-Clos de Bèze,Grand Cru,Red,no,BBR live,top tier
+Domaine Armand Rousseau,Clos de la Roche,Clos de la Roche,Grand Cru,Red,no,BBR live,BBR 2018 at £910/btl
+Domaine Armand Rousseau,Ruchottes-Chambertin Clos des Ruchottes,Ruchottes-Chambertin,Grand Cru,Red,no,BBR live,monopole of the Clos des Ruchottes parcel
+Domaine Armand Rousseau,Mazy-Chambertin,Mazis-Chambertin,Grand Cru,Red,no,BBR live,BBR spells it Mazy; also spelled Mazis - ALIAS NEEDED
+Domaine Armand Rousseau,Charmes-Chambertin,Charmes-Chambertin,Grand Cru,Red,no,BBR live,
+Domaine Armand Rousseau,Gevrey-Chambertin Clos St Jacques,Gevrey-Chambertin,1er Cru,Red,no,BBR live,the 1er cru that trades near grand cru money
+Domaine Armand Rousseau,Gevrey-Chambertin Les Cazetiers,Gevrey-Chambertin,1er Cru,Red,no,UNVERIFIED - not on BBR p1,CONFIRM
+Domaine Armand Rousseau,Gevrey-Chambertin Lavaux St-Jacques,Gevrey-Chambertin,1er Cru,Red,no,UNVERIFIED - not on BBR p1,CONFIRM
+Domaine Armand Rousseau,Gevrey-Chambertin,Gevrey-Chambertin,Village,Red,no,BBR live,the cheapest tier - do not confuse with the above
+Coche-Dury,Corton-Charlemagne,Corton-Charlemagne,Grand Cru,White,no,BBR live,"BBR: 2014 £50,000/6btl = £8,333/btl; 2015 £45,000/6 = £7,500/btl"
+Coche-Dury,Bourgogne Chardonnay,Bourgogne,Regional,White,no,BBR live,"BBR 2017 £4,000/12 = £333/btl - even the regional is serious"
+Coche-Dury,Bourgogne Pinot Noir,Bourgogne,Regional,Red,no,BBR live,BBR 2017 £175/btl
+Coche-Dury,Meursault Les Perrières,Meursault,1er Cru,White,no,UNVERIFIED - not on BBR,the most sought-after Meursault. CONFIRM
+Coche-Dury,Meursault Les Caillerets,Meursault,1er Cru,White,no,UNVERIFIED - not on BBR,CONFIRM
+Coche-Dury,Meursault Les Rougeots,Meursault,Village,White,no,UNVERIFIED - not on BBR,CONFIRM
+Coche-Dury,Meursault,Meursault,Village,White,no,UNVERIFIED - not on BBR,CONFIRM
+Domaine des Comtes Lafon,Le Montrachet,Montrachet,Grand Cru,White,no,BBR live,"BBR 2019 £3,484/btl"
+Domaine des Comtes Lafon,Meursault Les Perrières,Meursault,1er Cru,White,no,BBR live,
+Domaine des Comtes Lafon,Meursault Clos de la Barre,Meursault,Village,White,no,BBR live,BBR 2019 magnum £656; monopole of the Clos de la Barre
+Domaine des Comtes Lafon,Meursault Désirée,Meursault,Village,White,no,BBR live,
+Domaine des Comtes Lafon,Meursault,Meursault,Village,White,no,BBR live,titled with the domaine name only
+Domaine des Comtes Lafon,Volnay Santenots-du-Milieu,Volnay,1er Cru,Red,no,BBR live,the main red
+Domaine des Comtes Lafon,Volnay Champans,Volnay,1er Cru,Red,no,BBR live,
+Domaine des Comtes Lafon,Monthélie Les Duresses,Monthélie,1er Cru,Red,no,BBR live,
+Domaine des Comtes Lafon,Meursault Charmes,Meursault,1er Cru,White,no,UNVERIFIED,implied by 'Les Six Climats' assortment. CONFIRM
+Domaine des Comtes Lafon,Meursault Genevrières,Meursault,1er Cru,White,no,UNVERIFIED,implied by 'Les Six Climats'. CONFIRM
+Domaine des Comtes Lafon,Meursault Goutte d'Or,Meursault,1er Cru,White,no,UNVERIFIED,implied by 'Les Six Climats'. CONFIRM
+Domaine des Comtes Lafon,Meursault Porusots,Meursault,1er Cru,White,no,UNVERIFIED,implied by 'Les Six Climats'. CONFIRM
+Domaine des Comtes Lafon,Meursault Bouchères,Meursault,1er Cru,White,no,UNVERIFIED,implied by 'Les Six Climats'. CONFIRM
