@@ -303,6 +303,48 @@ class AuctionHealthOut(_Out):
     note: Optional[str]
 
 
+class WantListMatchIn(_In):
+    text: str = Field(min_length=1)
+
+
+class WantListMatchOut(_Out):
+    producer: str
+    always_review: bool
+
+
+class EvaluationCompIn(_In):
+    """One comparable price Doug found and is naming the source of — not a
+    merchant this app necessarily has an adapter for (decision 0039).
+    wine_id/vintage come from the evaluation itself, not from here, so a
+    mismatched paste cannot attach evidence to the wrong wine."""
+    merchant: str = Field(min_length=1)
+    price: PositiveMoney
+    currency: Currency
+    bottle_ml: int = Field(gt=0)
+    pack_size: int = Field(ge=1)
+    duty_status: Literal["IB", "DP", "UNKNOWN"] = "IB"
+    price_kind: Literal["ASK", "BID", "LAST_TRADE", "INDICATION"] = "ASK"
+    is_buyable: bool = True
+    offered_units: Optional[int] = Field(default=None, ge=1)
+    source_url: Optional[str] = None
+    captured_at: Optional[datetime] = None
+
+
+class EvaluateOfferIn(_In):
+    """The single box: what Doug was offered, and the market prices he
+    found for it. Goes through exactly the same screens a scraped offer
+    would (decision 0039) — no fast path, no trusted-operator bypass."""
+    raw_description: str = Field(min_length=1)
+    wine_id: UUID
+    vintage: int
+    bottle_ml: int = Field(gt=0)
+    pack_size: int = Field(ge=1)
+    quantity: int = Field(ge=1)
+    asking_price: PositiveMoney
+    asking_currency: Currency
+    comps: list[EvaluationCompIn] = Field(min_length=1)
+
+
 class AcknowledgementOut(_Out):
     ack_id: UUID
     flags: list[str]

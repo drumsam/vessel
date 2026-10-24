@@ -29,6 +29,8 @@ from app.auction.evidence import InvalidAuctionEvidence
 from app.core.enums import StockType
 from app.core.flags import claims_a_saving
 from app.db import repo
+from app.evaluate import repo as evaluate_repo
+from app.identity.want_list import match_want_list
 from app.offerlink import repo as offerlink_repo
 from app.market.parcel import SAME_PRICE_AS_ANOTHER_MERCHANT
 from app.db.connection import transaction
@@ -471,6 +473,40 @@ def get_line_auction_health(line_id: UUID, conn: psycopg.Connection = Depends(db
     except LookupError as e:
         raise HTTPException(422, str(e))
     return health
+
+
+# ------------------------------------------------- buy-side evaluation (0039)
+
+
+@protected.post("/identity/want-list-match", response_model=list[s.WantListMatchOut])
+def want_list_match(body: s.WantListMatchIn):
+    """A suggestion only (decision 0038) — never sets a wine_id, never
+    bypasses the operator picking the exact wine by hand."""
+    return [{"producer": m.producer, "always_review": m.always_review}
+            for m in match_want_list(body.text)]
+
+
+@protected.post("/evaluate", response_model=s.LineOut, status_code=201)
+def evaluate_offer(body: s.EvaluateOfferIn, conn: psycopg.Connection = Depends(db),
+                   operator: dict = Depends(current_operator)):
+    """The single box (decision 0039): what Doug was offered, and the
+    market prices he found for it, each source named. Every comp becomes
+    a real `offer` row and goes through the real benchmark, synchronously
+    — one line, not a job queue."""
+    try:
+        with conn.transaction():
+            result = evaluate_repo.evaluate_offer(
+                conn, raw_description=body.raw_description, wine_id=str(body.wine_id),
+                vintage=body.vintage, bottle_ml=body.bottle_ml, pack_size=body.pack_size,
+                quantity=body.quantity, asking_price=body.asking_price,
+                asking_currency=body.asking_currency,
+                comps=[c.model_dump() for c in body.comps],
+                evaluated_by=operator["operator_id"])
+    except evaluate_repo.InvalidEvaluation as e:
+        raise HTTPException(422, str(e))
+    except (repo.Conflict, psycopg.Error) as e:
+        raise _translate(e)
+    return _line_out(conn, repo.get_line(conn, result["line_id"]))
 
 
 # ------------------------------------------------------------ LWIN conflicts

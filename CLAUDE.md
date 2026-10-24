@@ -636,6 +636,41 @@ the exact raw-UUID leak decision 0037 was meant to close, missed there —
 fixed in the same pass, using the same `wine_display_name`/
 `gate_reason_phrase` helpers, now public across the module boundary.
 
+Decision 0039, asked for alongside 0038 once its own scope settled these
+wines "arrive in ones and twos" and Doug prices them manually from his
+own Wine-Searcher account: a single-line, buy-side evaluation screen
+(`web/app/evaluate/page.jsx`, `app/evaluate/repo.py`), built on decision
+0024's own hand-entry discipline, not its code — a person types a fact
+they actually saw, with a named source, never a scraper. Each comp Doug
+names becomes a real `offer` row under a real `snapshot`/
+`snapshot_merchant`, through `ensure_manual_merchant` (an open list,
+deliberately unlike the four closed auction houses, since Wine-Searcher
+aggregates far more retailers than this fleet has adapters for), so
+`app.core.benchmark` runs completely unchanged and cannot tell a
+hand-typed offer from a scraped one — "the band check catching a
+mistyped GBP1,200 for GBP12,000 is worth more than the automation we
+aren't building." `app.worker.jobs.benchmark_with_band` (made public for
+this) is called directly, synchronously, no RQ job, the same
+orchestration `benchmark_deal` already runs per line. No sell-side
+pricing runs here at all — "is this a good price" is the asking price
+against the Floor/Reference, a frontend display comparison
+(`gapPercent`), never a new backend rule. Every evaluation lands as one
+more line of a single, persistent "Buy-side evaluations" deal rather
+than a fresh one each time, since Doug does this often and would rather
+browse a history than a pile of one-line deals. `match_want_list`
+(decision 0038) runs live as Doug types, suggestion only, same discipline
+as everywhere else. Live verification against the real desk database
+caught two bugs before they reached Doug: `LineOut.benchmark`
+(`RunSummary`) carries no per-comp breakdown — that's `RunOut`, the
+dedicated `GET /lines/{id}/benchmark` endpoint's own response, the same
+split `line.jsx` already lives with — and the comp table needed the same
+`"comparable"`-role filter `line.jsx`'s own table already applies, or a
+merchant with one offer shows up twice. The same verification pass also
+confirmed the actual point of this decision: a real evaluation run
+combined REAL adapter-collected evidence already in the database
+(Bordeaux Index, Justerini & Brooks) with manually-entered comps in one
+benchmark, not two separate worlds.
+
 The seller's spreadsheet is parsed **in the browser** (`web/lib/lines.js`,
 covered by `npm test`); the original row goes to the API verbatim as `raw_row`,
 which the API requires and refuses empty.

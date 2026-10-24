@@ -366,7 +366,7 @@ def benchmark_deal(deal_id: str, as_of: Optional[str] = None) -> dict:
             if not res.sources:
                 no_coverage.append(line.line_id)
                 continue
-            run_id, check = _benchmark_with_band(conn, line, res, when)
+            run_id, check = benchmark_with_band(conn, line, res, when)
             runs[line.line_id] = run_id
             if check.high_outliers:
                 excluded[line.line_id] = [ref.merchant for ref in check.high_outliers]
@@ -375,7 +375,7 @@ def benchmark_deal(deal_id: str, as_of: Optional[str] = None) -> dict:
             "comps_excluded_by_band": excluded}
 
 
-def _benchmark_with_band(conn: psycopg.Connection, line, res: repo.Resolution,
+def benchmark_with_band(conn: psycopg.Connection, line, res: repo.Resolution,
                          when: datetime, *, wine_region: Optional[str] = None,
                          reinstated: Sequence[str] = ()) -> tuple[str, "object"]:
     """Benchmark, sanity-check the comps against their neighbouring vintages,
@@ -459,7 +459,7 @@ def reinstate_comp(exclusion_id: str, reinstated_by: str, reason: str) -> dict:
         res = repo.resolve_offers(conn, wine_id=line.wine_id, vintage=line.vintage, as_of=when)
         already = [str(x["offer_pk"]) for x in repo.run_exclusions(conn, str(row["run_id"]))
                    if x["reinstated_at"] is not None or str(x["exclusion_id"]) == exclusion_id]
-        run_id, check = _benchmark_with_band(conn, line, res, when, reinstated=already)
+        run_id, check = benchmark_with_band(conn, line, res, when, reinstated=already)
         repo.record_reinstatement(conn, exclusion_id, reinstated_by=reinstated_by,
                                   reason=reason, replacement_run_id=run_id)
     return {"exclusion_id": exclusion_id, "run_id": run_id,

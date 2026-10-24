@@ -440,7 +440,7 @@ NEIGHBOURS_2020 = [
 
 
 def _benchmark_then_band(ln: SellerLine, comps: list[Offer], neighbours: list[Offer]):
-    """The real pipeline's own sequence (app.worker.jobs._benchmark_with_band,
+    """The real pipeline's own sequence (app.worker.jobs.benchmark_with_band,
     and scripts/rerun_burgundy_proof.py): benchmark, check the band, maybe
     re-benchmark without an excluded high outlier, then set derivation_
     confirmed from what the band (if any) found — the source-agreement test

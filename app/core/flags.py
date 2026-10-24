@@ -181,7 +181,7 @@ CASE_PREMIUM = Decimal("1.00")
 #: band that only exists for Burgundy, so outside it the exemption could
 #: never fire at all — the Champagne sweep's whole 454-bottle Krug position
 #: is proof of exactly that dead end). Where a band DOES exist, both tests
-#: are required (see `app/worker/jobs._benchmark_with_band`): the band is
+#: are required (see `app/worker/jobs.benchmark_with_band`): the band is
 #: strictly more information and is not given up for Burgundy.
 #:
 #: Set from the live Champagne sweep's own spread, 9-10 October 2026 — the
