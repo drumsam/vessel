@@ -26,3 +26,11 @@ include = ["app*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+
+# Vercel's Python runtime looks for a FastAPI instance at one of its own
+# default locations (app.py, api/index.py, etc); app/api/main.py matches
+# none of them, so the entrypoint is named explicitly. Hosting only
+# (decision pending, VESSEL Pocket build brief) -- not a change to how
+# the app is run locally (scripts/desk.sh still runs uvicorn directly).
+[tool.vercel]
+entrypoint = "app.api.main:app"

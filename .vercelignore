@@ -1,0 +1,9 @@
+web
+tests
+docs
+scripts
+migrations
+.venv
+.localdb
+*.pyc
+__pycache__
