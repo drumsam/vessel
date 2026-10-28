@@ -7,8 +7,8 @@ Domaine de la Romanée-Conti,Grands-Échézeaux,Grands-Échézeaux,Grand Cru,Red
 Domaine de la Romanée-Conti,Échézeaux,Échézeaux,Grand Cru,Red,no,Wikipedia + BBR,4.67ha. Also made by many.
 Domaine de la Romanée-Conti,Montrachet,Montrachet,Grand Cru,White,no,Wikipedia + BBR,"0.67ha. Also made by Leflaive, Lafon and others."
 Domaine de la Romanée-Conti,Vosne-Romanée Cuvée Duvault-Blochet,Vosne-Romanée,1er Cru,Red,no,BBR live,Made only in abundant years. Far cheaper than the grands crus.
-Domaine de la Romanée-Conti,Corton,Corton,Grand Cru,Red,no,UNVERIFIED - my knowledge,Since 2009. NOT on the Wikipedia holdings list. CONFIRM.
-Domaine de la Romanée-Conti,Bâtard-Montrachet,Bâtard-Montrachet,Grand Cru,White,no,UNVERIFIED,Wikipedia lists an unnamed 0.17ha Chardonnay holding; citation suggests Bâtard. CONFIRM.
+Domaine de la Romanée-Conti,Corton,Corton,Grand Cru,Red,no,"Confirmed by operator doug, 28 Oct 2026",Since 2009.
+Domaine de la Romanée-Conti,Bâtard-Montrachet,Bâtard-Montrachet,Grand Cru,White,no,"Confirmed by operator doug, 28 Oct 2026",Wikipedia lists an unnamed 0.17ha Chardonnay holding;
 Domaine Leroy,Chambertin,Chambertin,Grand Cru,Red,no,BBR live,
 Domaine Leroy,Musigny,Musigny,Grand Cru,Red,no,BBR live,
 Domaine Leroy,Richebourg,Richebourg,Grand Cru,Red,no,BBR live,
@@ -40,19 +40,19 @@ Domaine Armand Rousseau,Chambertin,Chambertin,Grand Cru,Red,no,BBR live,top tier
 Domaine Armand Rousseau,Chambertin Clos de Bèze,Chambertin-Clos de Bèze,Grand Cru,Red,no,BBR live,top tier
 Domaine Armand Rousseau,Clos de la Roche,Clos de la Roche,Grand Cru,Red,no,BBR live,BBR 2018 at £910/btl
 Domaine Armand Rousseau,Ruchottes-Chambertin Clos des Ruchottes,Ruchottes-Chambertin,Grand Cru,Red,no,BBR live,monopole of the Clos des Ruchottes parcel
-Domaine Armand Rousseau,Mazy-Chambertin,Mazis-Chambertin,Grand Cru,Red,no,BBR live,BBR spells it Mazy; also spelled Mazis - ALIAS NEEDED
+Domaine Armand Rousseau,Mazis-Chambertin,Mazis-Chambertin,Grand Cru,Red,no,BBR live,"Corrected from the original 'Mazy-Chambertin' row (BBR's own spelling, not the real appellation) - decision 0043 loads the alias separately so BBR's live listings still resolve, via scripts/load_want_list_wines.py --alias-operator"
 Domaine Armand Rousseau,Charmes-Chambertin,Charmes-Chambertin,Grand Cru,Red,no,BBR live,
 Domaine Armand Rousseau,Gevrey-Chambertin Clos St Jacques,Gevrey-Chambertin,1er Cru,Red,no,BBR live,the 1er cru that trades near grand cru money
-Domaine Armand Rousseau,Gevrey-Chambertin Les Cazetiers,Gevrey-Chambertin,1er Cru,Red,no,UNVERIFIED - not on BBR p1,CONFIRM
-Domaine Armand Rousseau,Gevrey-Chambertin Lavaux St-Jacques,Gevrey-Chambertin,1er Cru,Red,no,UNVERIFIED - not on BBR p1,CONFIRM
+Domaine Armand Rousseau,Gevrey-Chambertin Les Cazetiers,Gevrey-Chambertin,1er Cru,Red,no,"Confirmed by operator doug, 28 Oct 2026",
+Domaine Armand Rousseau,Gevrey-Chambertin Lavaux St-Jacques,Gevrey-Chambertin,1er Cru,Red,no,"Confirmed by operator doug, 28 Oct 2026",
 Domaine Armand Rousseau,Gevrey-Chambertin,Gevrey-Chambertin,Village,Red,no,BBR live,the cheapest tier - do not confuse with the above
 Coche-Dury,Corton-Charlemagne,Corton-Charlemagne,Grand Cru,White,no,BBR live,"BBR: 2014 £50,000/6btl = £8,333/btl; 2015 £45,000/6 = £7,500/btl"
 Coche-Dury,Bourgogne Chardonnay,Bourgogne,Regional,White,no,BBR live,"BBR 2017 £4,000/12 = £333/btl - even the regional is serious"
 Coche-Dury,Bourgogne Pinot Noir,Bourgogne,Regional,Red,no,BBR live,BBR 2017 £175/btl
-Coche-Dury,Meursault Les Perrières,Meursault,1er Cru,White,no,UNVERIFIED - not on BBR,the most sought-after Meursault. CONFIRM
-Coche-Dury,Meursault Les Caillerets,Meursault,1er Cru,White,no,UNVERIFIED - not on BBR,CONFIRM
-Coche-Dury,Meursault Les Rougeots,Meursault,Village,White,no,UNVERIFIED - not on BBR,CONFIRM
-Coche-Dury,Meursault,Meursault,Village,White,no,UNVERIFIED - not on BBR,CONFIRM
+Coche-Dury,Meursault Les Perrières,Meursault,1er Cru,White,no,"Confirmed by operator doug, 28 Oct 2026",the most sought-after Meursault.
+Coche-Dury,Meursault Les Caillerets,Meursault,1er Cru,White,no,"Confirmed by operator doug, 28 Oct 2026",
+Coche-Dury,Meursault Les Rougeots,Meursault,Village,White,no,"Confirmed by operator doug, 28 Oct 2026",
+Coche-Dury,Meursault,Meursault,Village,White,no,"Confirmed by operator doug, 28 Oct 2026",
 Domaine des Comtes Lafon,Le Montrachet,Montrachet,Grand Cru,White,no,BBR live,"BBR 2019 £3,484/btl"
 Domaine des Comtes Lafon,Meursault Les Perrières,Meursault,1er Cru,White,no,BBR live,
 Domaine des Comtes Lafon,Meursault Clos de la Barre,Meursault,Village,White,no,BBR live,BBR 2019 magnum £656; monopole of the Clos de la Barre
@@ -61,8 +61,169 @@ Domaine des Comtes Lafon,Meursault,Meursault,Village,White,no,BBR live,titled wi
 Domaine des Comtes Lafon,Volnay Santenots-du-Milieu,Volnay,1er Cru,Red,no,BBR live,the main red
 Domaine des Comtes Lafon,Volnay Champans,Volnay,1er Cru,Red,no,BBR live,
 Domaine des Comtes Lafon,Monthélie Les Duresses,Monthélie,1er Cru,Red,no,BBR live,
-Domaine des Comtes Lafon,Meursault Charmes,Meursault,1er Cru,White,no,UNVERIFIED,implied by 'Les Six Climats' assortment. CONFIRM
-Domaine des Comtes Lafon,Meursault Genevrières,Meursault,1er Cru,White,no,UNVERIFIED,implied by 'Les Six Climats'. CONFIRM
-Domaine des Comtes Lafon,Meursault Goutte d'Or,Meursault,1er Cru,White,no,UNVERIFIED,implied by 'Les Six Climats'. CONFIRM
-Domaine des Comtes Lafon,Meursault Porusots,Meursault,1er Cru,White,no,UNVERIFIED,implied by 'Les Six Climats'. CONFIRM
-Domaine des Comtes Lafon,Meursault Bouchères,Meursault,1er Cru,White,no,UNVERIFIED,implied by 'Les Six Climats'. CONFIRM
+Domaine des Comtes Lafon,Meursault Charmes,Meursault,1er Cru,White,no,"Confirmed by operator doug, 28 Oct 2026",implied by 'Les Six Climats' assortment.
+Domaine des Comtes Lafon,Meursault Genevrières,Meursault,1er Cru,White,no,"Confirmed by operator doug, 28 Oct 2026",implied by 'Les Six Climats'.
+Domaine des Comtes Lafon,Meursault Goutte d'Or,Meursault,1er Cru,White,no,"Confirmed by operator doug, 28 Oct 2026",implied by 'Les Six Climats'.
+Domaine des Comtes Lafon,Meursault Porusots,Meursault,1er Cru,White,no,"Confirmed by operator doug, 28 Oct 2026",implied by 'Les Six Climats'.
+Domaine des Comtes Lafon,Meursault Bouchères,Meursault,1er Cru,White,no,"Confirmed by operator doug, 28 Oct 2026",implied by 'Les Six Climats'.
+Arnaud Ente,Bourgogne Aligoté,Bourgogne,Regional,White,no,https://kermitlynch.com/files/domaine-arnaud-ente.pdf,"Aligoté from 1938 plantings, sand/clay soil"
+Arnaud Ente,Bourgogne Chardonnay,Bourgogne,Regional,White,no,https://kermitlynch.com/files/domaine-arnaud-ente.pdf,Blend of Meursault and Puligny-Montrachet parcels; also called Bourgogne Blanc in some trade listings
+Arnaud Ente,Meursault,Meursault,Village,White,no,https://kermitlynch.com/files/domaine-arnaud-ente.pdf,Youngest vines of En l'Ormeau blended with Les Casse-Tetes
+Arnaud Ente,Meursault Clos des Ambres,Meursault,Village,White,no,https://kermitlynch.com/files/domaine-arnaud-ente.pdf,"Older-vine selection from En l'Ormeau; village-level, not a legally recognised monopole despite the name"
+Arnaud Ente,Meursault La Seve du Clos,Meursault,Village,White,no,https://kermitlynch.com/files/domaine-arnaud-ente.pdf,100+ year vines in En l'Ormeau; formerly part of the domaine's Vieilles Vignes bottling
+Arnaud Ente,Meursault Les Petits Charrons,Meursault,Village,White,no,https://kermitlynch.com/files/domaine-arnaud-ente.pdf,Lieu-dit below Les Rougeots
+Arnaud Ente,Meursault 1er Cru La Goutte d'Or,Meursault,1er Cru,White,no,https://kermitlynch.com/files/domaine-arnaud-ente.pdf,Corroborated by https://www.bbr.com/producer-1198-domaine-arnaud-ente
+Arnaud Ente,Puligny-Montrachet 1er Cru Les Referts,Puligny-Montrachet,1er Cru,White,no,https://kermitlynch.com/files/domaine-arnaud-ente.pdf,Corroborated by https://www.bbr.com/producer-1198-domaine-arnaud-ente
+Arnaud Ente,Puligny-Montrachet 1er Cru Champ Gain,Puligny-Montrachet,1er Cru,White,no,https://www.bbr.com/producer-1198-domaine-arnaud-ente,Not in the Kermit Lynch sheet; confirmed via insideburgundy.com/?p=133906 plus secondary-market listings
+Arnaud Ente,Bourgogne Grand Ordinaire,Bourgogne,Regional,Red,no,https://kermitlynch.com/files/domaine-arnaud-ente.pdf,"100% Gamay, old vines near l'Hopital de Meursault"
+Arnaud Ente,Bourgogne Rouge,Bourgogne,Regional,Red,no,https://kermitlynch.com/files/domaine-arnaud-ente.pdf,Pinot Noir from Les Champans (Puligny) and Les Magnys (Meursault)
+Arnaud Ente,Volnay 1er Cru Les Santenots du Milieu,Volnay,1er Cru,Red,no,https://kermitlynch.com/files/domaine-arnaud-ente.pdf,Corroborated by https://www.bbr.com/producer-1198-domaine-arnaud-ente
+Krug,Grande Cuvée,Champagne,NV + edition scheme,White,no,https://www.krug.com/champagne/krug-grande-cuvee-174eme-edition,"Written '174eme Edition' etc. Live editions confirmed: 172e, 173e, 174e."
+Krug,Rosé,Champagne,NV + edition scheme (separate numbering from Grande Cuvée),Rosé,no,https://www.krug.com/champagne/krug-rose-29eme-edition,"CONFIRMED on krug.com: Rosé has its own separate edition counter. Live editions confirmed 18e,19e,20e,21e,24e,25e,28e,29e - a much smaller number range than Grande Cuvée's 170s, two independent counters."
+Krug,Vintage,Champagne,"Vintage, no release code",White,no,https://www.krug.com/champagne/krug-vintage,Identified only by harvest year e.g. 'Krug Vintage 2013'. No edition suffix.
+Krug,Clos du Mesnil,Champagne; Mesnil-sur-Oger,"Vintage, no release code",White,yes,https://www.krug.com/champagne/krug-clos-du-mesnil,"Confirmed monopole: walled single plot since 1698. Vintage-dated only, e.g. 'Krug Clos du Mesnil 2009'."
+Krug,Clos d'Ambonnay,Champagne; Ambonnay,"Vintage, no release code",White,yes,https://www.krug.com/champagne/krug-clos-d-ambonnay,"Confirmed monopole: 0.68ha walled plot since 1766, acquired by Krug 1994. Vintage-dated only."
+Krug,Krug Collection,Champagne,"Vintage, no release code (late-disgorged re-release)",White,no,https://www.krug.com/champagne/krug-collection,"A late-disgorged re-release of an existing Krug Vintage year, e.g. 'Krug Collection 1988' - same underlying wine as a Krug Vintage already registered under that year, re-disgorged decades later."
+Dom Pérignon,Vintage,Champagne,"Vintage + Plénitude scheme (P1/base, P2, P3)",White,no,https://hedonism.co.uk/products/dom-perignon-p2-2002,"Base release written just 'Vintage'/'Dom Perignon Vintage 2008' - 'P1' is informal critic shorthand, never real printed wording (domperignon.com itself blocked by an age-gate; base-release wording confirmed via multi-merchant corroboration instead). P2/P3 real titles vary in word order: 'Dom Perignon P2 2002' (Hedonism), '2002 Dom Perignon, P2' (Jeroboams), 'Dom Perignon Brut, P2 Vintage' (HDH Wine), 'Dom Perignon P2 Vintage 2002' (Bodeboca). 'P2'/'Plenitude 2' always co-occurs with the 4-digit vintage year; word order is not fixed. House replaced an older 'Oenotheque' designation with P2/P3 around 2014-2016 per Decanter. Same wine, same vintage, different market release - treat P2/P3 as a release_code on this one cuvee, exactly like a Krug edition, never a separate cuvee row."
+Dom Pérignon,Rosé,Champagne,"Vintage + Plénitude scheme (P1/base, P2)",Rosé,no,https://thefinestbubble.com/champagne-dom-perignon-rose-vintage-1995-plenitude-2-p2-75cl,"Base rosé release written simply 'Dom Perignon Rose 2006' (domperignon.com blocked by age-gate; inferred from the same pattern as white Vintage). P2 real titles: 'Dom Perignon Rose Plenitude 2 P2 Vintage 1995' (The Finest Bubble), 'Dom Perignon Rose 1992 P2 Champagne' (The Whisky Exchange). No single canonical word order. Same release_code-on-one-cuvee treatment as white Vintage above."
+Comte Liger-Belair,Nuits-Saint-Georges 1er Cru Aux Cras,Nuits-Saint-Georges,1er Cru,Red,no,https://www.liger-belair.fr/nos-climats/,Official domaine site wine list
+Comte Liger-Belair,Vosne-Romanée 1er Cru Les Chaumes,Vosne-Romanée,1er Cru,Red,no,https://www.liger-belair.fr/nos-climats/,Official domaine site wine list
+Comte Liger-Belair,Nuits-Saint-Georges Aux Lavières,Nuits-Saint-Georges,Village,Red,no,https://www.liger-belair.fr/nos-climats/,"Official site: village tier. A BBR summary table called it 1er Cru - discrepancy flagged, official site preferred"
+Comte Liger-Belair,Vosne-Romanée,Vosne-Romanée,Village,Red,no,https://www.liger-belair.fr/nos-climats/,Official domaine site wine list
+Comte Liger-Belair,Vosne-Romanée 1er Cru Aux Reignots,Vosne-Romanée,1er Cru,Red,no,https://www.liger-belair.fr/nos-climats/,Official domaine site wine list
+Comte Liger-Belair,Vosne-Romanée 1er Cru Les Petits Monts,Vosne-Romanée,1er Cru,Red,no,https://www.liger-belair.fr/nos-climats/,Official domaine site wine list
+Comte Liger-Belair,Vosne-Romanée 1er Cru Aux Brûlées,Vosne-Romanée,1er Cru,Red,no,https://www.liger-belair.fr/nos-climats/,Official domaine site wine list
+Comte Liger-Belair,La Romanée,Vosne-Romanée,Grand Cru,Red,yes,https://www.liger-belair.fr/nos-climats/,"Monopole confirmed independently via en.wikipedia.org/wiki/La_Romanee - smallest Grand Cru AOC in France, 0.845ha"
+Comte Liger-Belair,Vosne-Romanée 1er Cru Les Suchots,Vosne-Romanée,1er Cru,Red,no,https://www.liger-belair.fr/nos-climats/,Official domaine site wine list
+Comte Liger-Belair,Vosne-Romanée La Colombière,Vosne-Romanée,Village,Red,no,https://www.liger-belair.fr/nos-climats/,Official domaine site wine list
+Comte Liger-Belair,Échézeaux,Flagey-Échézeaux,Grand Cru,Red,no,https://www.liger-belair.fr/nos-climats/,Official domaine site wine list
+Comte Liger-Belair,Vosne-Romanée Clos du Château,Vosne-Romanée,Village,Red,yes,https://www.liger-belair.fr/nos-climats/,Labelled Monopole on official site
+Comte Liger-Belair,Clos de Vougeot,Vougeot,Grand Cru,Red,no,https://www.liger-belair.fr/nos-climats/,Official domaine site wine list
+Comte Liger-Belair,Nuits-Saint-Georges 1er Cru Clos des Grandes Vignes,Nuits-Saint-Georges,1er Cru,Red,yes,https://www.liger-belair.fr/nos-climats/,Labelled Monopole on official site; acquired 2012
+Comte Liger-Belair,Nuits-Saint-Georges 1er Cru Clos des Grandes Vignes Blanc,Nuits-Saint-Georges,1er Cru,White,yes,https://www.liger-belair.fr/nos-climats/,White bottling from a 0.32ha Chardonnay plot; monopole confirmed via worldoffinewine.com listing title
+Domaine Prieuré-Roch,Chambertin-Clos de Bèze,Gevrey-Chambertin,Grand Cru,Red,no,https://www.bbr.com/producer-3021-domaine-du-prieure-roch,"Leased parcel since 1994 per burgundy-report.com - shared Grand Cru, not a monopole"
+Domaine Prieuré-Roch,Clos de Vougeot,Vougeot,Grand Cru,Red,no,https://www.bbr.com/producer-3021-domaine-du-prieure-roch,"Shared Grand Cru, not a monopole"
+Domaine Prieuré-Roch,Vosne-Romanée 1er Cru Les Suchots,Vosne-Romanée,1er Cru,Red,no,https://www.bbr.com/producer-3021-domaine-du-prieure-roch,Shared 1er Cru
+Domaine Prieuré-Roch,Nuits-Saint-Georges 1er Cru Clos des Corvées,Nuits-Saint-Georges,1er Cru,Red,yes,https://www.bbr.com/producer-3021-domaine-du-prieure-roch,Monopole confirmed via burgundy-report.com/autumn-2006/domaine-prieure-roch-a-profile/ (5.21ha unified parcel)
+Domaine Prieuré-Roch,Nuits-Saint-Georges 1er Cru Vieilles Vignes,Nuits-Saint-Georges,1er Cru,Red,no,https://www.bbr.com/producer-3021-domaine-du-prieure-roch,Old-vines selection bottling
+Domaine Prieuré-Roch,Gevrey-Chambertin 1er Cru Vieilles Vignes,Gevrey-Chambertin,1er Cru,Red,no,https://www.bbr.com/producer-3021-domaine-du-prieure-roch,Old-vines selection bottling
+Domaine Prieuré-Roch,Vosne-Romanée Les Clous,Vosne-Romanée,Village,Red,no,https://www.bbr.com/producer-3021-domaine-du-prieure-roch,Blend of multiple lieux-dits per burgundy-report.com
+Domaine Prieuré-Roch,Vosne-Romanée Clos Goillotte,Vosne-Romanée,Village,Red,yes,https://www.bbr.com/producer-3021-domaine-du-prieure-roch,"Monopole confirmed via puninwine.com listing (0.55ha, acquired by Henry-Frederic Roch 1988)"
+Domaine Prieuré-Roch,Vosne-Romanée Hautes Maizières,Vosne-Romanée,Village,Red,no,https://www.bbr.com/producer-3021-domaine-du-prieure-roch,Village-level lieu-dit
+Jacques Selosse,Initial,Champagne,NV,White,no,https://fr.gaultmillau.com/en/wineries/jacques-selosse/initial-bsa,"Grand Cru Blanc de Blancs, Avize/Cramant/Oger. Cuvée NAME, not a description. Merchant titles append disgorgement year e.g. 'NV Jacques Selosse Initial (2022 Disgorgement)' (hdhwine.com)."
+Jacques Selosse,Substance,Champagne,NV,White,no,https://fr.gaultmillau.com/en/wineries/jacques-selosse/substance-bsa,"Grand Cru Blanc de Blancs, solera/perpetual-reserve method begun 1986. Cuvée NAME, not a description."
+Jacques Selosse,V.O. (Version Originale),Champagne,NV,White,no,https://www.farrvintners.com/wine.php?wine=21481,"Distinct cuvée from Initial, not a synonym - Extra Brut vs Initial's Brut, mid-slope parcels. FRW catalogue format: 'NV Jacques Selosse Version Originale (2016 Disgorgement)'."
+Jacques Selosse,Millésime,Champagne,"Vintage (Millésime), also carries a disgorgement date",White,no,https://fr.gaultmillau.com/en/wineries/jacques-selosse,Vintage-dated. Same vintage catalogued separately by disgorgement date - 'Millesime (degorgement 2014)' vintage 2002 vs 'Millesime (degorgement 2021)' vintage 2002 are two distinct real listings.
+Jacques Selosse,Exquise,Champagne,NV,White,no,https://www.bbr.com/products-10008114121-champagne-jacques-selosse-exquise-sec,"100% Chardonnay, single Oger parcel. Labelled 'Sec' but dosage ~24-27g/l in practice (demi-sec)."
+Jacques Selosse,Rosé,Champagne,NV,Rosé,no,https://fr.gaultmillau.com/en/wineries/jacques-selosse,"93% Chardonnay, 7% Pinot Noir per Gault&Millau."
+Jacques Selosse,Chemin de Châlons,Champagne; Cramant,NV,White,unconfirmed,https://v1.vinous.com/articles/selosse-lieux-dits-dinner-at-nomad-jul-2017,"100% Chardonnay, 0.35ha, one barrel. Monopole status not confirmed - other Cramant growers in this lieu-dit not ruled out."
+Jacques Selosse,Les Carelles,Champagne; Le Mesnil-sur-Oger,NV,White,unconfirmed,https://www.frw.co.uk/product/650c5f77bbf13aa52fd42917/nv-le-mesnil-sur-oger-les-carelles-extra-brut-disgorged-21-22-jacques-selosse,"100% Chardonnay, ~3000 bottles/yr, perpetual blend from 2003. Monopole status not confirmed."
+Jacques Selosse,Les Chantereines,Champagne; Avize,NV,White,unconfirmed,https://v1.vinous.com/articles/selosse-lieux-dits-dinner-at-nomad-jul-2017,"100% Chardonnay, 0.8ha, ~600 bottles/yr. Monopole status not confirmed."
+Jacques Selosse,Sous le Mont,Champagne; Mareuil-sur-Aÿ,NV,White,unconfirmed,https://fr.gaultmillau.com/en/wineries/jacques-selosse,"Extra Brut Blanc de Noirs, 100% Pinot Noir. Monopole status not confirmed."
+Jacques Selosse,La Côte Faron,Champagne; Aÿ,NV,White,unconfirmed,https://fr.gaultmillau.com/en/wineries/jacques-selosse,"Blanc de Noirs, 100% Pinot Noir. Formerly named 'Contraste', renamed after a 1994 vineyard became its sole source. Catalogue format seen: 'base 17 disg Jan 24'. Monopole status not confirmed."
+Jacques Selosse,Le Bout du Clos,Champagne; Ambonnay,NV,White,unconfirmed,https://fr.gaultmillau.com/en/wineries/jacques-selosse,"80% Pinot Noir / 20% Chardonnay per Gault&Millau. Despite 'Clos' in the name it is a lieu-dit, not a confirmed legal walled monopole. Monopole status not confirmed."
+Comte Georges de Vogüé,Chambolle-Musigny,Chambolle-Musigny,Village,Red,no,https://www.northberkeleyimports.com/wordpress/wp-content/uploads/2016/01/VOGUE_chambolle_musigny.pdf,Village-level fruit from Les Porlottes plus declassified older-vine fruit from 1er crus Les Baudes and Les Fuées. NOT Musigny-sourced - contrast with the 1er Cru row below.
+Comte Georges de Vogüé,Chambolle-Musigny 1er Cru,Chambolle-Musigny,1er Cru,Red,no,https://www.northberkeleyimports.com/wordpress/wp-content/uploads/2016/01/VOGUE_chambolle_1er.pdf,"QUIRK CONFIRMED by the estate's own tech sheet: young-vine (<=25yr) fruit from grand cru Le Musigny, declassified and bottled as Chambolle-Musigny 1er Cru - estate calls it 'Musigny in short trousers' (direct quote). Not an ordinary 1er Cru in market terms; prices accordingly. Record, do not reclassify."
+Comte Georges de Vogüé,Chambolle-Musigny 1er Cru Les Amoureuses,Chambolle-Musigny,1er Cru,Red,no,https://www.northberkeleyimports.com/wordpress/wp-content/uploads/2016/01/VOGUE_chambolle_amoureuses.pdf,"Immediately upslope of Musigny, separated only by a small road. Shared vineyard (also Roumier, Mugnier) - not a monopole."
+Comte Georges de Vogüé,Bonnes-Mares,Bonnes-Mares,Grand Cru,Red,no,https://www.northberkeleyimports.com/wordpress/wp-content/uploads/2016/01/VOGUE_bonnes_mares.pdf,"Holdings on the Chambolle-Musigny side only. Shared with Dujac, Roumier, Groffier and others - not a monopole."
+Comte Georges de Vogüé,Musigny Vieilles Vignes,Musigny,Grand Cru,Red,no,https://www.northberkeleyimports.com/wordpress/wp-content/uploads/2016/01/VOGUE_musigny_vv.pdf,"Largest single holder (~65% of the AOC, incl. all of lieu-dit Les Petits Musigny per BBR cross-check) but shared with Roumier/Leroy/Mugnier among others - not a true monopole despite the dominant share."
+Comte Georges de Vogüé,Musigny Blanc,Musigny,Grand Cru,White,yes,https://www.northberkeleyimports.com/wordpress/wp-content/uploads/2016/01/VOGUE_musigny_blanc.pdf,"Found during research, not previously flagged: the only white wine from within Musigny Grand Cru. 1.6 acres of Chardonnay; bottled as Bourgogne Blanc until the 2015 vintage. bkwine.com: 'de Vogüé has long been the only producer who grows chardonnay in Musigny' - monopole on this specific WHITE wine, not on the shared red grand cru."
+François Raveneau,Chablis Grand Cru Blanchot,Chablis,Grand Cru,White,no,https://www.raveneau.fr/nos-vins/chablis-grand-cru-blanchot/,Official domaine site. Blanchot is a shared Grand Cru climat.
+François Raveneau,Chablis Grand Cru Les Clos,Chablis,Grand Cru,White,no,https://www.raveneau.fr/nos-vins/chablis-grand-cru-les-clos/,"Official domaine site, subpage spot-checked. Largest/most renowned Chablis GC, shared among many producers."
+François Raveneau,Chablis Grand Cru Valmur,Chablis,Grand Cru,White,no,https://www.raveneau.fr/nos-vins/chablis-grand-cru-valmur/,Official domaine site.
+François Raveneau,Chablis 1er Cru Butteaux,Chablis,1er Cru,White,no,https://www.raveneau.fr/nos-vins/chablis-premier-cru-butteaux/,"Official domaine site. Sometimes grouped commercially under the broader Montmains climat family, but Raveneau bottles/labels it separately."
+François Raveneau,Chablis 1er Cru Chapelot,Chablis,1er Cru,White,no,https://www.raveneau.fr/nos-vins/chablis-premier-cru-chapelot/,Official domaine site. Part of the broader Montée de Tonnerre climat grouping but bottled separately.
+François Raveneau,Chablis 1er Cru Forêt,Chablis,1er Cru,White,no,https://www.raveneau.fr/nos-vins/chablis-premier-cru-foret/,Official domaine site.
+François Raveneau,Chablis 1er Cru Montée de Tonnerre,Chablis,1er Cru,White,no,https://www.raveneau.fr/nos-vins/chablis-premier-cru-montee-de-tonnerre/,Official domaine site. Raveneau's largest 1er cru holding.
+François Raveneau,Chablis 1er Cru Montmains,Chablis,1er Cru,White,no,https://www.raveneau.fr/nos-vins/chablis-premier-cru-montmains/,Official domaine site.
+François Raveneau,Chablis 1er Cru Vaillons,Chablis,1er Cru,White,no,https://www.raveneau.fr/nos-vins/chablis-premier-cru-vaillons/,Official domaine site.
+François Raveneau,Chablis,Chablis,Village,White,no,https://www.raveneau.fr/nos-vins/chablis/,Official domaine site.
+François Raveneau,Petit Chablis,Petit Chablis,Village,White,no,https://www.raveneau.fr/nos-vins/petit-chablis/,"Official domaine site. Petit Chablis is technically its own AOC, ranked below Chablis Village in INAO terms."
+Domaine Georges Roumier,Bourgogne,Bourgogne,Regional,Red,no,https://www.roumier.com/fr_FR/les-vins,Official site.
+Domaine Georges Roumier,Chambolle-Musigny,Chambolle-Musigny,Village,Red,no,https://www.bbr.com/producer-3929-domaine-georges-roumier,Confirmed on official site and BBR
+Domaine Georges Roumier,Chambolle-Musigny Les Cras,Chambolle-Musigny,1er Cru,Red,no,https://www.bbr.com/producer-3929-domaine-georges-roumier,Confirmed on official site and BBR
+Domaine Georges Roumier,Chambolle-Musigny Les Amoureuses,Chambolle-Musigny,1er Cru,Red,no,https://www.bbr.com/producer-3929-domaine-georges-roumier,Confirmed on official site and BBR
+Domaine Georges Roumier,Chambolle-Musigny Les Combottes,Chambolle-Musigny,1er Cru,Red,no,https://www.bbr.com/producer-3929-domaine-georges-roumier,Confirmed on official site and BBR; also verified via vervewine.com/delectable.com
+Domaine Georges Roumier,Morey-Saint-Denis Clos de la Bussière,Morey-Saint-Denis,1er Cru,Red,yes,https://www.roumier.com/fr_FR/les-vins,"2.59ha monopole acquired by the family in 1953, confirmed across multiple independent merchants (ruepinard.com, hedonism.co.uk)"
+Domaine Georges Roumier,Charmes-Chambertin,Charmes-Chambertin,Grand Cru,Red,no,https://www.roumier.com/fr_FR/les-vins,"Shared Grand Cru, not a monopole."
+Domaine Georges Roumier,Ruchottes-Chambertin,Ruchottes-Chambertin,Grand Cru,Red,no,https://www.bbr.com/producer-3929-domaine-georges-roumier,Shared with other owners (e.g. Mugneret-Gibourg) - not a monopole.
+Domaine Georges Roumier,Bonnes-Mares,Bonnes-Mares,Grand Cru,Red,no,https://www.bbr.com/producer-3929-domaine-georges-roumier,"Roumier holds ~1.39ha outright plus ~0.5ha via métayage; shared with de Vogüé, Drouhin, Jadot etc - explicitly NOT a monopole."
+Domaine Georges Roumier,Musigny,Musigny,Grand Cru,Red,no,https://www.roumier.com/fr_FR/les-vins,"Roumier holds only ~0.10ha (under 1,000 bottles/vintage); the bulk is held by Comte Georges de Vogüé - NOT a Roumier monopole."
+Domaine Georges Roumier,Corton-Charlemagne,Corton-Charlemagne,Grand Cru,White,no,https://www.bbr.com/producer-3929-domaine-georges-roumier,Shared Grand Cru spanning Aloxe-Corton/Pernand-Vergelesses - not a monopole.
+Pierre-Yves Colin-Morey,Bourgogne Chardonnay,Bourgogne,Regional,White,no,https://www.bbr.com/producer-2108-maison-pierre-yves-colin-morey,Regional négociant bottling
+Pierre-Yves Colin-Morey,Bourgogne Aligoté,Bourgogne,Regional,White,no,https://www.bbr.com/producer-2108-maison-pierre-yves-colin-morey,Regional négociant bottling
+Pierre-Yves Colin-Morey,St-Aubin,Saint-Aubin,Village,White,no,https://www.bbr.com/producer-2108-maison-pierre-yves-colin-morey,
+Pierre-Yves Colin-Morey,St-Aubin En Remilly,Saint-Aubin,1er Cru,White,no,https://www.bbr.com/producer-2108-maison-pierre-yves-colin-morey,Own-vineyard holding per Jasper Morris MW bio text on the BBR page
+Pierre-Yves Colin-Morey,St-Aubin La Chatenière,Saint-Aubin,1er Cru,White,no,https://www.bbr.com/products-46824-2012-saint-aubin-chateniere-pierre-yves-colin-morey,Own-vineyard holding
+Pierre-Yves Colin-Morey,St-Aubin Les Champlots,Saint-Aubin,1er Cru,White,no,https://decanter.com/wine-reviews/france/burgundy/pierre-yves-colin-morey-st-aubin-1er-cru-les-champlots-66122,Own-vineyard holding
+Pierre-Yves Colin-Morey,St-Aubin Hommage à Marguerite,Saint-Aubin,1er Cru,White,no,https://www.bbr.com/products-60114-2016-st-aubin-marguerite-1er-cru-pierre-yves-colin-morey-burgundy,Blend of St-Aubin 1er cru parcels
+Pierre-Yves Colin-Morey,Chassagne-Montrachet Les Ancegnières,Chassagne-Montrachet,Village,White,no,https://www.bbr.com/producer-2108-maison-pierre-yves-colin-morey,
+Pierre-Yves Colin-Morey,Chassagne-Montrachet Les Chenevottes,Chassagne-Montrachet,1er Cru,White,no,https://www.bbr.com/producer-2108-maison-pierre-yves-colin-morey,Own-vineyard per Jasper Morris MW text
+Pierre-Yves Colin-Morey,Chassagne-Montrachet Les Caillerets,Chassagne-Montrachet,1er Cru,White,no,https://hedonism.co.uk/product/chassagne-montrachet-les-caillerets-pierre-yves-colin-morey-2016,Own-vineyard per Jasper Morris MW text
+Pierre-Yves Colin-Morey,Chassagne-Montrachet Abbaye de Morgeot,Chassagne-Montrachet,1er Cru,White,no,https://hedonism.co.uk/product/chassagne-montrachet-morgeot-pierre-yves-colin-morey-2020,Négociant/purchased-fruit cuvée
+Pierre-Yves Colin-Morey,Chassagne-Montrachet La Boudriotte Rouge,Chassagne-Montrachet,1er Cru,Red,no,https://www.langtons.com.au/p/pierre-yves-colin-morey-1er-cru-la-boudriotte-rouge-chassagne-montrachet-2023-bottle/113289-2023-1.html,Red Pinot Noir cuvée blending La Boudriotte and Les Fairendes plots
+Pierre-Yves Colin-Morey,Chassagne-Montrachet Clos Saint Jean Rouge,Chassagne-Montrachet,1er Cru,Red,no,https://www.differentdrop.com/products/2024-pierre-yves-colin-morey-chassagne-montrachet-rouge-1er-cru-clos-saint-jean,Red Pinot Noir cuvée
+Pierre-Yves Colin-Morey,Puligny-Montrachet,Puligny-Montrachet,Village,White,no,https://www.bbr.com/producer-2108-maison-pierre-yves-colin-morey,Purchased-fruit négociant bottling
+Pierre-Yves Colin-Morey,Meursault Charmes,Meursault,1er Cru,White,no,https://www.bbr.com/producer-2108-maison-pierre-yves-colin-morey,
+Pierre-Yves Colin-Morey,Meursault Poruzots,Meursault,1er Cru,White,no,https://www.bbr.com/producer-2108-maison-pierre-yves-colin-morey,
+Pierre-Yves Colin-Morey,Meursault Perrières,Meursault,1er Cru,White,no,https://www.bbr.com/producer-2108-maison-pierre-yves-colin-morey,
+Pierre-Yves Colin-Morey,Santenay Blanc Passetemps,Santenay,Village,White,no,https://www.bbr.com/producer-2108-maison-pierre-yves-colin-morey,
+Pierre-Yves Colin-Morey,Monthélie Blanc,Monthélie,Village,White,no,https://www.bbr.com/producer-2108-maison-pierre-yves-colin-morey,
+Pierre-Yves Colin-Morey,Corton-Charlemagne,Corton-Charlemagne,Grand Cru,White,no,https://www.bbr.com/producer-2108-maison-pierre-yves-colin-morey,"Shared Grand Cru climat, not a monopole"
+Pierre-Yves Colin-Morey,Bâtard-Montrachet,Bâtard-Montrachet,Grand Cru,White,no,https://www.decanter.com/wine-reviews/france/burgundy/pierre-yves-colin-morey-batard-montrachet-grand-cru-2020-55070/,Purchased-fruit grand cru cuvée mentioned in the BBR page's own Jasper Morris MW bio text
+Pierre-Yves Colin-Morey,Bienvenues-Bâtard-Montrachet,Bienvenues-Bâtard-Montrachet,Grand Cru,White,no,https://ruepinard.com/product/pierre-yves-colin-morey-bienvenues-batard-montrachet-grand-cru-2019,Mentioned in the BBR page's own bio text ('very fine Bienvenues-Bâtard-Montrachet'); researcher's first-draft source URL for this row was a copy-paste error (an unrelated Roumier product page) - corrected here to the real ruepinard.com citation before loading
+Pierre-Yves Colin-Morey,Criots-Bâtard-Montrachet,Criots-Bâtard-Montrachet,Grand Cru,White,no,https://ruepinard.com/product/pierre-yves-colin-morey-criots-batard-montrachet-grand-cru-2013,Purchased-fruit grand cru cuvée
+Pierre-Yves Colin-Morey,Santenay Rouge Ceps Centenaires Vieilles Vignes,Santenay,Village,Red,no,https://www.bbr.com/producer-2108-maison-pierre-yves-colin-morey,
+Pierre-Yves Colin-Morey,Santenay Les Gravières,Santenay,1er Cru,Red,no,https://www.bbr.com/producer-2108-maison-pierre-yves-colin-morey,
+Pierre-Yves Colin-Morey,Vosne-Romanée,Vosne-Romanée,Village,Red,no,https://www.bbr.com/producer-2108-maison-pierre-yves-colin-morey,"Purchased-fruit négociant bottling, outside the Côte de Beaune home base"
+Domaine Jean-Yves Bizot,Vosne-Romanée,Vosne-Romanée,Village,Red,no,https://wine.sothebys.com/blogs/producer/domaine-bizot,Also on domainebizot.com and idealwine.com lot pages
+Domaine Jean-Yves Bizot,Vosne-Romanée Les Jachées,Vosne-Romanée,Village (named old-vine lieu-dit),Red,no,https://wine.sothebys.com/blogs/producer/domaine-bizot,Sotheby's: 'from vines planted in 1930'; domainebizot.com lists 'Les Jachees 2019'
+Domaine Jean-Yves Bizot,Vosne-Romanée 1er Cru (Les Treux),Vosne-Romanée,1er Cru,Red,no,https://idealwine.com/en/buy-a-wine/2383301-1-bottle-Vosne-Romanee-1er-Cru-Bizot-Domaine-1999-Red,Sotheby's: Les Treux (adjacent to Échezeaux) usually declassified to Vosne 1er Cru; idealwine confirms label 'Vosne-Romanée 1er Cru Bizot'
+Domaine Jean-Yves Bizot,Échezeaux (Les Orveaux),Échezeaux,Grand Cru,Red,no,https://wine.sothebys.com/blogs/producer/domaine-bizot,"Sotheby's: half a hectare of Échezeaux, of which Les Orveaux is bottled as grand cru; corroborated by idealwine.com lot listings"
+Domaine Jean-Yves Bizot,Bourgogne Rouge Le Chapitre,Bourgogne,Regional,Red,no,https://wine.sothebys.com/blogs/producer/domaine-bizot,Old-vine lieu-dit south of Dijon; domainebizot.com lists 'Le chapitre 2019'
+Domaine Jean-Yves Bizot,Marsannay Clos du Roy,Marsannay,Village,Red,no,https://idealwine.com/en/wine-prices/141093-2007-Bottle-Burgundy-Marsannay-Domaine-Bizot-red,Corroborated by caskcartel.com listing
+Domaine Jean-Yves Bizot,Bourgogne Blanc Les Violettes,Bourgogne,Regional,White,no,https://www.bbr.com/products-20098107811-2009-bourgogne-blanc-les-violettes-domaine-bizot,From old vines adjacent to Clos Vougeot; domainebizot.com lists 'Les violettes 2019'
+Domaine Jean-Yves Bizot,Bourgogne Hautes-Côtes de Nuits Blanc,Bourgogne Hautes-Côtes de Nuits,Regional,White,no,https://hedonism.co.uk/product/bourgogne-hautes-cotes-de-nuits-blanc-bizot-2014,
+Domaine d'Auvenay,Bourgogne Aligoté Sous Châtelet,Bourgogne,Regional,White,no,https://www.lapassionduvin.com/bourgognebeaujolais/2432-domaine-d-auvenay,Corroborated by adrianchalkselections.com producer page
+Domaine d'Auvenay,Auxey-Duresses,Auxey-Duresses,Village,White,no,https://www.lapassionduvin.com/bourgognebeaujolais/2432-domaine-d-auvenay,
+Domaine d'Auvenay,Auxey-Duresses Les Boutonniers,Auxey-Duresses,Village,White,no,https://www.lapassionduvin.com/bourgognebeaujolais/2432-domaine-d-auvenay,
+Domaine d'Auvenay,Meursault,Meursault,Village,White,no,https://www.lapassionduvin.com/bourgognebeaujolais/2432-domaine-d-auvenay,Corroborated by idealwine.com lot listings
+Domaine d'Auvenay,Meursault Les Narvaux,Meursault,Village (unclassified climat),White,no,https://www.lapassionduvin.com/bourgognebeaujolais/2432-domaine-d-auvenay,Unclassified village lieu-dit above Genevrières/Poruzot 1er crus
+Domaine d'Auvenay,Meursault 1er Cru Les Gouttes d'Or,Meursault,1er Cru,White,no,https://www.lapassionduvin.com/bourgognebeaujolais/2432-domaine-d-auvenay,Corroborated by caskcartel.com listing
+Domaine d'Auvenay,Puligny-Montrachet En La Richarde,Puligny-Montrachet,"UNVERIFIED - village per source, one AI-search snippet claimed 1er cru",White,no,https://www.lapassionduvin.com/bourgognebeaujolais/2432-domaine-d-auvenay,Listed without '1er cru' prefix (unlike Les Folatières in the same list); unresolved conflict with a separate AI-synthesized search result claiming premier cru - flagged rather than guessed
+Domaine d'Auvenay,Puligny-Montrachet 1er Cru Les Folatières,Puligny-Montrachet,1er Cru,White,no,https://www.lapassionduvin.com/bourgognebeaujolais/2432-domaine-d-auvenay,Corroborated by adrianchalkselections.com
+Domaine d'Auvenay,Criots-Bâtard-Montrachet,Criots-Bâtard-Montrachet,Grand Cru,White,no,https://www.lapassionduvin.com/bourgognebeaujolais/2432-domaine-d-auvenay,Corroborated by adrianchalkselections.com
+Domaine d'Auvenay,Chevalier-Montrachet,Chevalier-Montrachet,Grand Cru,White,no,https://www.lapassionduvin.com/bourgognebeaujolais/2432-domaine-d-auvenay,Corroborated by adrianchalkselections.com
+Domaine d'Auvenay,Mazis-Chambertin,Mazis-Chambertin,Grand Cru,Red,no,https://www.frw.co.uk/product/612ec2800100000000006fc2/2006-mazis-chambertin-auvenay,Corroborated by lapassionduvin.com and adrianchalkselections.com
+Domaine d'Auvenay,Bonnes-Mares,Bonnes-Mares,Grand Cru,Red,no,https://www.hedonism.co.uk/product/bonnes-mares-dauvenay-2013,Corroborated by unitedcellars.com.au and adrianchalkselections.com
+Domaine Dujac,Échezeaux,Échezeaux,Grand Cru,Red,no,https://www.dujac.com/ajaxify/view/wines,Official site's own JSON data feed behind dujac.com/en/nos-vins
+Domaine Dujac,Bonnes-Mares,Bonnes-Mares,Grand Cru,Red,no,https://www.dujac.com/ajaxify/view/wines,
+Domaine Dujac,Chambolle-Musigny Les Gruenchers,Chambolle-Musigny,1er Cru,Red,no,https://www.dujac.com/ajaxify/view/wines,
+Domaine Dujac,Gevrey-Chambertin Aux Combottes,Gevrey-Chambertin,1er Cru,Red,no,https://www.dujac.com/ajaxify/view/wines,
+Domaine Dujac,Chambolle-Musigny,Chambolle-Musigny,Village,Red,no,https://www.dujac.com/ajaxify/view/wines,No named climat on this listing
+Domaine Dujac,Morey-Saint-Denis Rouge,Morey-Saint-Denis,Village,Red,no,https://www.dujac.com/ajaxify/view/wines,Site itself labels this 'Domaine' to distinguish from the Fils & Père négoce version of the same appellation
+Domaine Dujac,Chambertin,Chambertin,Grand Cru,Red,no,https://www.dujac.com/ajaxify/view/wines,
+Domaine Dujac,Charmes-Chambertin,Charmes-Chambertin,Grand Cru,Red,no,https://www.dujac.com/ajaxify/view/wines,
+Domaine Dujac,Clos de la Roche,Clos de la Roche,Grand Cru,Red,no,https://www.dujac.com/ajaxify/view/wines,
+Domaine Dujac,Morey-Saint-Denis 1er Cru,Morey-Saint-Denis,1er Cru,Red,no,https://www.dujac.com/ajaxify/view/wines,Site lists this generically as '1er Cru' with no single climat named on this record
+Domaine Dujac,Morey-Saint-Denis 1er Cru Les Monts Luisants Blanc,Morey-Saint-Denis,1er Cru,White,no,https://www.dujac.com/ajaxify/view/wines,Chardonnay
+Domaine Dujac,Vosne-Romanée Les Beaux Monts,Vosne-Romanée,1er Cru,Red,no,https://www.dujac.com/ajaxify/view/wines,
+Domaine Dujac,Vosne-Romanée Aux Malconsorts,Vosne-Romanée,1er Cru,Red,no,https://www.dujac.com/ajaxify/view/wines,
+Domaine Dujac,Romanée-Saint-Vivant,Romanée-Saint-Vivant,Grand Cru,Red,no,https://www.dujac.com/ajaxify/view/wines,
+Domaine Dujac,Morey-Saint-Denis Blanc,Morey-Saint-Denis,Village,White,no,https://www.dujac.com/ajaxify/view/wines,Chardonnay village white
+Domaine Dujac,Bourgogne Blanc,Bourgogne,Regional,White,no,https://www.dujac.com/ajaxify/view/wines,
+Domaine Dujac,Clos Saint-Denis,Clos Saint-Denis,Grand Cru,Red,no,https://www.dujac.com/ajaxify/view/wines,
+Domaine Dujac,Puligny-Montrachet Les Folatières,Puligny-Montrachet,1er Cru,White,no,https://www.dujac.com/ajaxify/view/wines,Côte de Beaune; vines farmed by Dujac since 2014 per the site's own history text
+Domaine Dujac,Puligny-Montrachet Les Combettes,Puligny-Montrachet,1er Cru,White,no,https://www.dujac.com/ajaxify/view/wines,Côte de Beaune; vines farmed by Dujac since 2014
+Domaine Robert Groffier,Bonnes-Mares,Bonnes-Mares,Grand Cru,Red,no,https://www.bbr.com/producer-3397-domaine-robert-groffier,"BBR's own full legal name: 'Domaine Robert Groffier Père & Fils'. Shared Grand Cru, not a monopole"
+Domaine Robert Groffier,Bonnes-Mares Les Terres Blanches,Bonnes-Mares,Grand Cru,Red,no,https://www.bbr.com/producer-3397-domaine-robert-groffier,Named-parcel bottling within Bonnes-Mares
+Domaine Robert Groffier,Chambertin-Clos de Bèze,Chambertin-Clos de Bèze,Grand Cru,Red,no,https://www.bbr.com/producer-3397-domaine-robert-groffier,"Only seen as part of a mixed-assortment case's own name on this page, not a standalone listing at time of check - weaker evidence than the other rows, kept rather than dropped since the wine itself is real"
+Domaine Robert Groffier,Chambolle-Musigny Les Amoureuses,Chambolle-Musigny,1er Cru,Red,no,https://www.bbr.com/producer-3397-domaine-robert-groffier,"Core cuvée, multiple vintages listed"
+Domaine Robert Groffier,Chambolle-Musigny Les Amoureuses La Grâce des Argiles,Chambolle-Musigny,1er Cru,Red,no,https://www.bbr.com/producer-3397-domaine-robert-groffier,Special/limited named bottling of Les Amoureuses
+Domaine Robert Groffier,Chambolle-Musigny Les Amoureuses La Délicatesse des Sables,Chambolle-Musigny,1er Cru,Red,no,https://www.bbr.com/producer-3397-domaine-robert-groffier,Special/limited named bottling of Les Amoureuses
+Domaine Robert Groffier,Chambolle-Musigny Les Sentiers,Chambolle-Musigny,1er Cru,Red,no,https://www.bbr.com/producer-3397-domaine-robert-groffier,
+Domaine Robert Groffier,Chambolle-Musigny Les Hauts-Doix,Chambolle-Musigny,1er Cru,Red,no,https://www.bbr.com/producer-3397-domaine-robert-groffier,
+Domaine Robert Groffier,Gevrey-Chambertin Les Seuvrées,Gevrey-Chambertin,Village,Red,no,https://www.bbr.com/producer-3397-domaine-robert-groffier,BBR's own breadcrumb classifies this as village-level
+Domaine Robert Groffier,Bourgogne Rouge Les Jardins de Marie et Léa,Bourgogne,Regional,Red,no,https://www.bbr.com/producer-3397-domaine-robert-groffier,
+Domaine Robert Groffier,Bourgogne Pinot Noir,Bourgogne,Regional,Red,no,https://www.bbr.com/producer-3397-domaine-robert-groffier,
+Domaine Robert Groffier,Bourgogne Passetoutgrain,Bourgogne,Regional,Red,no,https://www.bbr.com/producer-3397-domaine-robert-groffier,Pinot Noir/Gamay blend
