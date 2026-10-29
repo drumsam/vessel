@@ -84,14 +84,28 @@ _EDITION_RE = re.compile(
 #: 161eme Edition") — one merchant, two orderings, in the same feed.
 _EDITION_WORD_FIRST_RE = re.compile(r"\s*[EÉ]dition\s+(\d{1,3})\s*$", re.IGNORECASE)
 
+#: A MARKET-release year, not an edition — the Krug edition problem's mirror
+#: image, found in Burgundy (decision 0043). Confirmed live: Berry Bros
+#: prints "Vosne-Romanée Aux Brulées 2021 Release" and "... 24 Release" on
+#: ordinary Domaine Leroy cuvées whose real vintage (2009, 2014, ...) is
+#: recorded elsewhere entirely — the tag says only WHEN the bottle reached
+#: the market, not that this is a different wine. Stripped and DISCARDED,
+#: never returned as a release_code: promoting it would fragment one wine's
+#: identity by whichever year it happened to ship, and the register's own
+#: un-suffixed row (built without knowing a future release year) would then
+#: never match a live listing that carries one.
+_MARKET_RELEASE_RE = re.compile(r"\s*(?:\d{4}|\d{2})\s+Release\b\s*$", re.IGNORECASE)
+
 
 def split_release_code(text: str) -> tuple[str, Optional[str]]:
     """Pull a release/edition number out of a cuvée string, if one is there.
 
     "Grande Cuvée 156ème Édition" -> ("Grande Cuvée", "156"). "Grande Cuvée
     169e" -> ("Grande Cuvée", "169"). "Grande Cuvee Edition 162" -> ("Grande
-    Cuvee", "162"). "156th" alone -> ("", "156"). No match -> the text
-    unchanged, release_code None.
+    Cuvee", "162"). "156th" alone -> ("", "156"). "Vosne-Romanée Aux Brulées
+    2021 Release" -> ("Vosne-Romanée Aux Brulées", None) — a market-release
+    year is noise, discarded before an edition is ever looked for (see
+    `_MARKET_RELEASE_RE`). No match -> the text unchanged, release_code None.
 
     This is a PROPOSAL, exactly like producer/cuvee splitting elsewhere in
     this module (decision 0019): it only shapes what goes into `wine_key`. The
@@ -102,9 +116,10 @@ def split_release_code(text: str) -> tuple[str, Optional[str]]:
     — each is already a complete, distinct cuvée name with no shared base to
     split from, so wine_key tells them apart with no change here.
     """
-    match = _EDITION_RE.search(text or "") or _EDITION_WORD_FIRST_RE.search(text or "")
+    text = _MARKET_RELEASE_RE.sub("", text or "")
+    match = _EDITION_RE.search(text) or _EDITION_WORD_FIRST_RE.search(text)
     if not match:
-        return (text or "").strip(), None
+        return text.strip(), None
     remainder = " ".join((text[:match.start()] + text[match.end():]).split())
     return remainder, match.group(1)
 

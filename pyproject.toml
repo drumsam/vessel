@@ -11,7 +11,7 @@ dependencies = ["fastapi", "uvicorn", "httpx", "psycopg[binary]", "redis", "rq",
                 # migrating both call sites to selectolax.lexbor.LexborHTMLParser is real,
                 # separate work this fix does not attempt.
                 "selectolax<1.0", "pydantic",
-                "sqlalchemy", "alembic", "argon2-cffi"]
+                "sqlalchemy", "alembic", "argon2-cffi", "anthropic"]
 
 [project.optional-dependencies]
 dev = ["pytest", "pytest-cov", "ruff", "fakeredis"]

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # The one command: sets up whatever's missing, then opens Cellar Desk.
 #
-#   scripts/desk.sh
+#   scripts/desk.sh            reuse existing demo data (or seed it, first run)
+#   scripts/desk.sh --reseed   drop the demo deals and seed them fresh
 #
 # No Docker, no psql, no Postgres.app required -- see scripts/desk.mjs for
 # why and how. Safe to run more than once: it only sets up what's missing
@@ -30,4 +31,4 @@ if [ ! -L scripts/node_modules ]; then
   ln -sf ../web/node_modules scripts/node_modules
 fi
 
-exec node scripts/desk.mjs
+exec node scripts/desk.mjs "$@"

@@ -447,6 +447,22 @@ def test_split_release_code_reads_the_edition_word_first_too():
     assert split_release_code("Edition 162 Grand Cru") == ("Edition 162 Grand Cru", None)
 
 
+def test_split_release_code_discards_a_leroy_market_release_year_never_promotes_it():
+    """Berry Bros prints "Vosne-Romanée Aux Brulées 2021 Release" and
+    "... 24 Release" on ordinary Domaine Leroy cuvées whose real vintage
+    (2009, 2014, ...) lives elsewhere entirely (decision 0043) -- the
+    Krug edition problem's mirror image, found in Burgundy. Promoting the
+    release YEAR to a release_code would fragment one wine's identity by
+    whichever year it happened to ship and never match the want-list
+    register's own un-suffixed row."""
+    assert split_release_code("Vosne-Romanée Aux Brulées 2021 Release") == (
+        "Vosne-Romanée Aux Brulées", None)
+    assert split_release_code("Vosne-Romanée Aux Brulées 24 Release") == (
+        "Vosne-Romanée Aux Brulées", None)
+    # a genuine Krug edition is untouched by the new pattern
+    assert split_release_code("Grande Cuvée 156ème Édition") == ("Grande Cuvée", "156")
+
+
 def test_condition_normalisation_from_live_strings():
     assert normalise_condition("Not in original carton") == frozenset({ConditionFlag.NO_ORIGINAL_CASE})
     assert normalise_condition("Non OWC") == frozenset({ConditionFlag.NO_ORIGINAL_CASE})

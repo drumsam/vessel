@@ -195,7 +195,8 @@ def test_want_list_match_endpoint_is_a_suggestion_never_a_resolution(client):
     r = client.post("/identity/want-list-match", json={"text": "Leroy Chambertin 2015"})
     assert r.status_code == 200
     [match] = r.json()
-    assert match == {"producer": "Domaine Leroy", "always_review": True}
+    assert match == {"producer": "Domaine Leroy", "always_review": True,
+                     "fork_with": ["Maison Leroy"]}
 
 
 @pg

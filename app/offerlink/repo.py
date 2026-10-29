@@ -99,7 +99,13 @@ def build_public_payload(conn: psycopg.Connection, link: dict) -> dict:
     public are read into the per-line dict below; seller_price_gbp and
     commission_gbp are added as a SEPARATE step, only when kind == "seller"
     -- so a buyer-kind payload's dict never holds the key, not merely a
-    null value. Nothing here reads deal.name or deal.seller.
+    null value. Nothing here reads deal.name or deal.seller, and nothing
+    here reads inbound_offer or supplier either (supplier-attribution-
+    spec.md's own leak-surface warning): this function is allowlist by
+    construction -- it builds an explicit dict rather than spreading a
+    source row -- so a field never leaks by being added to a table
+    upstream. Keep it that way if this function ever reads an
+    inbound-sourced line's own fields.
     """
     lines = []
     for line_id in link["line_ids"]:

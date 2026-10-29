@@ -62,7 +62,7 @@ export default function Chrome({ children }) {
           <span className="brand">UK Fine Wine Pricer</span>
           <nav>
             {link("/", "Deals")}
-            {link("/evaluate", "Evaluate")}
+            {link("/pocket", "Pocket")}
             {link("/queue", "Exceptions")}
           </nav>
           <span className="who">

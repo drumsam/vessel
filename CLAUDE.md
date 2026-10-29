@@ -12,6 +12,17 @@ discount or target margin, and produces a client-facing offer.
 price. Fail closed.** A missing price is a fine outcome. A wrong price that looks
 right is the failure this whole system exists to prevent.
 
+The same discipline applies to the UI, not only the pricing core: **"couldn't
+check" must never render as "checked and clear."** A screen fetching server
+data is in exactly one of three states — found something, found nothing (a
+real, checked answer), or couldn't check at all — and a render may never
+collapse the third into the second (a `.catch()` that resets to the same
+empty value a genuine "nothing here" uses). `web/lib/fetchState.js`'s
+`fetchInto` is the shared way to wire a fetch to state without that collapse;
+see decision 0040, found after the third live instance of this exact shape
+(a UUID leaking into an error message, a stale "two or more is always
+enough" claim, and `scripts/desk.sh` printing a dead `undefined` into a URL).
+
 ## The rule that governs everything
 
 > Agents propose. Deterministic code disposes.
@@ -217,7 +228,13 @@ Alembic revision in `migrations/versions/`; `0001_baseline` is frozen.
 `test_migrations_reproduce_schema_sql_exactly` fails if the two disagree, and
 `test_equivalence_check_detects_a_one_line_drift` proves that comparison can fail.
 Spell out constraint names in migrations so they match what `CREATE TABLE` in
-schema.sql generates.
+schema.sql generates. **A revision id over 32 characters truncates silently**
+— `alembic_version.version_num` is `varchar(32)`, and `alembic upgrade`
+fails with a bare `StringDataRightTruncation` rather than a naming
+complaint. Found live on `0036_inbound_offer_commercial_fields` (36 chars),
+caught before it touched production; renamed to `0036_confirmed_commercial`.
+Keep every new `revision = "..."` string at or under 32 characters —
+the migration file's own name can stay as descriptive as it needs to be.
 
 Money crosses the API as JSON strings. A JSON number is refused, not converted.
 
@@ -744,6 +761,30 @@ NOT built, named directly so nobody adds them later "out of tidiness":
 waitlist positions, status tiers, membership caps, cash credits, buyer
 ranking, the Thursday drop cadence, "My Cellar", or anything else from the
 parked growth/club document.
+
+Three auction-house adapters — Sotheby's, Christie's, iDealwine's shop —
+built over decision 0024's own override (decision 0042), after Doug asked
+for five and reconnaissance found two (Heritage, Zachys) actively defended
+by a deployed bot-detection challenge rather than only a written
+restriction; dropped, not built, over bypassing that. Each produces
+`PriceKind.LAST_TRADE` (the two auction houses) or `ASK` (iDealwine's
+shop, an ordinary merchant, needing no override at all). `duty_status` is
+`UNKNOWN` on every offer from all three, unconditionally — simplified
+deliberately on Doug's own instruction ("not worry about a few pennies
+either way, move it along"): Christie's own lot pages do sometimes carry
+a specific, parseable "Offered in bond" footnote (confirmed live on a
+2003 Cheval-Blanc lot), but reading it was cut rather than kept, since
+bringing the price in was the point of this round, not classifying it.
+Consequence, said plainly rather than left to be found later: none of
+what these three capture clears the locked core's own `IN_BOND`/GBP
+screens, so all of it lands as a retained, visible rejection rather than
+a priced comparable — correct, not a bug, since none of these three sales
+is the UK In Bond market this benchmark prices against. None has a usable
+live search (Sotheby's own is Algolia/JS-
+driven and does not honour a plain "past sales" query string, confirmed
+live; Christie's own is disallowed by robots.txt; iDealwine's is
+unverified), so all three read caller-supplied lot/product paths, same
+discipline as Jeroboams' own `product_paths`.
 
 Not built yet: the LWIN import (decision 0012 — waiting on the file), Albany and
 Vinum, the remaining merchant adapters, AI provider implementations. A client-

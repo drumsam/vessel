@@ -149,11 +149,23 @@ def test_benchmark_as_of_in_the_future_is_refused():
 # ============================================ offline: infrastructure contracts
 
 
-@pytest.mark.parametrize("name", ["anthropic", "openai", "gemini"])
+@pytest.mark.parametrize("name", ["openai", "gemini"])
 def test_unimplemented_ai_provider_fails_legibly(monkeypatch, name):
     from app.ai.provider import get_provider
     monkeypatch.setenv("AI_PROVIDER", name)
     with pytest.raises(NotImplementedError, match=f"AI_PROVIDER='{name}' is not implemented"):
+        get_provider()
+
+
+def test_anthropic_provider_fails_legibly_with_no_api_key(monkeypatch):
+    """Anthropic is the one real implementation (VESSEL Pocket's
+    propose_inbound_offer) — it must fail for ITS real reason, a missing
+    key, never for the generic "not implemented yet" the other two names
+    still give."""
+    from app.ai.provider import get_provider
+    monkeypatch.setenv("AI_PROVIDER", "anthropic")
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    with pytest.raises(RuntimeError, match="ANTHROPIC_API_KEY"):
         get_provider()
 
 
@@ -2059,6 +2071,55 @@ def test_deep_search_never_guesses_a_producer_slug(client):
     assert result["searched"] == []
     assert result["skipped"][0]["reason"] == "no search key for this producer"
     assert result["skipped"][0]["producer"] == R
+
+
+@pg
+def test_collect_now_runs_one_wine_synchronously_and_reports_each_outcome(client):
+    """EVALUATE's own "Collect now" (speed-and-cost-plan.md): one wine,
+    synchronous, every targeted merchant with a search key reported by
+    outcome -- no schema change, snapshot_merchant already carries all
+    three (decision 0004)."""
+    wid = _seed_wine(client)
+    client.put("/merchants/bordeaux-index/search-keys", json={
+        "producer_key": "domaine armand rousseau",
+        "params": {"producer_slug": "domaine_armand_rousseau"},
+        "note": "test"})
+
+    def fetch(adapter, params, vintage):
+        return [bi_card("650.00", vintage=vintage)]
+
+    result = jobs.collect_now(wid, 2011, merchant_ids=["bordeaux-index", "fine-rare"],
+                              fetch=fetch, robots=lambda url: None)
+    by_merchant = {r["merchant_id"]: r for r in result["results"]}
+    assert by_merchant["bordeaux-index"]["outcome"] == "ok"
+    # The fetch ran and ingest actually processed the card -- written or
+    # rejected, either is a real "looked" outcome (status='ok'); this
+    # test's own job is proving collect_now's plumbing and the three-
+    # way outcome split, not re-deriving ingest's own format rules.
+    assert (by_merchant["bordeaux-index"]["offers_written"]
+           + by_merchant["bordeaux-index"]["offers_rejected"]) == 1
+    assert by_merchant["fine-rare"]["outcome"] == "skipped"
+    assert by_merchant["fine-rare"]["reason"] == "no search key for this producer"
+
+
+@pg
+def test_collect_now_reports_a_failed_fetch_distinctly_from_an_empty_one(client):
+    """status='failed' (couldn't look, error named) must never read the
+    same as status='ok' with offers_written=0 (looked, found nothing) --
+    decision 0004's own distinction, now surfaced through collect_now."""
+    wid = _seed_wine(client)
+    client.put("/merchants/bordeaux-index/search-keys", json={
+        "producer_key": "domaine armand rousseau",
+        "params": {"producer_slug": "domaine_armand_rousseau"}, "note": "test"})
+
+    def failing_fetch(adapter, params, vintage):
+        raise RuntimeError("the merchant's own page timed out")
+
+    result = jobs.collect_now(wid, 2011, merchant_ids=["bordeaux-index"],
+                              fetch=failing_fetch, robots=lambda url: None)
+    [row] = result["results"]
+    assert row["outcome"] == "failed"
+    assert "timed out" in row["error"]
 
 
 @pg

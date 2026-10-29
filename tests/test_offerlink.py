@@ -229,6 +229,27 @@ def test_buyer_payload_never_carries_seller_price_or_commission(conn, operator, 
 
 
 @pg
+def test_public_payload_never_carries_a_supplier_field(conn, operator, client):
+    """supplier-attribution-spec.md's own leak-surface warning, as a
+    permanent guard: build_public_payload is allowlist by construction
+    and reads no inbound_offer/supplier field today, but this fails the
+    moment one is ever added to its dict -- by name or by value, for a
+    buyer link and a seller link alike."""
+    operator_id = str(operator["operator_id"])
+    deal_id, [line_id] = _deal_with_lines(conn, operator_id, [{}])
+    _seed_run(conn, line_id, comps=[Decimal("150.00"), Decimal("152.00")])
+    _price(client, deal_id)
+
+    for kind in ("buyer", "seller"):
+        link = offerlink_repo.create_link(conn, deal_id=deal_id, line_ids=[line_id], kind=kind,
+                                          fx_rate=None, created_by=operator_id)
+        payload = offerlink_repo.build_public_payload(conn, link)
+        dumped = str(payload).lower()
+        for forbidden in ("supplier", "contact_name", "phone"):
+            assert forbidden not in dumped, f"{forbidden!r} leaked into a {kind} share link"
+
+
+@pg
 def test_seller_payload_carries_commission(conn, operator, client):
     operator_id = str(operator["operator_id"])
     deal_id, [line_id] = _deal_with_lines(conn, operator_id, [{}])

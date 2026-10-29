@@ -104,6 +104,15 @@ test("assertBuyerSafe throws on a message that mentions a forbidden word", () =>
   assert.doesNotThrow(() => assertBuyerSafe("a perfectly ordinary buyer message"));
 });
 
+test("assertBuyerSafe throws on a supplier field name or value -- the new leak surface", () => {
+  // supplier-attribution-spec.md: a wrong supplier attribution outbound
+  // is a commercial injury to Doug, the same class of error as cost.
+  assert.throws(() => assertBuyerSafe("supplier_id: abc-123"));
+  assert.throws(() => assertBuyerSafe("the supplier is Vinum"));
+  assert.throws(() => assertBuyerSafe("contact_name: James"));
+  assert.throws(() => assertBuyerSafe("phone: +44 7700 900000"));
+});
+
 test("the buyer-individual message carries Doug's own structure and never a seller/commission word", () => {
   const a = line("a", { wine_id: "dp", vintage: 2008, offer: 132, floor: 162, floorSavingClaim: "0.1876" });
   const msg = buyerIndividualMessage({

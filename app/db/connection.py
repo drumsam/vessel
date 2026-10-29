@@ -13,6 +13,14 @@ import psycopg
 from psycopg.rows import dict_row
 
 
+#: The Alembic revision this codebase expects the database to be at. Bump
+#: this in the same commit as every new migration. `migrations/` itself is
+#: not bundled into the deployed function (see .vercelignore), so this
+#: constant -- not a live read of migrations/versions/ -- is the only way
+#: the running API can tell "reachable" apart from "actually usable".
+EXPECTED_HEAD_REVISION = "0036_confirmed_commercial"
+
+
 def database_url() -> str:
     url = os.environ.get("DATABASE_URL")
     if not url:

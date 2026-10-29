@@ -34,3 +34,6 @@ class NotImplementedProvider(AIProvider):
 
     def parse_condition(self, text: str):
         self._fail()
+
+    def propose_inbound_offer(self, raw_body, raw_media, media_mime):
+        self._fail()

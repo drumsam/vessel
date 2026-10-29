@@ -23,6 +23,7 @@ import psycopg
 
 from app.adapters.base import Adapter, Candidate, Rejected, whole_pence
 from app.adapters.berry_bros_rudd import BASE as BBR_URL, BerryBrosRuddAdapter
+from app.adapters.christies import BASE as CHRISTIES_URL, ChristiesAdapter
 from app.adapters.bordeaux_index import LIST_URL as BI_URL, BordeauxIndexAdapter
 from app.adapters.bordeaux_index_livetrade import (
     MARKETPLACE_URL as BI_LIVETRADE_URL, BordeauxIndexLiveTradeAdapter)
@@ -30,10 +31,12 @@ from app.adapters.farr import FEED_URL as FARR_URL, FarrAdapter
 from app.adapters.fine_and_rare import (
     PRODUCER_INDEX_URL as FRW_URL, FineAndRareAdapter)
 from app.adapters.goedhuis import PRODUCTS_URL as GOEDHUIS_URL, GoedhuisAdapter
+from app.adapters.idealwine import BASE as IDEALWINE_URL, IdealwineAdapter
 from app.adapters.jeroboams import BASE as JEROBOAMS_URL, JeroboamsAdapter
 from app.adapters.justerini_brooks import BASE as JB_URL, JusteriniBrooksAdapter
 from app.adapters.lea_sandeman import LIST_URL as LS_URL, LeaSandemanAdapter
 from app.adapters.lw_trading import API_URL as LW_URL, LayWheelerTradingAdapter
+from app.adapters.sothebys import BASE as SOTHEBYS_URL, SothebysAdapter
 from app.core.benchmark import benchmark
 from app.core.enums import Reject
 from app.core.models import Offer
@@ -106,6 +109,10 @@ def _by_product_paths(adapter: Adapter, params: dict, vintage: int) -> Sequence[
     return adapter.fetch(params.get("product_paths"))
 
 
+def _by_lot_paths(adapter: Adapter, params: dict, vintage: int) -> Sequence[dict]:
+    return adapter.fetch(params.get("lot_paths"))
+
+
 WHOLE_BOOK["lea-sandeman"] = WholeBook(LeaSandemanAdapter, LS_URL)
 
 TARGETED: dict[str, Targeted] = {
@@ -142,6 +149,24 @@ TARGETED: dict[str, Targeted] = {
     # (adapter, params, vintage) call shape; ignored, since each path is
     # already one exact product.
     "jeroboams": Targeted(JeroboamsAdapter, JEROBOAMS_URL,
+                          ("product_paths",), _by_product_paths),
+    # Auction results, not stock -- every Offer is PriceKind.LAST_TRADE
+    # (decision 0042). No usable live search was found (Sotheby's own
+    # cross-sale search is Algolia/JS-driven and ignores a plain
+    # "past sales" query string, confirmed live), so lot_paths are
+    # resolved by the caller, never searched here, same discipline as
+    # Jeroboams' own product_paths.
+    "sothebys": Targeted(SothebysAdapter, SOTHEBYS_URL,
+                         ("lot_paths",), _by_lot_paths),
+    # Auction results, not stock -- same discipline as "sothebys" above.
+    # /en/lot/ only; the separate "online-only" platform is not touched
+    # (decision 0042 -- intermittent DataDome challenge, confirmed live).
+    "christies": Targeted(ChristiesAdapter, CHRISTIES_URL,
+                          ("lot_paths",), _by_lot_paths),
+    # The direct shop only, never the auction/estimate side (decision
+    # 0042). Standing ASK in EUR, not GBP -- see the adapter module for
+    # why these mostly land as a retained rejection rather than a comp.
+    "idealwine": Targeted(IdealwineAdapter, IDEALWINE_URL,
                           ("product_paths",), _by_product_paths),
 }
 
@@ -684,3 +709,59 @@ def deep_search(deal_id: str, *, min_comps: int = 2, merchant_ids: Optional[Sequ
             searched.append({"merchant_id": merchant_id, "producer": target["producer"],
                              "vintage": target["vintage"], "snapshot_id": snapshot_id})
     return {"targets": len(targets), "searched": searched, "skipped": skipped}
+
+
+def collect_now(wine_id: str, vintage: int, *, merchant_ids: Optional[Sequence[str]] = None,
+                fetch: Optional[Callable] = None,
+                robots: Callable[[str], None] = check_robots) -> dict:
+    """EVALUATE's own "Collect now" (speed-and-cost-plan.md): one wine,
+    synchronous, every targeted merchant that already has a search key
+    for its producer. Never the whole-book sweep, never a queued job --
+    the single-wine, on-demand slice asked for first, proved on one
+    bottle, before any pre-fetch is built.
+
+    No schema change: `snapshot_merchant` already distinguishes all
+    three outcomes decision 0004 names -- no row (not looked), status
+    'ok' (looked, offers_written may be 0 -- looked and found nothing
+    is not the same fact as not having looked), and status 'failed'
+    (couldn't look, error named). This reads that table back after
+    `collect_targeted` (unchanged, reused as-is) to report exactly
+    which of the three each merchant landed on."""
+    wanted = list(merchant_ids) if merchant_ids else list(TARGETED)
+    with transaction() as conn:
+        wine = repo.get_wine(conn, wine_id)
+        if wine is None:
+            raise LookupError("wine not found")
+        producer_key = repo.producer_key_of(wine)
+        approved = _approved(conn)
+        keys = {m: repo.search_key(conn, m, producer_key) for m in wanted}
+
+    results = []
+    for merchant_id in wanted:
+        if merchant_id not in TARGETED:
+            results.append({"merchant_id": merchant_id, "outcome": "skipped",
+                            "reason": "not a search-only merchant", "offers_written": 0,
+                            "offers_rejected": 0, "error": None})
+            continue
+        if merchant_id not in approved:
+            results.append({"merchant_id": merchant_id, "outcome": "skipped",
+                            "reason": "not an approved merchant", "offers_written": 0,
+                            "offers_rejected": 0, "error": None})
+            continue
+        key = keys.get(merchant_id)
+        if key is None:
+            results.append({"merchant_id": merchant_id, "outcome": "skipped",
+                            "reason": "no search key for this producer", "offers_written": 0,
+                            "offers_rejected": 0, "error": None})
+            continue
+        snapshot_id = collect_targeted(merchant_id, wine_id, vintage, key["params"],
+                                       fetch=fetch, robots=robots)
+        with transaction() as conn:
+            row = conn.execute(
+                "SELECT status, offers_written, offers_rejected, error FROM snapshot_merchant "
+                "WHERE snapshot_id = %s AND merchant_id = %s",
+                (snapshot_id, merchant_id)).fetchone()
+        results.append({"merchant_id": merchant_id, "outcome": row["status"],
+                        "reason": None, "offers_written": row["offers_written"],
+                        "offers_rejected": row["offers_rejected"], "error": row["error"]})
+    return {"results": results}

@@ -24,6 +24,7 @@ from app.api.deps import translate as _translate
 from app.api.vessel import operator_router as vessel_operator_router
 from app.api.vessel import router as vessel_router
 from app.api.member import router as member_router
+from app.api.inbound import router as inbound_router
 from app.auction import repo as auction_repo
 from app.auction.evidence import InvalidAuctionEvidence
 from app.core.enums import StockType
@@ -33,11 +34,24 @@ from app.evaluate import repo as evaluate_repo
 from app.identity.want_list import match_want_list
 from app.offerlink import repo as offerlink_repo
 from app.market.parcel import SAME_PRICE_AS_ANOTHER_MERCHANT
-from app.db.connection import transaction
+from app.db.connection import EXPECTED_HEAD_REVISION, transaction
 from app.worker import jobs
 from app.worker.queue import get_queue
 
-app = FastAPI(title="UK Fine Wine Deal Pricer")
+#: Vercel sets this on every deployment, preview and production alike, so
+#: it also covers preview once Deployment Protection is off there too
+#: (decision pending, VESSEL Pocket hosting). scripts/desk.sh never sets
+#: it, so local development keeps Swagger UI. Schema disclosure -- route
+#: paths, field names, the session cookie's own name -- is reconnaissance,
+#: not data, but it still has no business being public.
+_ON_VERCEL = bool(os.environ.get("VERCEL"))
+
+app = FastAPI(
+    title="UK Fine Wine Deal Pricer",
+    docs_url=None if _ON_VERCEL else "/docs",
+    redoc_url=None if _ON_VERCEL else "/redoc",
+    openapi_url=None if _ON_VERCEL else "/openapi.json",
+)
 
 #: The browser app sends its session cookie, so the allowed origins are explicit.
 app.add_middleware(
@@ -64,14 +78,31 @@ def health(conn: psycopg.Connection = Depends(db)) -> dict:
     none on purpose) and an unreachable Redis both read as a plain
     "unavailable" here, not a crash — the frontend uses this to decide
     whether Collect/Benchmark/Price can be pressed at all, and a dependency
-    failure before this body even ran would give it nothing to read."""
-    conn.execute("SELECT 1")
+    failure before this body even ran would give it nothing to read.
+
+    "database" is never just "can I connect" — a reachable Postgres with no
+    tables, or with an older schema than this code expects, connects fine
+    and would otherwise read as "ok" (the exact 0040 fail-open shape: a
+    real connection standing in for a real answer). So this reads the
+    applied Alembic revision and compares it to EXPECTED_HEAD_REVISION;
+    green means usable, not merely reachable."""
+    try:
+        row = conn.execute("SELECT version_num FROM alembic_version").fetchone()
+        revision = row["version_num"] if row else None
+    except psycopg.errors.UndefinedTable:
+        revision = None
+    if revision == EXPECTED_HEAD_REVISION:
+        database_status = "ok"
+    elif revision is None:
+        database_status = "unmigrated"
+    else:
+        database_status = f"schema_mismatch: at {revision}, expected {EXPECTED_HEAD_REVISION}"
     try:
         get_queue().connection.ping()
         redis_status = "ok"
     except Exception:
         redis_status = "unavailable"
-    return {"database": "ok", "redis": redis_status}
+    return {"database": database_status, "redis": redis_status}
 
 
 # -------------------------------------------------------------- merchants
@@ -482,8 +513,8 @@ def get_line_auction_health(line_id: UUID, conn: psycopg.Connection = Depends(db
 def want_list_match(body: s.WantListMatchIn):
     """A suggestion only (decision 0038) — never sets a wine_id, never
     bypasses the operator picking the exact wine by hand."""
-    return [{"producer": m.producer, "always_review": m.always_review}
-            for m in match_want_list(body.text)]
+    return [{"producer": m.producer, "always_review": m.always_review,
+            "fork_with": list(m.fork_with)} for m in match_want_list(body.text)]
 
 
 @protected.post("/evaluate", response_model=s.LineOut, status_code=201)
@@ -751,3 +782,4 @@ app.include_router(protected)
 app.include_router(vessel_router)
 app.include_router(vessel_operator_router)
 app.include_router(member_router)
+app.include_router(inbound_router)

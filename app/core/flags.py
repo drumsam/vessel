@@ -219,6 +219,21 @@ MAX_OFFER_AGE_DAYS = 14
 MIN_CLAIM_THRESHOLD = Decimal("0.05")
 
 
+#: buy-side-margin-test.md, VESSEL Pocket. Margin on COST, not revenue:
+#: buy at 100, sell at 108, margin 8% -- (sell - buy) / buy. If this is
+#: ever revisited it is a decision record, not a configuration change,
+#: because every stored margin figure would change meaning. A parameter
+#: Doug sets, not a measured truth, same status as MIN_CLAIM_THRESHOLD.
+MIN_TRADE_MARGIN = Decimal("0.08")
+
+#: buy-side-margin-test.md. The smallest discount off Floor worth
+#: offering a buyer at all -- the SAME 5% MIN_CLAIM_THRESHOLD already
+#: uses for a different basis (decision 0034), reused rather than
+#: redefined: a buyer who can find the Floor has no reason to take a
+#: sell price that isn't meaningfully under it.
+MIN_BUYER_DISCOUNT = MIN_CLAIM_THRESHOLD
+
+
 def floor_saving(sell_price: Decimal, uk_floor: Optional[Decimal]) -> Optional[Decimal]:
     """(1 - sell/floor), or None if there is no Floor to measure against.
 

@@ -25,6 +25,11 @@ export const MIN_CLAIM_THRESHOLD_PCT = 5;
 
 const FORBIDDEN_IN_BUYER_MESSAGE = [
   /seller[\s_]?net/i, /commission/i, /\bcost\b/i, /\bmargin\b/i,
+  // supplier-attribution-spec.md: a new leak surface this assertion did
+  // not know about yet -- a wrong supplier attribution outbound is a
+  // commercial injury to Doug (which trader a parcel came from), the
+  // same class of error as leaking cost, not a privacy nicety.
+  /\bsupplier[\s_]?id\b/i, /\bsupplier\b/i, /contact[\s_]?name/i, /\bphone\b/i,
 ];
 
 /** Decision 0035's own rule, checked again here rather than trusted: a

@@ -310,6 +310,7 @@ class WantListMatchIn(_In):
 class WantListMatchOut(_Out):
     producer: str
     always_review: bool
+    fork_with: list[str] = []
 
 
 class EvaluationCompIn(_In):
@@ -901,3 +902,240 @@ class RunOut(RunSummary):
     #: Absent on runs computed before the check existed.
     vintage_band: Optional[VintageBandOut] = None
     same_price_notes: list[PriceCoincidenceOut] = []
+
+
+# ------------------------------------------------------------ VESSEL Pocket
+
+InboundChannel = Literal["paste", "photo", "upload"]
+InboundCategory = Literal["wine", "whisky", "unknown"]
+ParseState = Literal["pending", "parsed", "unparseable"]
+
+
+class InboundOfferIn(_In):
+    """Screen 1, NEW: paste, photo, or upload. Capture first, structure
+    afterwards — nothing else is required to land this."""
+    channel: InboundChannel
+    raw_body: Optional[str] = None
+    raw_media_base64: Optional[str] = None
+    media_mime: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _has_something(self) -> "InboundOfferIn":
+        if not self.raw_body and not self.raw_media_base64:
+            raise ValueError("raw_body or raw_media_base64 is required")
+        return self
+
+
+class InboundOfferOut(_Out):
+    inbound_offer_id: UUID
+    received_at: datetime
+    channel: InboundChannel
+    parse_state: ParseState
+    parse_error: Optional[str] = None
+    category: Optional[InboundCategory] = None
+    confirmed_wine_id: Optional[UUID] = None
+    confirmed_vintage: Optional[int] = None
+    confirmed_bottle_ml: Optional[int] = None
+    confirmed_pack_size: Optional[int] = None
+    confirmed_quantity: Optional[int] = None
+    confirmed_packaging: Optional[str] = None
+    confirmed_bond_status: Optional[str] = None
+    confirmed_stock_location: Optional[str] = None
+    confirmed_asking_price: Optional[Money] = None
+    confirmed_asking_currency: Optional[str] = None
+    confirmed_asking_basis: Optional[Literal["per_bottle", "per_case", "total"]] = None
+    identity_confirmed_by: Optional[OperatorRef] = None
+    identity_confirmed_at: Optional[datetime] = None
+    deal_id: Optional[UUID] = None
+    has_media: bool = False
+    #: supplier-attribution-spec.md: nullable here (capture is never
+    #: blocked) but required by ConfirmIdentityIn below.
+    supplier_id: Optional[UUID] = None
+
+
+class InboundOfferProposalOut(_Out):
+    """Screen 2, CANDIDATE: the AI's structured proposal. Never persisted
+    as such — this is the response to the one call that produced it;
+    confirming or correcting it happens through ConfirmIdentityIn, which
+    writes a real, operator-attributed fact, never this object verbatim."""
+    category: InboundCategory
+    producer: Optional[str] = None
+    cuvee: Optional[str] = None
+    vintage: Optional[int] = None
+    bottle_ml: Optional[int] = None
+    pack_size: Optional[int] = None
+    quantity: Optional[int] = None
+    #: The literal bottle count when pack_size/quantity are null because
+    #: the commercial unit is genuinely ambiguous ("6 x ... OWC") — the
+    #: fork the operator resolves, never guessed as one or the other.
+    total_bottles: Optional[int] = None
+    bond_status: Optional[str] = None
+    stock_location: Optional[str] = None
+    packaging: Optional[str] = None
+    asking_price: Optional[str] = None
+    asking_currency: Optional[str] = None
+    #: Only ever set from an explicit word in the source — never inferred
+    #: from quantity or pack_size. Null here on a multi-bottle line is a
+    #: blocking ambiguity at confirm time, not a detail.
+    asking_basis: Optional[Literal["per_bottle", "per_case", "total"]] = None
+    reasoning: str
+    #: Want-list producer names `match_want_list` suggests against the
+    #: AI's own proposed producer text — a UI hint only (decision 0038):
+    #: the real gate is checked again, authoritatively, against
+    #: `wine.want_list` when the operator actually confirms a wine_id.
+    want_list_hint: list[str] = []
+
+
+class InboundOfferWithProposalOut(_Out):
+    offer: InboundOfferOut
+    proposal: InboundOfferProposalOut
+    #: Deterministic pre-highlight only (supplier-attribution-spec.md) —
+    #: never the model's: matched against supplier_alias via norm(), not
+    #: proposed by the AI, which has no supplier field by construction.
+    matched_supplier_ids: list[UUID] = []
+
+
+class SupplierIn(_In):
+    """The quick-add chip's own two-field form — name and phone only;
+    the rest of the record can be filled in later or never."""
+    name: str = Field(min_length=1)
+    phone: Optional[str] = None
+
+
+class SupplierOut(_Out):
+    supplier_id: UUID
+    name: str
+    contact_name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    notes: Optional[str] = None
+    active: bool
+    #: Most-recently-used ordering for the chip row; null if never picked.
+    last_used_at: Optional[datetime] = None
+
+
+class CandidateWineGroupOut(_Out):
+    """Screen 2's own filtered wine list, grouped by producer — the
+    proposed producer's wines, or that plus its known real-world fork
+    (bare "Leroy" also returns a "Maison Leroy" group) when the matcher's
+    always_review fires. Empty when no producer was proposed at all."""
+    producer: str
+    is_fork_alternate: bool
+    wines: list[WineOut]
+
+
+class ConfirmIdentityIn(_In):
+    """Screen 2's actual job: confirm or correct the AI's proposal against
+    a real, already-approved wine. want_list_ack is required — and
+    checked against wine.want_list, not against anything the caller
+    claims — whenever that wine is one of the twenty (decision 0038);
+    the photo gate never has a confidence threshold that skips it.
+
+    supplier_id has no default and is Optional nowhere in this class —
+    required by the type system itself, not by application logic, the
+    same "capture never blocked, confirmation always is" shape
+    want_list_ack uses one level up (supplier-attribution-spec.md).
+
+    quantity is commercial UNITS (as pack_size defines them), never
+    bottles — resolving the "one case of six or six loose bottles" fork
+    means setting pack_size and quantity together, deliberately, never
+    guessed by this app. packaging/bond_status/stock_location are free
+    text and optional: useful record-keeping, never a gate. asking_price/
+    _currency/_basis are optional here too — a line with no stated price
+    has nothing to confirm — but `app/api/inbound.py` refuses this call
+    outright when a price exists, the line is more than one bottle, and
+    asking_basis is null: that ambiguity is worth exactly the multiple
+    pack_size would convert the figure by, never confirmed silently."""
+    wine_id: UUID
+    vintage: int = Field(ge=1000, le=2100)
+    bottle_ml: int = Field(gt=0, default=750)
+    pack_size: int = Field(ge=1, default=1)
+    quantity: int = Field(ge=1, default=1)
+    packaging: Optional[str] = None
+    bond_status: Optional[str] = None
+    stock_location: Optional[str] = None
+    asking_price: Optional[Money] = None
+    asking_currency: Optional[Currency] = None
+    asking_basis: Optional[Literal["per_bottle", "per_case", "total"]] = None
+    want_list_ack: bool = False
+    supplier_id: UUID
+
+
+# ------------------------------------------------------------- EVALUATE (0040)
+
+class AskOut(_Out):
+    """The confirmed ask, converted to the line's own commercial unit
+    (same basis uk_floor is in), plus the two display shapes every
+    other screen in this app already uses."""
+    per_unit: Money
+    per_bottle: Money
+    total: Money
+
+
+class WalkAwayOut(_Out):
+    """buy-side-margin-test.md. All four money fields per the line's own
+    commercial unit except the _per_bottle pair, which exist for display
+    only — decision 0034's own "per-bottle figures primary" convention."""
+    uk_floor: Money
+    uk_floor_per_bottle: Money
+    max_sell: Money
+    walk_away: Money
+    walk_away_per_bottle: Money
+
+
+class EvaluateOut(_Out):
+    """Screen 3, EVALUATE: facts, then stop. No verdict field exists here
+    by construction — there is nothing to render a traffic light from.
+
+    `state=None` is the one state above every other: no run could even
+    be attempted (vanishingly rare — it means no merchant anywhere has
+    ever had a resolved capture). `NO_MARKET` — thin-to-absent evidence
+    on these 20 producers specifically — is the PRIMARY, expected state
+    this screen is built around, not an error path; `checked_merchants`
+    names exactly what was looked at and found nothing, so the screen
+    never looks broken when it is working correctly."""
+    deal_id: UUID
+    line_id: UUID
+    state: Optional[Literal["NOT_SEARCHED", "NO_MARKET", "REVIEW", "READY"]] = None
+    as_of: Optional[datetime] = None
+    comp_count: int = 0
+    flags: list[str] = []
+    #: Populated only when state == NO_MARKET — the merchants this run
+    #: actually consulted, named, not a bare "nothing found".
+    checked_merchants: list[str] = []
+    ask: Optional[AskOut] = None
+    walk_away: Optional[WalkAwayOut] = None
+    #: walk_away.walk_away - ask.per_unit. Negative means the ask is
+    #: ABOVE walk-away; positive is headroom below it.
+    headroom: Optional[Money] = None
+    headroom_per_bottle: Optional[Money] = None
+    margin_at_ask_pct: Optional[Decimal] = None
+    #: Shown only when the ask is above walk-away — what a sell would
+    #: have to be to still hit MIN_TRADE_MARGIN at this ask.
+    required_sell_for_margin: Optional[Money] = None
+    exceeds_floor: Optional[bool] = None
+    blocks_create_offer: bool = True
+    block_reason: Optional[str] = None
+
+
+class CollectResultOut(_Out):
+    """One merchant's outcome from a "Collect now" run — decision 0004's
+    own three states, named plainly: 'ok' (looked; offers_written may
+    still be 0 — looked and found nothing), 'failed' (couldn't look,
+    `error` says why), or 'skipped' (never attempted, `reason` says
+    why — not approved, not a search-only merchant, or no search key
+    for this producer)."""
+    merchant_id: str
+    outcome: Literal["ok", "failed", "skipped"]
+    reason: Optional[str] = None
+    offers_written: int = 0
+    offers_rejected: int = 0
+    error: Optional[str] = None
+
+
+class CollectNowOut(_Out):
+    """speed-and-cost-plan.md's "Collect now": one wine, synchronous,
+    every targeted merchant queried, then the same facts /evaluate
+    itself would show — one result shape either way."""
+    collected: list[CollectResultOut]
+    evaluation: EvaluateOut

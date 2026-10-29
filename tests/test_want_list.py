@@ -50,9 +50,14 @@ def test_a_cuvee_name_never_implies_drc():
 
 
 def test_la_romanee_is_liger_belairs_own_monopole_not_drc():
-    assert _names("Comte Liger-Belair, La Romanée 2014") == set()
-    # Still refused even if "Romanée-Conti" is mistyped alongside "Liger".
-    assert _names("Romanee-Conti but really Liger-Belair's La Romanee") == set()
+    """Comte Liger-Belair owns La Romanée; DRC has nothing to do with it.
+    Decision 0043 adds Comte Liger-Belair to the want list itself, so this
+    text now correctly matches THAT producer — the point of this test is
+    DRC's own "liger" exclusion still holding, not that nothing matches."""
+    assert _names("Comte Liger-Belair, La Romanée 2014") == {"Comte Liger-Belair"}
+    # DRC is still refused even if "Romanée-Conti" is mistyped alongside "Liger".
+    assert "Domaine de la Romanée-Conti" not in _names(
+        "Romanee-Conti but really Liger-Belair's La Romanee")
 
 
 # -------------------------------------------------------------- Leroy family
@@ -169,6 +174,64 @@ def test_armand_rousseau_requires_both_tokens_a_bare_rousseau_goes_nowhere():
     assert match_want_list("Rousseau Gevrey-Chambertin 2015") == []
 
 
+# ============================================= decision 0043: the ten new rules
+
+
+def test_comte_liger_belair_matches_thibault_liger_belair_is_excluded():
+    """Two different people, two different estates: Comte Liger-Belair
+    owns La Romanée (Vosne-Romanée); Thibault Liger-Belair is based in
+    Nuits-St-Georges and makes Richebourg. Doug's own instruction: default
+    to Comte on a bare match, but it still always goes to review."""
+    [m] = [m for m in match_want_list("Liger-Belair La Romanee 2018")
+          if m.producer == "Comte Liger-Belair"]
+    assert m.always_review is True
+    assert _names("Thibault Liger-Belair Richebourg 2018") == set()
+
+
+def test_prieure_roch_requires_both_tokens_jacques_prieur_is_excluded():
+    """Domaine Prieuré-Roch (Henry-Frédéric Roch) and Domaine Jacques
+    Prieur are unrelated domaines — live in the WFS cellar's own data as
+    a real Jacques Prieur Chambertin, so this collision is not
+    hypothetical."""
+    assert _names("Domaine Prieure-Roch Clos de Beze 2017") == {"Domaine Prieuré-Roch"}
+    assert _names("Domaine Jacques Prieur Chambertin 2015") == set()
+    assert match_want_list("Prieur Meursault 2018") == []
+
+
+def test_dujac_matches_but_always_goes_to_review_fils_et_pere_is_excluded():
+    """Same shape as Leroy/Maison Leroy: Dujac Fils & Père is the
+    family's own négoce arm, materially cheaper."""
+    [m] = [m for m in match_want_list("Dujac Clos de la Roche 2016")
+          if m.producer == "Domaine Dujac"]
+    assert m.always_review is True
+    assert _names("Dujac Fils et Pere Bourgogne 2019") == set()
+
+
+def test_arnaud_ente_requires_both_tokens_benoit_ente_is_excluded():
+    """Brothers, separate domaines, separate prices."""
+    assert _names("Arnaud Ente Meursault Les Petits Charrons 2017") == {"Arnaud Ente"}
+    assert _names("Benoit Ente Meursault 2018") == set()
+    assert match_want_list("Ente Meursault 2017") == []
+
+
+def test_groffier_de_vogue_and_raveneau_match_on_their_own_name():
+    assert _names("Domaine Robert Groffier Clos de Beze 2015") == {"Domaine Robert Groffier"}
+    assert _names("Comte Georges de Vogue Musigny 2016") == {"Comte Georges de Vogüé"}
+    assert _names("Francois Raveneau Chablis Les Clos 2018") == {"François Raveneau"}
+
+
+def test_krug_jacques_selosse_and_dom_perignon_match_on_their_own_name():
+    """Edition numbers (Krug), Plénitude release codes (Dom Pérignon) and
+    disgorgement dates (Selosse) are all resolver/cuvée questions, not
+    producer-matching ambiguities — this module only ever answers "which
+    producer"."""
+    assert _names("Krug Grande Cuvee 173eme Edition") == {"Krug"}
+    assert _names("Krug Rose 24eme Edition") == {"Krug"}
+    assert _names("Jacques Selosse Substance") == {"Jacques Selosse"}
+    assert _names("Anselme Selosse Initial") == {"Jacques Selosse"}
+    assert _names("Dom Perignon Vintage P2 2002") == {"Dom Pérignon"}
+
+
 # ------------------------------------------------------- is_want_list_producer
 
 
@@ -181,9 +244,10 @@ def test_is_want_list_producer_is_an_exact_normalised_match_not_a_fuzzy_one():
         assert not is_want_list_producer(not_on_the_list)
 
 
-def test_there_are_exactly_ten_rules():
-    assert len(WANT_LIST_RULES) == 10
-    assert len({r.producer for r in WANT_LIST_RULES}) == 10
+def test_there_are_exactly_twenty_rules():
+    """Ten original (decision 0038) plus ten added by decision 0043."""
+    assert len(WANT_LIST_RULES) == 20
+    assert len({r.producer for r in WANT_LIST_RULES}) == 20
 
 
 # ============================================================= Postgres: the gate

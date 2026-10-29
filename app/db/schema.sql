@@ -56,7 +56,20 @@ CREATE TABLE wine (
     -- text. A listing-side acknowledgement requirement reads this, never
     -- app/core/ or app/pricing/.
     want_list    boolean NOT NULL DEFAULT false,
-    created_at   timestamptz NOT NULL DEFAULT now()
+    created_at   timestamptz NOT NULL DEFAULT now(),
+    -- The want-list wine register (decision 0043): appellation is not the
+    -- cuvee ("Vosne-Romanée Les Beaux Monts" has appellation "Vosne-
+    -- Romanée"); classification is Grand Cru/1er Cru/Village/Regional;
+    -- monopole is identity-relevant, never read by app/core/ or
+    -- app/pricing/; source and notes record where a row came from. All
+    -- nullable (monopole excepted) -- an ordinary wine created through
+    -- the API has none of this, and only scripts/load_want_list_wines.py
+    -- populates it.
+    appellation     text,
+    classification  text,
+    monopole        boolean NOT NULL DEFAULT false,
+    source          text,
+    notes           text
 );
 
 -- Controlled aliases. Created by operator correction or by a reviewed AI
@@ -1232,3 +1245,76 @@ CREATE TABLE seller_introduction (
     paid_at                timestamptz,
     created_at             timestamptz NOT NULL DEFAULT now()
 );
+
+-- VESSEL Pocket (build brief, Phase 1b step 2): the capture table for
+-- NEW and CANDIDATE. raw_body/raw_media are sacred, stored before any AI
+-- call; no structured proposal field is persisted -- a bad parse is
+-- re-parsed, never reconstructed. confirmed_* is the operator's own
+-- confirmed-or-corrected identity, the photo gate's enforcement point.
+CREATE TABLE inbound_offer (
+    inbound_offer_id    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    received_at         timestamptz NOT NULL DEFAULT now(),
+    channel             text NOT NULL
+                         CHECK (channel IN ('paste', 'photo', 'upload')),
+    raw_body            text,
+    raw_media           bytea,
+    media_mime          text,
+    parsed_at           timestamptz,
+    parse_state         text NOT NULL DEFAULT 'pending'
+                         CHECK (parse_state IN ('pending', 'parsed', 'unparseable')),
+    parse_error         text,
+    category            text
+                         CHECK (category IN ('wine', 'whisky', 'unknown')),
+    confirmed_wine_id   uuid REFERENCES wine(wine_id),
+    confirmed_vintage   integer,
+    confirmed_bottle_ml integer,
+    confirmed_pack_size integer,
+    confirmed_quantity  integer,
+    confirmed_packaging text,
+    confirmed_bond_status text,
+    confirmed_stock_location text,
+    confirmed_asking_price numeric(14,2),
+    confirmed_asking_currency char(3),
+    confirmed_asking_basis text
+                         CHECK (confirmed_asking_basis IN ('per_bottle', 'per_case', 'total')),
+    identity_confirmed_by uuid REFERENCES operator(operator_id),
+    identity_confirmed_at timestamptz,
+    deal_id             uuid REFERENCES deal(deal_id),
+    created_by          uuid NOT NULL REFERENCES operator(operator_id),
+    CONSTRAINT inbound_offer_has_raw_input CHECK (
+        raw_body IS NOT NULL OR raw_media IS NOT NULL),
+    CONSTRAINT inbound_offer_confirmation_is_attributed CHECK (
+        (identity_confirmed_by IS NULL) = (identity_confirmed_at IS NULL))
+);
+
+CREATE INDEX inbound_offer_parse_state_idx ON inbound_offer (parse_state);
+
+-- Supplier attribution (supplier-attribution-spec.md), a prerequisite for
+-- build brief Phase 1b step 6: nullable here -- capture must never be
+-- blocked -- but POST /inbound-offers/{id}/confirm-identity refuses
+-- without one, the same enforcement shape want_list_ack already uses.
+-- "One asset, one side, one table" -- deliberately not merged with
+-- `member` (buyers) or `deal.seller` (a cellar mandate's own free text).
+CREATE TABLE supplier (
+    supplier_id  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    name         text NOT NULL UNIQUE,
+    contact_name text,
+    phone        text,
+    email        text,
+    notes        text,
+    active       boolean NOT NULL DEFAULT true,
+    created_by   uuid NOT NULL REFERENCES operator(operator_id),
+    created_at   timestamptz NOT NULL DEFAULT now()
+);
+
+-- Deterministic pre-highlight only, never the AI: `alias` is stored
+-- already normalised via norm() (identity/resolver.py), so matching a
+-- pasted message is a plain substring check against normalised raw
+-- text, not a reimplementation.
+CREATE TABLE supplier_alias (
+    supplier_id  uuid NOT NULL REFERENCES supplier(supplier_id),
+    alias        text NOT NULL,
+    PRIMARY KEY (supplier_id, alias)
+);
+
+ALTER TABLE inbound_offer ADD COLUMN supplier_id uuid REFERENCES supplier(supplier_id);

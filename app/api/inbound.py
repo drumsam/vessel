@@ -1,0 +1,352 @@
+"""VESSEL Pocket, build brief Phase 1b step 2: Screen 1 (NEW) and Screen 2
+(CANDIDATE). Operator-only — `router` carries the same session dependency
+every other internal route uses; there is no public, seller/buyer-facing
+side to this feature the way VESSEL Private Sale has one.
+
+Decision 0040 applies to the provider call itself, not only to the
+frontend: a provider outage or a malformed response is a distinct,
+loud failure (502, `parse_state` left 'pending') from the AI running
+fine and concluding there is nothing to find (200, `parse_state` =
+'unparseable') — the two must never collapse into the same shape, and
+neither may look like a clean parse.
+"""
+from __future__ import annotations
+
+import base64
+from datetime import datetime, timezone
+from decimal import ROUND_HALF_EVEN, Decimal
+from typing import Optional
+from uuid import UUID
+
+import psycopg
+from fastapi import APIRouter, Depends, HTTPException, Response
+
+from app.ai.provider import AIProvider, InboundOfferProposal, get_provider
+from app.api import schemas as s
+from app.api.deps import current_operator, db, translate
+from app.core.flags import REVIEW_FLAGS
+from app.db import repo
+from app.db.connection import transaction
+from app.evaluate import walkaway
+from app.identity.want_list import match_want_list
+from app.inbound import repo as inbound_repo
+from app.worker import jobs
+
+router = APIRouter(tags=["inbound"], dependencies=[Depends(current_operator)])
+
+
+def _offer_out(conn: psycopg.Connection, row: dict) -> s.InboundOfferOut:
+    ref = None
+    if row["identity_confirmed_by"]:
+        refs = repo.operator_refs(conn, [row["identity_confirmed_by"]])
+        ref = refs.get(str(row["identity_confirmed_by"]))
+    return s.InboundOfferOut.model_validate(
+        {**row, "identity_confirmed_by": ref, "has_media": row["raw_media"] is not None})
+
+
+def _proposal_out(proposal: InboundOfferProposal) -> s.InboundOfferProposalOut:
+    hint = [m.producer for m in
+           match_want_list(f"{proposal.producer or ''} {proposal.cuvee or ''}".strip())]
+    return s.InboundOfferProposalOut(
+        category=proposal.category, producer=proposal.producer, cuvee=proposal.cuvee,
+        vintage=proposal.vintage, bottle_ml=proposal.bottle_ml, pack_size=proposal.pack_size,
+        quantity=proposal.quantity, total_bottles=proposal.total_bottles,
+        bond_status=proposal.bond_status, stock_location=proposal.stock_location,
+        packaging=proposal.packaging, asking_price=proposal.asking_price,
+        asking_currency=proposal.asking_currency, asking_basis=proposal.asking_basis,
+        reasoning=proposal.reasoning, want_list_hint=hint)
+
+
+def _parse(row: dict) -> tuple[dict, s.InboundOfferProposalOut]:
+    """Calls the provider OUTSIDE any transaction that could roll the raw
+    capture back, and never lets a provider exception reach the caller
+    as anything but a 502 — never a 200 carrying a half-built candidate."""
+    try:
+        provider: AIProvider = get_provider()
+        proposal = provider.propose_inbound_offer(
+            row["raw_body"], row["raw_media"], row["media_mime"])
+    except Exception as e:
+        with transaction() as conn:
+            inbound_repo.mark_parse_attempt_failed(
+                conn, str(row["inbound_offer_id"]), error=str(e))
+        # The raw capture survived (see above) but the caller has no id to
+        # retry against unless this failure carries one — on a first create
+        # call, this is the only response the client will ever see for this
+        # row. Structured detail, not a plain string, exactly so the one
+        # field that matters survives a 502.
+        raise HTTPException(502, {"error": "couldn't read this — try again",
+                                  "inbound_offer_id": str(row["inbound_offer_id"])}) from e
+
+    with transaction() as conn:
+        if proposal.category == "unknown":
+            updated = inbound_repo.mark_unparseable(
+                conn, str(row["inbound_offer_id"]), reason=proposal.reasoning)
+        else:
+            updated = inbound_repo.mark_parsed(
+                conn, str(row["inbound_offer_id"]), category=proposal.category)
+    return updated, _proposal_out(proposal)
+
+
+@router.post("/inbound-offers", response_model=s.InboundOfferWithProposalOut, status_code=201)
+def create_inbound_offer(body: s.InboundOfferIn, operator: dict = Depends(current_operator)):
+    raw_media = base64.b64decode(body.raw_media_base64) if body.raw_media_base64 else None
+    with transaction() as conn:
+        row = inbound_repo.create_inbound_offer(
+            conn, channel=body.channel, raw_body=body.raw_body, raw_media=raw_media,
+            media_mime=body.media_mime, created_by=operator["operator_id"])
+    # Committed and durable now — whatever the parse step does next, the
+    # raw capture this call exists to protect has already survived it.
+    updated, proposal = _parse(row)
+    with transaction() as conn:
+        # Deterministic pre-highlight (supplier-attribution-spec.md): the
+        # model never sees this and never proposes a supplier — matched
+        # against raw_body directly, read fresh off the row just created.
+        matched = inbound_repo.match_supplier_aliases(conn, row["raw_body"])
+        return s.InboundOfferWithProposalOut(offer=_offer_out(conn, updated), proposal=proposal,
+                                             matched_supplier_ids=matched)
+
+
+@router.get("/inbound-offers/candidate-wines", response_model=list[s.CandidateWineGroupOut])
+def candidate_wines(producer: Optional[str] = None, cuvee: Optional[str] = None,
+                    conn: psycopg.Connection = Depends(db)):
+    """Screen 2's own filtered confirm-identity list. `producer`/`cuvee`
+    are whatever the proposal (or the operator's own correction) names —
+    never trusted as an identity, only used to narrow which real wines
+    are worth showing.
+
+    Declared BEFORE the dynamic /inbound-offers/{inbound_offer_id} route
+    below on purpose: Starlette matches routes by string pattern first,
+    type-converts the path parameter second, so a route registered after
+    that one would have "candidate-wines" swallowed as an attempted UUID
+    and 422 before ever reaching here."""
+    return inbound_repo.candidate_wine_groups(conn, producer=producer, cuvee=cuvee)
+
+
+@router.get("/inbound-offers/{inbound_offer_id}", response_model=s.InboundOfferOut)
+def get_inbound_offer(inbound_offer_id: UUID, conn: psycopg.Connection = Depends(db)):
+    row = inbound_repo.get_inbound_offer(conn, str(inbound_offer_id))
+    if row is None:
+        raise HTTPException(404, "inbound offer not found")
+    return _offer_out(conn, row)
+
+
+@router.post("/inbound-offers/{inbound_offer_id}/reparse",
+            response_model=s.InboundOfferWithProposalOut)
+def reparse_inbound_offer(inbound_offer_id: UUID, conn: psycopg.Connection = Depends(db)):
+    """A bad parse is re-parsed, never reconstructed — this reads the same
+    raw_body/raw_media stored on create and calls the provider again."""
+    row = inbound_repo.get_inbound_offer(conn, str(inbound_offer_id))
+    if row is None:
+        raise HTTPException(404, "inbound offer not found")
+    updated, proposal = _parse(row)
+    with transaction() as conn2:
+        matched = inbound_repo.match_supplier_aliases(conn2, row["raw_body"])
+        return s.InboundOfferWithProposalOut(offer=_offer_out(conn2, updated), proposal=proposal,
+                                             matched_supplier_ids=matched)
+
+
+@router.get("/inbound-offers/{inbound_offer_id}/media")
+def get_inbound_offer_media(inbound_offer_id: UUID, conn: psycopg.Connection = Depends(db)):
+    """Screen 2's own rule: show the photo next to the proposed identity,
+    so Doug confirms against the label, not against the AI's prose."""
+    row = inbound_repo.get_inbound_offer(conn, str(inbound_offer_id))
+    if row is None or row["raw_media"] is None:
+        raise HTTPException(404, "no media on this offer")
+    return Response(content=bytes(row["raw_media"]), media_type=row["media_mime"] or "application/octet-stream")
+
+
+@router.post("/inbound-offers/{inbound_offer_id}/confirm-identity", response_model=s.InboundOfferOut)
+def confirm_identity(inbound_offer_id: UUID, body: s.ConfirmIdentityIn,
+                     conn: psycopg.Connection = Depends(db),
+                     operator: dict = Depends(current_operator)):
+    """THE PHOTO GATE, technically enforced: a want-list wine (checked
+    against wine.want_list, never against anything the caller claims)
+    refuses this call outright without want_list_ack=true. No confidence
+    score anywhere in this path can override that — there is no field
+    for one to override."""
+    wine = repo.get_wine(conn, str(body.wine_id))
+    if wine is None:
+        raise HTTPException(404, "wine not found")
+    if wine["want_list"] and not body.want_list_ack:
+        raise HTTPException(
+            422, f"{wine['producer']} is a want-list producer — confirming this identity "
+                f"requires explicit acknowledgement (want_list_ack), every time, regardless "
+                f"of how the identity was proposed")
+    # supplier-attribution-spec.md point 1: capture is never blocked, but
+    # confirmation always is without a real supplier -- same enforcement
+    # shape as want_list_ack just above, one check down.
+    supplier = inbound_repo.get_supplier(conn, str(body.supplier_id))
+    if supplier is None:
+        raise HTTPException(404, "supplier not found")
+    # A price with no stated unit is ambiguous by exactly the multiple
+    # pack_size would convert it by -- blocking, not a detail, on any
+    # line that is more than one bottle. A single bottle (pack_size=1,
+    # quantity=1) has no such ambiguity: per_bottle, per_case and total
+    # are numerically identical there.
+    if (body.asking_price is not None and body.asking_basis is None
+            and body.pack_size * body.quantity > 1):
+        raise HTTPException(
+            422, "a price was given with no basis (per bottle, per case, or total) on a "
+                "line of more than one bottle -- that is ambiguous by exactly the multiple "
+                "the commercial unit would convert it by; set asking_basis before confirming")
+    try:
+        with conn.transaction():
+            row = inbound_repo.confirm_identity(
+                conn, str(inbound_offer_id), wine_id=str(body.wine_id), vintage=body.vintage,
+                bottle_ml=body.bottle_ml, pack_size=body.pack_size, quantity=body.quantity,
+                packaging=body.packaging, bond_status=body.bond_status,
+                stock_location=body.stock_location, asking_price=body.asking_price,
+                asking_currency=body.asking_currency, asking_basis=body.asking_basis,
+                supplier_id=str(body.supplier_id), confirmed_by=operator["operator_id"])
+    except inbound_repo.NotConfirmable as e:
+        raise HTTPException(422, str(e))
+    except psycopg.Error as e:
+        raise translate(e)
+    return _offer_out(conn, row)
+
+
+@router.post("/suppliers", response_model=s.SupplierOut, status_code=201)
+def create_supplier(body: s.SupplierIn, conn: psycopg.Connection = Depends(db),
+                    operator: dict = Depends(current_operator)):
+    try:
+        with conn.transaction():
+            row = inbound_repo.create_supplier(conn, name=body.name, phone=body.phone,
+                                               created_by=operator["operator_id"])
+    except psycopg.Error as e:
+        raise translate(e)
+    return {**row, "last_used_at": None}
+
+
+@router.get("/suppliers", response_model=list[s.SupplierOut])
+def list_suppliers(conn: psycopg.Connection = Depends(db)):
+    return inbound_repo.list_suppliers(conn)
+
+
+def _round2(d: Decimal) -> Decimal:
+    return d.quantize(Decimal("0.01"), rounding=ROUND_HALF_EVEN)
+
+
+def _evaluate(conn: psycopg.Connection, inbound_offer_id: UUID, operator: dict) -> s.EvaluateOut:
+    """Screen 3, EVALUATE: facts only, the walk-away price (buy-side-
+    margin-test.md). Reuses the same engine every other line in this
+    app goes through -- app.core.benchmark via resolve_offers and
+    benchmark_with_band, never a second pricing path -- and synchronous,
+    no RQ job, the same discipline decision 0039 already established
+    for one line at a time.
+
+    NO_MARKET is the PRIMARY state this builds for, not an error path:
+    merchant evidence on these 20 want-list producers is measurably
+    thin to absent, so that is the common case here, not the edge
+    case. `checked_merchants` names exactly what was consulted and
+    found nothing -- a screen that looks broken when it is working
+    correctly will not get trusted.
+
+    Shared by both /evaluate and /collect-now: a fresh collection ends
+    in exactly the same re-benchmark a plain EVALUATE open does, never
+    a second response shape for "the same facts, now with more
+    evidence."""
+    offer = inbound_repo.get_inbound_offer(conn, str(inbound_offer_id))
+    if offer is None:
+        raise HTTPException(404, "inbound offer not found")
+    try:
+        with conn.transaction():
+            deal_id, line_id = inbound_repo.ensure_evaluation_line(
+                conn, offer, created_by=operator["operator_id"])
+    except inbound_repo.NotReadyToEvaluate as e:
+        raise HTTPException(422, str(e))
+
+    when = datetime.now(timezone.utc)
+    line_row = repo.get_line(conn, line_id)
+    line = repo.seller_line_for_benchmark(line_row)
+    res = repo.resolve_offers(conn, wine_id=str(line_row["wine_id"]),
+                              vintage=line_row["vintage"], as_of=when)
+    if not res.sources:
+        # Vanishingly rare: no merchant anywhere has ever had a resolved
+        # capture. Not the same fact as NO_MARKET (every approved
+        # merchant searched and none offers THIS wine) -- never blurred
+        # into it (invariant 10).
+        return s.EvaluateOut(
+            deal_id=UUID(deal_id), line_id=UUID(line_id), state=None, blocks_create_offer=True,
+            block_reason="nothing in this system has ever been collected yet")
+    with conn.transaction():
+        jobs.benchmark_with_band(conn, line, res, when)
+    run = repo.latest_run(conn, line_id)
+
+    if run["state"] == "NO_MARKET":
+        checked = sorted(m["name"] for m in repo.list_merchants(conn))
+        return s.EvaluateOut(
+            deal_id=UUID(deal_id), line_id=UUID(line_id), state="NO_MARKET", as_of=run["as_of"],
+            comp_count=0, flags=run["flags"] or [], checked_merchants=checked,
+            blocks_create_offer=True,
+            block_reason="no Floor — none of the merchants checked offer this wine")
+
+    out = s.EvaluateOut(deal_id=UUID(deal_id), line_id=UUID(line_id), state=run["state"],
+                        as_of=run["as_of"], comp_count=run["comp_count"],
+                        flags=run["flags"] or [])
+
+    uk_floor = Decimal(str(run["uk_floor"]))
+    w = walkaway.compute(uk_floor)
+    pack_size = line_row["pack_size"]
+    out.walk_away = s.WalkAwayOut(
+        uk_floor=w.uk_floor, uk_floor_per_bottle=_round2(w.uk_floor / pack_size),
+        max_sell=w.max_sell, walk_away=w.walk_away,
+        walk_away_per_bottle=_round2(w.walk_away / pack_size))
+
+    # Review flags come first (buy-side-margin-test.md): a REVIEW line
+    # blocks the offer regardless of what the ask comparison below says.
+    needs_review = bool(set(run["flags"] or []) & REVIEW_FLAGS)
+    if needs_review:
+        out.blocks_create_offer = True
+        out.block_reason = "this line needs review before an offer can be made"
+    else:
+        out.blocks_create_offer = False
+
+    if offer["confirmed_asking_price"] is not None:
+        ask_price = Decimal(str(offer["confirmed_asking_price"]))
+        ask_unit = walkaway.ask_per_unit(ask_price, offer["confirmed_asking_basis"],
+                                         pack_size, line_row["quantity"])
+        out.ask = s.AskOut(per_unit=ask_unit, per_bottle=_round2(ask_unit / pack_size),
+                           total=_round2(ask_unit * line_row["quantity"]))
+        out.headroom = w.walk_away - ask_unit
+        out.headroom_per_bottle = _round2(out.headroom / pack_size)
+        out.margin_at_ask_pct = (walkaway.margin_at_ask(w.max_sell, ask_unit)
+                                 * Decimal("100"))
+        if ask_unit > w.walk_away:
+            required = walkaway.required_sell_for_margin(ask_unit)
+            out.required_sell_for_margin = required
+            out.exceeds_floor = required > uk_floor
+            if not needs_review:
+                out.blocks_create_offer = True
+                above_or_within = "above" if out.exceeds_floor else "within"
+                out.block_reason = (
+                    f"this ask is above walk-away — {int(walkaway.MIN_TRADE_MARGIN * 100)}% "
+                    f"on it needs a sell of {required}, {above_or_within} the UK Floor")
+    return out
+
+
+@router.post("/inbound-offers/{inbound_offer_id}/evaluate", response_model=s.EvaluateOut)
+def evaluate_inbound_offer(inbound_offer_id: UUID, conn: psycopg.Connection = Depends(db),
+                           operator: dict = Depends(current_operator)):
+    return _evaluate(conn, inbound_offer_id, operator)
+
+
+@router.post("/inbound-offers/{inbound_offer_id}/collect-now",
+            response_model=s.CollectNowOut)
+def collect_now_for_offer(inbound_offer_id: UUID, conn: psycopg.Connection = Depends(db),
+                          operator: dict = Depends(current_operator)):
+    """speed-and-cost-plan.md's own first slice, deliberately small:
+    one wine, synchronous, every targeted adapter with a search key for
+    its producer -- never the whole-book sweep, never a queued job.
+    Writes real snapshot_merchant rows (decision 0004 already
+    distinguishes looked-and-empty from couldn't-look; no schema
+    change here), then re-runs the exact same evaluation /evaluate
+    itself would, so the screen shows one consistent result either
+    way."""
+    offer = inbound_repo.get_inbound_offer(conn, str(inbound_offer_id))
+    if offer is None:
+        raise HTTPException(404, "inbound offer not found")
+    if offer["confirmed_wine_id"] is None:
+        raise HTTPException(422, "identity has not been confirmed yet")
+    collected = jobs.collect_now(str(offer["confirmed_wine_id"]), offer["confirmed_vintage"])
+    evaluation = _evaluate(conn, inbound_offer_id, operator)
+    return s.CollectNowOut(collected=collected["results"], evaluation=evaluation)
