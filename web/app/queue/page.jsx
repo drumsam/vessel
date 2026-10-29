@@ -3,19 +3,22 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { api, money } from "../../lib/api";
+import { fetchInto, listStateMessage, LOADING } from "../../lib/fetchState";
 import { Flags, StateTag } from "../state";
 
-/** Everything waiting on a person: lines, LWIN conflicts, alias suggestions. */
+/** Everything waiting on a person: lines, LWIN conflicts, alias suggestions.
+ * A queue that cannot load is never shown as an empty queue (decision 0040)
+ * — "None open"/"None yet" is a checked, clear answer, not a default. */
 export default function QueuePage() {
   const [lines, setLines] = useState([]);
-  const [conflicts, setConflicts] = useState([]);
-  const [suggestions, setSuggestions] = useState([]);
+  const [conflicts, setConflicts] = useState(LOADING);
+  const [suggestions, setSuggestions] = useState(LOADING);
   const [error, setError] = useState(null);
 
   const load = useCallback(() => {
     api.get("/review-queue").then(setLines).catch((e) => setError(e.message));
-    api.get("/lwin-conflicts").then(setConflicts).catch(() => {});
-    api.get("/alias-suggestions").then(setSuggestions).catch(() => {});
+    fetchInto(setConflicts, api.get("/lwin-conflicts"));
+    fetchInto(setSuggestions, api.get("/alias-suggestions"));
   }, []);
   useEffect(load, [load]);
 
@@ -62,19 +65,23 @@ export default function QueuePage() {
         </div>
       )}
 
-      <h2>LWIN conflicts ({conflicts.length})</h2>
-      {conflicts.length === 0 ? <p className="muted">None open.</p> :
-        conflicts.map((c) => <Conflict key={c.conflict_id} conflict={c} onDone={load} />)}
+      <h2>LWIN conflicts {conflicts.status === "ok" ? `(${conflicts.data.length})` : ""}</h2>
+      <QueueMessage state={conflicts} empty="None open." errorLabel="Couldn't load LWIN conflicts"
+                    onRetry={load} />
+      {conflicts.status === "ok" && conflicts.data.length > 0 &&
+        conflicts.data.map((c) => <Conflict key={c.conflict_id} conflict={c} onDone={load} />)}
 
-      <h2>Alias suggestions ({suggestions.length})</h2>
-      {suggestions.length === 0 ? <p className="muted">None yet.</p> : (
+      <h2>Alias suggestions {suggestions.status === "ok" ? `(${suggestions.data.length})` : ""}</h2>
+      <QueueMessage state={suggestions} empty="None yet." errorLabel="Couldn't load alias suggestions"
+                    onRetry={load} />
+      {suggestions.status === "ok" && suggestions.data.length > 0 && (
         <div className="card scroll">
           <table>
             <thead>
               <tr><th>Seller wording</th><th>Corrected to</th><th className="num">Times</th><th>By</th></tr>
             </thead>
             <tbody>
-              {suggestions.map((s) => (
+              {suggestions.data.map((s) => (
                 <tr key={s.normalised + s.wine_id}>
                   <td className="verbatim">{s.seller_text}</td>
                   <td>{s.producer} — {s.cuvee}</td>
@@ -91,6 +98,21 @@ export default function QueuePage() {
         </div>
       )}
     </>
+  );
+}
+
+/** The one render of `listStateMessage` for this page's two list-shaped
+ * states — "couldn't load" and "checked, empty" always come back as
+ * different `{text, isError}` pairs (fetchState.test.mjs), so this can
+ * never silently go back to the shape that merges them. */
+function QueueMessage({ state, empty, errorLabel, onRetry }) {
+  const msg = listStateMessage(state, { empty, errorLabel });
+  if (!msg) return null;
+  return (
+    <p className={msg.isError ? "notice bad" : "muted"}>
+      {msg.text}
+      {msg.isError && <> <button type="button" className="small" onClick={onRetry}>Retry</button></>}
+    </p>
   );
 }
 

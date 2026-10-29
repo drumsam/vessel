@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api, money } from "../../lib/api";
+import { blocksAction, fetchInto, ok } from "../../lib/fetchState";
 import { gapPercent } from "../../lib/pricingReasons";
 import { Flags } from "../state";
 
@@ -31,22 +32,26 @@ export default function EvaluatePage() {
   const [creatingWine, setCreatingWine] = useState(false);
   const [newWine, setNewWine] = useState(EMPTY_NEW_WINE);
   const [comps, setComps] = useState([{ ...EMPTY_COMP }]);
-  const [matches, setMatches] = useState([]);
+  // decision 0038's safety gate: an unverified producer identity is worth
+  // more than a fast screen, so "couldn't check" is a distinct, blocking
+  // third state here, never collapsed into "checked, no match" (decision
+  // 0040). checkWantList is also the retry action below.
+  const [wantListCheck, setWantListCheck] = useState(ok([]));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
 
   useEffect(() => { api.get("/wines").then(setWines).catch(() => {}); }, []);
 
+  function checkWantList(text) {
+    fetchInto(setWantListCheck, api.post("/identity/want-list-match", { text }));
+  }
+
   useEffect(() => {
     const text = form.raw_description.trim();
-    if (!text) { setMatches([]); return; }
+    if (!text) { setWantListCheck(ok([])); return; }
     let current = true;
-    const t = setTimeout(() => {
-      api.post("/identity/want-list-match", { text })
-        .then((r) => current && setMatches(r))
-        .catch(() => current && setMatches([]));
-    }, 300);
+    const t = setTimeout(() => { if (current) checkWantList(text); }, 300);
     return () => { current = false; clearTimeout(t); };
   }, [form.raw_description]);
 
@@ -115,7 +120,7 @@ export default function EvaluatePage() {
   function startAnother() {
     setForm(EMPTY_FORM);
     setComps([{ ...EMPTY_COMP }]);
-    setMatches([]);
+    setWantListCheck(ok([]));
     setResult(null);
     setError(null);
   }
@@ -139,9 +144,19 @@ export default function EvaluatePage() {
           <label htmlFor="raw_description">What you were offered, in your own words</label>
           <textarea id="raw_description" rows={2} required value={form.raw_description}
                     onChange={(e) => setForm({ ...form, raw_description: e.target.value })} />
-          {matches.length > 0 && (
+          {wantListCheck.status === "error" ? (
+            <div className="notice bad" style={{ fontSize: 13, marginTop: 6 }}>
+              Couldn&apos;t verify this producer against the client want list ({wantListCheck.error}).
+              On these producers an unverified identity is worth more than a fast screen —
+              evaluating is blocked until this check succeeds.{" "}
+              <button type="button" className="small"
+                      onClick={() => checkWantList(form.raw_description.trim())}>
+                Retry
+              </button>
+            </div>
+          ) : wantListCheck.status === "ok" && wantListCheck.data.length > 0 && (
             <div className="notice" style={{ fontSize: 13, marginTop: 6 }}>
-              {matches.map((m) => (
+              {wantListCheck.data.map((m) => (
                 <div key={m.producer}>
                   Looks like <strong>{m.producer}</strong> — on the client want list.
                   {m.always_review ? " Always needs a one-time identity check, even once priced." : ""}
@@ -307,7 +322,7 @@ export default function EvaluatePage() {
           </button>
 
           <div style={{ marginTop: 16 }}>
-            <button type="submit" disabled={busy || !form.wine_id}>
+            <button type="submit" disabled={busy || !form.wine_id || blocksAction(wantListCheck)}>
               {busy ? "Pricing…" : "Evaluate"}
             </button>
           </div>

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { use } from "react";
 import { api, format, money, rate } from "../../../../lib/api";
+import { fetchInto, listStateMessage, LOADING } from "../../../../lib/fetchState";
 import { Flags, StateTag } from "../../../state";
 import LineDetail from "./line";
 
@@ -23,7 +24,7 @@ async function waitFor(jobId) {
 export default function DealPage({ params }) {
   const { dealId } = use(params);
   const [deal, setDeal] = useState(null);
-  const [offers, setOffers] = useState([]);
+  const [offers, setOffers] = useState(LOADING);
   const [open, setOpen] = useState(null);
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState(null);
@@ -32,7 +33,7 @@ export default function DealPage({ params }) {
 
   const load = useCallback(() => {
     api.get(`/deals/${dealId}`).then(setDeal).catch((e) => setError(e.message));
-    api.get(`/deals/${dealId}/buyer-offers`).then(setOffers).catch(() => {});
+    fetchInto(setOffers, api.get(`/deals/${dealId}/buyer-offers`));
     // Collect/Benchmark/Price all queue an RQ job; without a worker running
     // (scripts/desk.sh deliberately starts none — Cellar Desk only reads
     // prices that already exist) they would queue a job nothing ever picks
@@ -156,14 +157,24 @@ export default function DealPage({ params }) {
         acceptance, and generates the client document and the shareable link. This page cannot
         send wine to anyone.
       </p>
-      {offers.length > 0 && (
+      {(() => {
+        const msg = listStateMessage(offers, { empty: "No buyer offers issued yet.",
+                                                errorLabel: "Couldn't load buyer offers for this deal" });
+        return msg && (
+          <p className={msg.isError ? "notice bad" : "muted"}>
+            {msg.text}
+            {msg.isError && <> <button type="button" className="small" onClick={load}>Retry</button></>}
+          </p>
+        );
+      })()}
+      {offers.status === "ok" && offers.data.length > 0 && (
         <div className="card scroll">
           <table>
             <thead>
               <tr><th>Client</th><th>Issued</th><th>By</th><th className="num">Lines</th><th className="num">Total</th></tr>
             </thead>
             <tbody>
-              {offers.map((offer) => (
+              {offers.data.map((offer) => (
                 <tr key={offer.buyer_offer_id}>
                   <td><Link href={`/offers/${offer.buyer_offer_id}`}>{offer.client}</Link></td>
                   <td className="muted">{new Date(offer.issued_at).toLocaleString("en-GB")}</td>

@@ -2,12 +2,17 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api, format, money, rate } from "../../../../lib/api";
+import { fetchSingleInto, listStateMessage, LOADING, ok } from "../../../../lib/fetchState";
 import { reasonFor } from "../../../../lib/pricingReasons";
 import { Flags } from "../../../state";
 
 /** One line, opened: its evidence, its identity, and its price. */
 export default function LineDetail({ lineId, line, onChange }) {
-  const [run, setRun] = useState(null);
+  // "Not benchmarked yet" and "couldn't load the benchmark" are different
+  // facts (decision 0040) — runState keeps them apart; `run` below is the
+  // data once it is actually in hand, same as every existing use of it.
+  const [runState, setRunState] = useState(LOADING);
+  const run = runState.status === "ok" ? runState.data : null;
   const [wines, setWines] = useState([]);
   const [auctionHealth, setAuctionHealth] = useState(null);
   const [auctionLots, setAuctionLots] = useState([]);
@@ -20,7 +25,7 @@ export default function LineDetail({ lineId, line, onChange }) {
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(() => {
-    api.get(`/lines/${lineId}/benchmark`).then(setRun).catch(() => setRun(null));
+    fetchSingleInto(setRunState, api.get(`/lines/${lineId}/benchmark`));
     api.get("/wines").then(setWines).catch(() => {});
     api.get(`/lines/${lineId}/auction-health`).then(setAuctionHealth).catch(() => setAuctionHealth(null));
     api.get(`/lines/${lineId}/auction-evidence`).then(setAuctionLots).catch(() => setAuctionLots([]));
@@ -82,7 +87,7 @@ export default function LineDetail({ lineId, line, onChange }) {
     setBusy(true);
     setError(null);
     try {
-      setRun(await api.post(`/comp-exclusions/${exclusion.exclusion_id}/reinstate`, { reason }));
+      setRunState(ok(await api.post(`/comp-exclusions/${exclusion.exclusion_id}/reinstate`, { reason })));
       onChange();
     } catch (e) {
       setError(e.message);
@@ -240,7 +245,17 @@ export default function LineDetail({ lineId, line, onChange }) {
       )}
 
       <h2>Market evidence</h2>
-      {!run ? <p className="muted">Not benchmarked yet.</p> : (
+      {(() => {
+        const msg = listStateMessage(runState, { empty: "Not benchmarked yet.",
+                                                  errorLabel: "Couldn't load the benchmark" });
+        return msg && (
+          <p className={msg.isError ? "notice bad" : "muted"}>
+            {msg.text}
+            {msg.isError && <> <button type="button" className="small" onClick={load}>Retry</button></>}
+          </p>
+        );
+      })()}
+      {run && (
         <>
           <p>
             Floor {money(run.uk_floor)} · Reference {money(run.uk_reference)} ·
