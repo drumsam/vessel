@@ -1,0 +1,2 @@
+auction_house,sale_date,lot,producer,wine,vintage,bottle_ml,quantity,hammer,all_in_price,currency,market,tax_status,source_reference
+EXAMPLE ONLY,2026-01-01,42,Example Producer,Example Cuvee,2015,750,6,600,720,GBP,UK,IB,example-sale-42
