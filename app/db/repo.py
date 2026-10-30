@@ -785,7 +785,7 @@ EXPORT_GATE_FLAGS = ("NEGATIVE_GP", "SELL_ABOVE_UK_REFERENCE", "SELL_AT_OR_ABOVE
 
 #: Benchmark states that also gate, for the other half of the question: not
 #: "is this trade sensible" but "did we measure the market at all". See 0010.
-EXPORT_GATE_STATES = ("NO_MARKET", "REVIEW")
+EXPORT_GATE_STATES = ("NO_MARKET", "REVIEW", "NOT_SEARCHED")
 
 
 #: Review-causing flags (REVIEW_FLAGS, app/core/flags.py) in plain English,
@@ -839,6 +839,8 @@ def gate_reason_phrase(pricing: dict) -> str:
             clauses.append(phrase)
     if not clauses and pricing.get("state") == "NO_MARKET":
         clauses.append("has no market found for it")
+    if not clauses and pricing.get("state") == "NOT_SEARCHED":
+        clauses.append("has not been checked against the market")
     return "; ".join(clauses) if clauses else "needs a look before it can be sent"
 
 

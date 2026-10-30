@@ -101,7 +101,11 @@ The invariants, in short:
 
 10. `NO_MARKET` means every approved merchant was searched and none offers the
     wine. A line nobody has searched is `NOT_SEARCHED`: no run, no price, no
-    buyer export. Never blur the two.
+    buyer export. Never blur the two. One exception (decision 0046): a
+    `parcel_trade` price — Doug's own number, not the market's — may be
+    recorded as `NOT_SEARCHED` with no run, behind an explicit
+    acknowledgement, and only while nothing at all has been collected to
+    search against. The database refuses it on every other basis.
 11. Line status is **derived on read** from the line and its latest run, never
     stored. A stored status drifts from the benchmark it describes.
 12. `NEGATIVE_GP`, `SELL_ABOVE_UK_REFERENCE` and `SELL_AT_OR_ABOVE_UK_FLOOR`

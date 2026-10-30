@@ -942,7 +942,17 @@ function PricingScreen({ offerId, onStartOver }) {
   const warnings = [];
   if (floor && sell != null && sell >= floor) warnings.push("At or above the market price — needs your accept.");
   if (supplier && sell != null && sell < supplier) warnings.push("Below the supplier price — needs your accept.");
-  if (v.market_note) warnings.push(`The market ${v.market_note} — needs your accept.`);
+  // Four market states, never collapsed (decision 0040/0046): evidence
+  // found, checked and none found, never checked, and a check that failed.
+  const marketMissing = !v.market;
+  const collectFailed = collect.status === "error"
+    || (collect.status === "ok" && collect.data?.length > 0
+        && collect.data.every((r) => r.outcome !== "ok"));
+  if (marketMissing) {
+    warnings.push("No current market evidence — you'll be asked to proceed without it.");
+  } else if (v.market_note) {
+    warnings.push(`The market ${v.market_note} — needs your accept.`);
+  }
 
   return (
     <div className="pocket">
@@ -978,8 +988,11 @@ function PricingScreen({ offerId, onStartOver }) {
           <CollectNowPanel collectNow={collect} onCollectNow={runCollect} />
         </PriceRow>
       ) : (
-        <PriceRow label="MARKET" value={v.state === "NO_MARKET" ? "None found" : "Not checked yet"}
-                  sub={v.state === "NO_MARKET" ? `${v.checked_merchants.length} merchants checked` : null}
+        <PriceRow label="MARKET"
+                  value={collectFailed ? "Couldn't check"
+                         : v.state === "NO_MARKET" ? "No current market evidence found" : "Not checked"}
+                  sub={collectFailed ? "the collection failed — not the same as no market"
+                       : v.state === "NO_MARKET" ? `${v.checked_merchants.length} merchants checked` : null}
                   open={openRow === "market"}
                   onToggle={() => setOpenRow(openRow === "market" ? null : "market")}>
           {v.state === "NO_MARKET" && (
@@ -1043,7 +1056,7 @@ function PricingScreen({ offerId, onStartOver }) {
           {gate}
           <div style={{ marginTop: 8 }}>
             <button type="button" onClick={() => createOffer(true)} disabled={!canCreate}>
-              Accept and create offer
+              {marketMissing ? "Proceed without current market evidence" : "Accept and create offer"}
             </button>
           </div>
         </div>

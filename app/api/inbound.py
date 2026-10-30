@@ -263,7 +263,9 @@ def _market(conn: psycopg.Connection, run: dict, pack_size: int) -> Optional[s.M
 
 
 def _market_note(run: Optional[dict]) -> Optional[str]:
-    if run is None or run["state"] not in ("REVIEW", "NO_MARKET"):
+    if run is None:
+        return "has not been checked against the market"
+    if run["state"] not in ("REVIEW", "NO_MARKET"):
         return None
     return repo.gate_reason_phrase({"flags": run["flags"] or [], "comp_count": run["comp_count"],
                                     "state": run["state"]})
@@ -357,7 +359,8 @@ def _evaluate(conn: psycopg.Connection, inbound_offer_id: UUID, operator: dict) 
         # merchant searched and none offers THIS wine) -- never blurred
         # into it (invariant 10).
         return s.EvaluateOut(
-            deal_id=UUID(deal_id), line_id=UUID(line_id), state=None, blocks_create_offer=True,
+            deal_id=UUID(deal_id), line_id=UUID(line_id), state="NOT_SEARCHED",
+            blocks_create_offer=True,
             block_reason="nothing in this system has ever been collected yet",
             **_pocket_facts(conn, offer, line_row, None))
     with conn.transaction():
@@ -375,7 +378,7 @@ def _view(conn: psycopg.Connection, offer: dict) -> s.EvaluateOut:
     facts = _pocket_facts(conn, offer, line_row, run)
     base = dict(deal_id=offer["deal_id"], line_id=line_row["line_id"])
     if run is None:
-        return s.EvaluateOut(**base, state=None, blocks_create_offer=True,
+        return s.EvaluateOut(**base, state="NOT_SEARCHED", blocks_create_offer=True,
                              block_reason="nothing in this system has ever been collected yet",
                              **facts)
 
@@ -494,7 +497,18 @@ def create_offer(inbound_offer_id: UUID, body: s.CreatePocketOfferIn,
     line_id = str(line_row["line_id"])
     name = repo.wine_display_name(line_row, wine)
     run = repo.latest_run(conn, line_id)
-    if run is None or run["computed_at"] < offer["identity_confirmed_at"]:
+    if run is None:
+        # Decision 0046: never searched is not the same fact as searched and
+        # found nothing, and it stays its own state -- but a parcel trade's
+        # price is Doug's, so it may proceed behind an explicit accept. Only
+        # while there is still nothing to search against: once any capture
+        # exists, EVALUATE benchmarks and this line must be checked first.
+        if repo.resolve_offers(conn, wine_id=str(line_row["wine_id"]), vintage=line_row["vintage"],
+                               as_of=datetime.now(timezone.utc)).sources:
+            raise HTTPException(422, "check the market again before creating the offer")
+        run = {"run_id": None, "uk_floor": None, "uk_reference": None, "uk_median": None,
+               "comp_count": 0, "flags": [], "state": "NOT_SEARCHED"}
+    elif run["computed_at"] < offer["identity_confirmed_at"]:
         raise HTTPException(422, "check the market again — the wine's details changed since")
     ask_unit = _ask_unit(offer, line_row)
     if ask_unit is None:

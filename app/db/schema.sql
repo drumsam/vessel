@@ -683,7 +683,8 @@ CREATE INDEX case_premium_pair_measure ON case_premium_pair (bottle_ml, captured
 CREATE TABLE pricing_result (
     pricing_id        uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     line_id           uuid NOT NULL REFERENCES seller_line(line_id) ON DELETE CASCADE,
-    run_id            uuid NOT NULL REFERENCES benchmark_run(run_id),
+    -- NULL exactly when state is NOT_SEARCHED, parcel_trade only (decision 0046).
+    run_id            uuid REFERENCES benchmark_run(run_id),
     priced_at         timestamptz NOT NULL DEFAULT now(),
     priced_by         uuid NOT NULL REFERENCES operator(operator_id),
 
@@ -727,7 +728,7 @@ CREATE TABLE pricing_result (
                       (CASE WHEN price_basis = 'buyer_discount' THEN cost_gbp END) STORED,
 
     flags             text[] NOT NULL DEFAULT '{}',
-    state             text NOT NULL CHECK (state IN ('READY','REVIEW','NO_MARKET')),
+    state             text NOT NULL CHECK (state IN ('READY','REVIEW','NO_MARKET','NOT_SEARCHED')),
 
     -- Derived from the flags and the benchmark state, so it cannot drift from
     -- either: a price that is below cost, or above the UK market the client
@@ -743,7 +744,7 @@ CREATE TABLE pricing_result (
                       GENERATED ALWAYS AS (flags && ARRAY['NEGATIVE_GP',
                                            'SELL_ABOVE_UK_REFERENCE',
                                            'SELL_AT_OR_ABOVE_UK_FLOOR']::text[]
-                                           OR state IN ('NO_MARKET','REVIEW')) STORED,
+                                           OR state IN ('NO_MARKET','REVIEW','NOT_SEARCHED')) STORED,
 
     UNIQUE (pricing_id, requires_acknowledgement),
     CONSTRAINT pricing_result_cost_currency CHECK ((cost IS NULL) = (cost_currency IS NULL)),
@@ -751,7 +752,10 @@ CREATE TABLE pricing_result (
         cost IS NULL OR cost_currency = 'GBP'
         OR (fx_rate IS NOT NULL AND fx_rate_date IS NOT NULL AND fx_source IS NOT NULL)),
     CONSTRAINT pricing_result_chain_fields CHECK (
-        (price_basis = 'buyer_discount') = (buyer_discount IS NOT NULL AND margin_on_sale IS NOT NULL))
+        (price_basis = 'buyer_discount') = (buyer_discount IS NOT NULL AND margin_on_sale IS NOT NULL)),
+    CONSTRAINT pricing_result_run_iff_searched CHECK ((run_id IS NULL) = (state = 'NOT_SEARCHED')),
+    CONSTRAINT pricing_result_not_searched_parcel_only CHECK (
+        state <> 'NOT_SEARCHED' OR price_basis = 'parcel_trade')
 );
 
 -- A named operator accepting a gating flag on one pricing result. One per
@@ -761,7 +765,7 @@ CREATE TABLE pricing_acknowledgement (
     pricing_id      uuid NOT NULL REFERENCES pricing_result(pricing_id) ON DELETE CASCADE,
     flags           text[] NOT NULL,          -- the gating flags as they stood
     state           text NOT NULL             -- and the benchmark state accepted with them
-                    CHECK (state IN ('READY','REVIEW','NO_MARKET')),
+                    CHECK (state IN ('READY','REVIEW','NO_MARKET','NOT_SEARCHED')),
     acknowledged_by uuid NOT NULL REFERENCES operator(operator_id),
     acknowledged_at timestamptz NOT NULL DEFAULT now(),
     note            text,

@@ -864,10 +864,12 @@ def test_evaluate_renders_no_verdict_language(client, monkeypatch, conn):
 
 
 def _priced_offer(client, conn, monkeypatch, *, prices=("3400.00", "3500.00"), want_list=False,
-                  asking_price="2800.00", currency="GBP"):
+                  asking_price="2800.00", currency="GBP", nothing_collected=False):
     wine_id = _wine(conn, producer="Armand Rousseau", cuvee="Clos St Jacques",
                     want_list=want_list)
-    if prices:
+    if nothing_collected:
+        pass
+    elif prices:
         _seed_offers(conn, wine_id=wine_id, vintage=2015, prices=list(prices))
     else:
         other = _wine(conn, producer="Someone Else", cuvee="Unrelated", want_list=False)
@@ -1095,3 +1097,69 @@ def test_trades_list_shows_offers_out_then_confirmed(client, monkeypatch, conn):
     client.post(f"/inbound-offers/{offer_id}/confirm", json={"buyer_name": "Client X"})
     [t] = client.get("/pocket/trades").json()
     assert (t["state"], t["buyer_name"]) == ("CONFIRMED", "Client X")
+
+
+# ------------------------- decision 0046: a never-searched line, parcel_trade only
+
+
+@pg
+def test_not_searched_is_its_own_state_never_blurred_into_no_market(client, monkeypatch, conn):
+    """Production on 30 October 2026 had never collected anything at all:
+    every Pocket trade dead-ended at CREATE OFFER. Never searched stays a
+    distinct state from searched-and-found-nothing (invariant 10)."""
+    _, ev = _priced_offer(client, conn, monkeypatch, nothing_collected=True)
+    assert ev["state"] == "NOT_SEARCHED"
+    assert ev["market"] is None
+    assert ev["market_note"] == "has not been checked against the market"
+    assert ev["checked_merchants"] == []
+    assert ev["default_vessel_sell"] == "3024.00"
+
+
+@pg
+def test_a_never_searched_parcel_trade_proceeds_only_behind_an_accept(client, monkeypatch, conn):
+    offer_id, _ = _priced_offer(client, conn, monkeypatch, nothing_collected=True)
+    r = _offer(client, offer_id, "3024.00")
+    assert r.status_code == 409 and r.json()["detail"]["needs_accept"] is True
+    assert "has not been checked against the market" in r.json()["detail"]["error"]
+    assert conn.execute("SELECT count(*) AS n FROM pricing_result").fetchone()["n"] == 0
+
+    r = _offer(client, offer_id, "3024.00", accept=True)
+    assert r.status_code == 200, r.text
+    assert r.json()["committed"]["accepted"] is True
+    row = conn.execute("SELECT state, run_id, uk_floor, requires_acknowledgement "
+                       "FROM pricing_result").fetchone()
+    assert (row["state"], row["run_id"], row["uk_floor"], row["requires_acknowledgement"]) == (
+        "NOT_SEARCHED", None, None, True)
+    ack = conn.execute("SELECT state FROM pricing_acknowledgement").fetchone()
+    assert ack["state"] == "NOT_SEARCHED"
+
+    f = client.post(f"/inbound-offers/{offer_id}/confirm", json={"buyer_name": "Client X"})
+    assert f.status_code == 200, f.text
+    assert f.json()["fulfilment"]["gross_total"] == "672.00"
+
+
+@pg
+def test_not_searched_pricing_is_refused_for_every_other_basis(client, monkeypatch, conn):
+    """Invariant 10 holds everywhere else, structurally: a cellar line priced
+    off the market may never carry a price nobody searched for."""
+    offer_id, _ = _priced_offer(client, conn, monkeypatch, nothing_collected=True)
+    _offer(client, offer_id, "3024.00", accept=True)
+    with pytest.raises(psycopg.errors.CheckViolation):
+        conn.execute("UPDATE pricing_result SET price_basis = 'manual'")
+    with pytest.raises(psycopg.errors.CheckViolation):
+        conn.execute("UPDATE pricing_result SET state = 'NO_MARKET'")
+
+
+@pg
+def test_once_anything_is_collected_a_never_checked_line_must_be_checked_first(
+        client, monkeypatch, conn):
+    """Not-searched may proceed only while there is genuinely nothing to
+    search against; the moment evidence exists, EVALUATE must run first."""
+    offer_id, ev = _priced_offer(client, conn, monkeypatch, nothing_collected=True)
+    _seed_offers(conn, wine_id=conn.execute("SELECT wine_id FROM wine").fetchone()["wine_id"],
+                 vintage=2015, prices=["3400.00", "3500.00"])
+    r = _offer(client, offer_id, "3024.00", accept=True)
+    assert r.status_code == 422 and "check the market again" in r.json()["detail"]
+    ev = client.post(f"/inbound-offers/{offer_id}/evaluate").json()
+    assert ev["state"] == "READY"
+    assert _offer(client, offer_id, "3024.00").status_code == 200
