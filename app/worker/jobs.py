@@ -615,6 +615,15 @@ def reresolve_rejects(merchant_id: Optional[str] = None) -> dict:
     recovered: list[dict] = []
     still_unresolved = 0
     for row in rows:
+        if row['raw'].get('kind') == 'auction-import-1':
+            from app.auction.importer import reresolve_import
+            with transaction() as conn:
+                recovered_import = reresolve_import(conn, row)
+            if recovered_import:
+                recovered.append({'reject_id': str(row['reject_id']), 'kind': 'auction-import-1'})
+            else:
+                still_unresolved += 1
+            continue
         spec = TARGETED.get(row["merchant_id"]) or WHOLE_BOOK.get(row["merchant_id"])
         if spec is None:                       # merchant deregistered since capture
             still_unresolved += 1

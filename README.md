@@ -1,5 +1,8 @@
 # UK Fine Wine Deal Pricer
 
+Pocket market evidence integration: [Mac startup, auction import and API guide](docs/research/market-data-integration-usage.md).
+Validation evidence: [integration checks](docs/research/market-data-integration-validation.md).
+
 An operator loads a seller's wine list. The system finds the lowest verified
 comparable UK In Bond offer from an approved merchant universe, applies a
 discount or a target margin, and produces a client-facing offer.

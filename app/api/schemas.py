@@ -1063,59 +1063,52 @@ class ConfirmIdentityIn(_In):
 
 # ------------------------------------------------------------- EVALUATE (0040)
 
-class AskOut(_Out):
-    """The confirmed ask, converted to the line's own commercial unit
-    (same basis uk_floor is in), plus the two display shapes every
-    other screen in this app already uses."""
-    per_unit: Money
-    per_bottle: Money
-    total: Money
+class SellerAskOut(_Out):
+    amount: Money
+    currency: Optional[str] = None
+    basis: Optional[str] = None
+    pack_size: int
+    quantity: int
 
 
-class WalkAwayOut(_Out):
-    """buy-side-margin-test.md. All four money fields per the line's own
-    commercial unit except the _per_bottle pair, which exist for display
-    only — decision 0034's own "per-bottle figures primary" convention."""
-    uk_floor: Money
-    uk_floor_per_bottle: Money
-    max_sell: Money
-    walk_away: Money
-    walk_away_per_bottle: Money
+class MerchantEvidenceOut(_Out):
+    floor: Optional[Money] = None
+    reference: Optional[Money] = None
+    median: Optional[Money] = None
+    source_count: int = 0
+    currency: str = "GBP"
+    duty_status: str = "IB"
+    bottle_ml: int
+    pack_size: int
+    newest: Optional[dict] = None
+    oldest: Optional[dict] = None
+    evidence: list[dict] = []
+    historical: list[dict] = []
 
 
 class EvaluateOut(_Out):
-    """Screen 3, EVALUATE: facts, then stop. No verdict field exists here
-    by construction — there is nothing to render a traffic light from.
-
-    `state=None` is the one state above every other: no run could even
-    be attempted (vanishingly rare — it means no merchant anywhere has
-    ever had a resolved capture). `NO_MARKET` — thin-to-absent evidence
-    on these 20 producers specifically — is the PRIMARY, expected state
-    this screen is built around, not an error path; `checked_merchants`
-    names exactly what was looked at and found nothing, so the screen
-    never looks broken when it is working correctly."""
+    """Pocket evidence only; commercial decisions remain with the operator."""
     deal_id: UUID
     line_id: UUID
     state: Optional[Literal["NOT_SEARCHED", "NO_MARKET", "REVIEW", "READY"]] = None
+    collection_state: Literal["NOT_SEARCHED", "CHECKED", "CHECK_FAILED"] = "NOT_SEARCHED"
     as_of: Optional[datetime] = None
+    run_id: Optional[UUID] = None
+    cached: bool = False
     comp_count: int = 0
     flags: list[str] = []
-    #: Populated only when state == NO_MARKET — the merchants this run
-    #: actually consulted, named, not a bare "nothing found".
     checked_merchants: list[str] = []
-    ask: Optional[AskOut] = None
-    walk_away: Optional[WalkAwayOut] = None
-    #: walk_away.walk_away - ask.per_unit. Negative means the ask is
-    #: ABOVE walk-away; positive is headroom below it.
-    headroom: Optional[Money] = None
-    headroom_per_bottle: Optional[Money] = None
-    margin_at_ask_pct: Optional[Decimal] = None
-    #: Shown only when the ask is above walk-away — what a sell would
-    #: have to be to still hit MIN_TRADE_MARGIN at this ask.
-    required_sell_for_margin: Optional[Money] = None
-    exceeds_floor: Optional[bool] = None
-    blocks_create_offer: bool = True
+    ask: Optional[SellerAskOut] = None
+    merchant: Optional[MerchantEvidenceOut] = None
+    transactions: dict = {}
+    collection: list[dict] = []
+    blocks_create_offer: bool = False
     block_reason: Optional[str] = None
+
+
+class AuctionImportIn(_In):
+    filename: str = Field(min_length=1, max_length=255)
+    content_base64: str = Field(max_length=2_666_668)
 
 
 class CollectResultOut(_Out):

@@ -13,8 +13,6 @@ neither may look like a clean parse.
 from __future__ import annotations
 
 import base64
-from datetime import datetime, timezone
-from decimal import ROUND_HALF_EVEN, Decimal
 from typing import Optional
 from uuid import UUID
 
@@ -24,10 +22,8 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from app.ai.provider import AIProvider, InboundOfferProposal, get_provider
 from app.api import schemas as s
 from app.api.deps import current_operator, db, translate
-from app.core.flags import REVIEW_FLAGS
 from app.db import repo
 from app.db.connection import transaction
-from app.evaluate import walkaway
 from app.identity.want_list import match_want_list
 from app.inbound import repo as inbound_repo
 from app.worker import jobs
@@ -222,106 +218,36 @@ def list_suppliers(conn: psycopg.Connection = Depends(db)):
     return inbound_repo.list_suppliers(conn)
 
 
-def _round2(d: Decimal) -> Decimal:
-    return d.quantize(Decimal("0.01"), rounding=ROUND_HALF_EVEN)
-
-
-def _evaluate(conn: psycopg.Connection, inbound_offer_id: UUID, operator: dict) -> s.EvaluateOut:
-    """Screen 3, EVALUATE: facts only, the walk-away price (buy-side-
-    margin-test.md). Reuses the same engine every other line in this
-    app goes through -- app.core.benchmark via resolve_offers and
-    benchmark_with_band, never a second pricing path -- and synchronous,
-    no RQ job, the same discipline decision 0039 already established
-    for one line at a time.
-
-    NO_MARKET is the PRIMARY state this builds for, not an error path:
-    merchant evidence on these 20 want-list producers is measurably
-    thin to absent, so that is the common case here, not the edge
-    case. `checked_merchants` names exactly what was consulted and
-    found nothing -- a screen that looks broken when it is working
-    correctly will not get trusted.
-
-    Shared by both /evaluate and /collect-now: a fresh collection ends
-    in exactly the same re-benchmark a plain EVALUATE open does, never
-    a second response shape for "the same facts, now with more
-    evidence."""
-    offer = inbound_repo.get_inbound_offer(conn, str(inbound_offer_id))
-    if offer is None:
-        raise HTTPException(404, "inbound offer not found")
-    try:
-        with conn.transaction():
-            deal_id, line_id = inbound_repo.ensure_evaluation_line(
-                conn, offer, created_by=operator["operator_id"])
-    except inbound_repo.NotReadyToEvaluate as e:
-        raise HTTPException(422, str(e))
-
-    when = datetime.now(timezone.utc)
-    line_row = repo.get_line(conn, line_id)
-    line = repo.seller_line_for_benchmark(line_row)
-    res = repo.resolve_offers(conn, wine_id=str(line_row["wine_id"]),
-                              vintage=line_row["vintage"], as_of=when)
-    if not res.sources:
-        # Vanishingly rare: no merchant anywhere has ever had a resolved
-        # capture. Not the same fact as NO_MARKET (every approved
-        # merchant searched and none offers THIS wine) -- never blurred
-        # into it (invariant 10).
-        return s.EvaluateOut(
-            deal_id=UUID(deal_id), line_id=UUID(line_id), state=None, blocks_create_offer=True,
-            block_reason="nothing in this system has ever been collected yet")
+def _evaluate(conn: psycopg.Connection, inbound_offer_id: UUID, operator: dict, *, force=False) -> s.EvaluateOut:
+    from app.market.reference import market_reference
+    from app.auction.repo import transaction_summary
     with conn.transaction():
-        jobs.benchmark_with_band(conn, line, res, when)
-    run = repo.latest_run(conn, line_id)
-
-    if run["state"] == "NO_MARKET":
-        checked = sorted(m["name"] for m in repo.list_merchants(conn))
-        return s.EvaluateOut(
-            deal_id=UUID(deal_id), line_id=UUID(line_id), state="NO_MARKET", as_of=run["as_of"],
-            comp_count=0, flags=run["flags"] or [], checked_merchants=checked,
-            blocks_create_offer=True,
-            block_reason="no Floor — none of the merchants checked offer this wine")
-
-    out = s.EvaluateOut(deal_id=UUID(deal_id), line_id=UUID(line_id), state=run["state"],
-                        as_of=run["as_of"], comp_count=run["comp_count"],
-                        flags=run["flags"] or [])
-
-    uk_floor = Decimal(str(run["uk_floor"]))
-    w = walkaway.compute(uk_floor)
-    pack_size = line_row["pack_size"]
-    out.walk_away = s.WalkAwayOut(
-        uk_floor=w.uk_floor, uk_floor_per_bottle=_round2(w.uk_floor / pack_size),
-        max_sell=w.max_sell, walk_away=w.walk_away,
-        walk_away_per_bottle=_round2(w.walk_away / pack_size))
-
-    # Review flags come first (buy-side-margin-test.md): a REVIEW line
-    # blocks the offer regardless of what the ask comparison below says.
-    needs_review = bool(set(run["flags"] or []) & REVIEW_FLAGS)
-    if needs_review:
-        out.blocks_create_offer = True
-        out.block_reason = "this line needs review before an offer can be made"
-    else:
-        out.blocks_create_offer = False
-
-    if offer["confirmed_asking_price"] is not None:
-        ask_price = Decimal(str(offer["confirmed_asking_price"]))
-        ask_unit = walkaway.ask_per_unit(ask_price, offer["confirmed_asking_basis"],
-                                         pack_size, line_row["quantity"])
-        out.ask = s.AskOut(per_unit=ask_unit, per_bottle=_round2(ask_unit / pack_size),
-                           total=_round2(ask_unit * line_row["quantity"]))
-        out.headroom = w.walk_away - ask_unit
-        out.headroom_per_bottle = _round2(out.headroom / pack_size)
-        out.margin_at_ask_pct = (walkaway.margin_at_ask(w.max_sell, ask_unit)
-                                 * Decimal("100"))
-        if ask_unit > w.walk_away:
-            required = walkaway.required_sell_for_margin(ask_unit)
-            out.required_sell_for_margin = required
-            out.exceeds_floor = required > uk_floor
-            if not needs_review:
-                out.blocks_create_offer = True
-                above_or_within = "above" if out.exceeds_floor else "within"
-                out.block_reason = (
-                    f"this ask is above walk-away — {int(walkaway.MIN_TRADE_MARGIN * 100)}% "
-                    f"on it needs a sell of {required}, {above_or_within} the UK Floor")
-    return out
+        # Serialize line creation/cache updates and reconfirmation for this inbound record.
+        conn.execute("SELECT inbound_offer_id FROM inbound_offer WHERE inbound_offer_id=%s FOR UPDATE",
+                     (inbound_offer_id,)).fetchone()
+        offer = inbound_repo.get_inbound_offer(conn, str(inbound_offer_id))
+        if offer is None:
+            raise HTTPException(404, "inbound offer not found")
+        try:
+            deal_id, line_id = inbound_repo.ensure_evaluation_line(conn, offer, created_by=operator['operator_id'])
+        except inbound_repo.NotReadyToEvaluate as exc:
+            raise HTTPException(422, str(exc))
+        line = repo.get_line(conn, line_id)
+        expected = (str(offer['confirmed_wine_id']), offer['confirmed_vintage'],
+                    offer['confirmed_bottle_ml'], offer['confirmed_pack_size'])
+        actual = (str(line['wine_id']), line['vintage'], line['bottle_ml'], line['pack_size'])
+        if actual != expected:
+            raise HTTPException(422, 'Identity changed since confirmation; reconfirm this offer')
+        facts = market_reference(conn, line, force=force)
+        identity_flags = set(line['flags'] or []) & {'NAME_REVIEW', 'FORMAT_REVIEW'}
+        ask = None
+        if offer['confirmed_asking_price'] is not None:
+            ask = s.SellerAskOut(amount=offer['confirmed_asking_price'],
+                currency=offer['confirmed_asking_currency'], basis=offer['confirmed_asking_basis'],
+                pack_size=offer['confirmed_pack_size'], quantity=offer['confirmed_quantity'])
+        return s.EvaluateOut(deal_id=deal_id, line_id=line_id, **facts, ask=ask,
+            transactions=transaction_summary(conn, line_id), blocks_create_offer=bool(identity_flags),
+            block_reason='identity/format needs confirmation' if identity_flags else None)
 
 
 @router.post("/inbound-offers/{inbound_offer_id}/evaluate", response_model=s.EvaluateOut)
@@ -348,5 +274,21 @@ def collect_now_for_offer(inbound_offer_id: UUID, conn: psycopg.Connection = Dep
     if offer["confirmed_wine_id"] is None:
         raise HTTPException(422, "identity has not been confirmed yet")
     collected = jobs.collect_now(str(offer["confirmed_wine_id"]), offer["confirmed_vintage"])
-    evaluation = _evaluate(conn, inbound_offer_id, operator)
+    evaluation = _evaluate(conn, inbound_offer_id, operator, force=True)
     return s.CollectNowOut(collected=collected["results"], evaluation=evaluation)
+
+
+@router.post("/auction-imports")
+def import_auction_file(body: s.AuctionImportIn, conn: psycopg.Connection = Depends(db),
+                        operator: dict = Depends(current_operator)):
+    from app.auction.importer import import_file
+    import binascii
+    from zipfile import BadZipFile
+    try:
+        content = base64.b64decode(body.content_base64, validate=True)
+        with conn.transaction():
+            result = import_file(conn, filename=body.filename, content=content,
+                                 operator_id=operator['operator_id'])
+        return result
+    except (ValueError, binascii.Error, KeyError, TypeError, BadZipFile) as exc:
+        raise HTTPException(422, 'Invalid CSV/XLSX import: ' + str(exc)) from exc

@@ -250,7 +250,8 @@ def test_per_bottle_figure_is_not_persisted_or_exported(conn):
         "auction_house", "sale_date", "lot_ref", "source_url", "currency", "amount",
         "amount_basis", "premium_rate", "hammer_gbp", "fx_rate", "fx_source",
         "is_mixed_lot", "condition_notes", "condition_flagged", "quarantined",
-        "entered_by", "entered_at", "retracted_at", "retracted_by", "retraction_reason"}
+        "entered_by", "entered_at", "retracted_at", "retracted_by", "retraction_reason",
+        "raw_evidence", "import_key"}
 
 
 @pg

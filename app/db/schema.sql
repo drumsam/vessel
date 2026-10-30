@@ -305,6 +305,8 @@ CREATE TABLE auction_evidence (
 
     currency             char(3)     NOT NULL,
     amount                numeric(14,2) NOT NULL CHECK (amount > 0),
+    raw_evidence         jsonb NOT NULL DEFAULT '{}'::jsonb,
+    import_key           text,
     amount_basis         text        NOT NULL CHECK (amount_basis IN ('HAMMER','BUYER_PREMIUM_INCLUSIVE')),
     premium_rate         numeric(6,4) NULL,
     hammer_gbp           numeric(14,2) NULL,            -- computed server-side, never typed
@@ -335,6 +337,9 @@ CREATE TABLE auction_evidence (
         (retracted_at IS NULL AND retracted_by IS NULL AND retraction_reason IS NULL) OR
         (retracted_at IS NOT NULL AND retracted_by IS NOT NULL AND retraction_reason IS NOT NULL))
 );
+
+CREATE UNIQUE INDEX auction_evidence_import_active
+    ON auction_evidence (import_key) WHERE import_key IS NOT NULL AND retracted_at IS NULL;
 
 CREATE INDEX auction_evidence_wine
     ON auction_evidence (wine_id, vintage, bottle_ml, sale_date DESC);
@@ -529,6 +534,7 @@ CREATE TABLE benchmark_run (
     duplicate_listings int NOT NULL DEFAULT 0,
     flags        text[] NOT NULL DEFAULT '{}',
     state        text NOT NULL CHECK (state IN ('READY','REVIEW','NO_MARKET')),
+    evidence_key text,                         -- Pocket input/policy fingerprint
     oldest_comp_age interval                     -- as_of minus the oldest merchant-best's capture
 );
 

@@ -9,6 +9,7 @@ from decimal import Decimal
 from typing import Optional
 
 import psycopg
+from psycopg.types.json import Jsonb
 
 from app.auction.evidence import (
     ALLOWED_HOUSES,
@@ -30,7 +31,8 @@ def record_auction_evidence(conn: psycopg.Connection, *, wine_id: str, vintage: 
                             is_mixed_lot: bool = False,
                             condition_notes: Optional[str] = None,
                             condition_flagged: bool = False,
-                            entered_by: str, entered_at: Optional[datetime] = None) -> dict:
+                            entered_by: str, entered_at: Optional[datetime] = None,
+                            raw_evidence: Optional[dict] = None, import_key: Optional[str] = None) -> dict:
     """"A person reading a public results page and writing down the facts is
     ordinary use" — but the house is still checked against the closed list
     in Python, with a clear reason, before the database's own CHECK is ever
@@ -51,12 +53,12 @@ def record_auction_evidence(conn: psycopg.Connection, *, wine_id: str, vintage: 
         """INSERT INTO auction_evidence
                (wine_id, vintage, bottle_ml, bottles_in_lot, auction_house, sale_date, lot_ref,
                 source_url, currency, amount, amount_basis, premium_rate, hammer_gbp, fx_rate,
-                fx_source, is_mixed_lot, condition_notes, condition_flagged, entered_by, entered_at)
+                fx_source, is_mixed_lot, condition_notes, condition_flagged, entered_by, entered_at, raw_evidence, import_key)
            VALUES (%(wine_id)s, %(vintage)s, %(bottle_ml)s, %(bottles_in_lot)s, %(auction_house)s,
                    %(sale_date)s, %(lot_ref)s, %(source_url)s, %(currency)s, %(amount)s,
                    %(amount_basis)s, %(premium_rate)s, %(hammer_gbp)s, %(fx_rate)s, %(fx_source)s,
                    %(is_mixed_lot)s, %(condition_notes)s, %(condition_flagged)s, %(entered_by)s,
-                   %(entered_at)s)
+                   %(entered_at)s, %(raw_evidence)s, %(import_key)s)
         RETURNING *""",
         {"wine_id": wine_id, "vintage": vintage, "bottle_ml": bottle_ml,
          "bottles_in_lot": bottles_in_lot, "auction_house": auction_house, "sale_date": sale_date,
@@ -64,7 +66,8 @@ def record_auction_evidence(conn: psycopg.Connection, *, wine_id: str, vintage: 
          "amount_basis": amount_basis, "premium_rate": premium_rate, "hammer_gbp": hammer_gbp,
          "fx_rate": fx_rate, "fx_source": fx_source, "is_mixed_lot": is_mixed_lot,
          "condition_notes": condition_notes, "condition_flagged": condition_flagged,
-         "entered_by": entered_by, "entered_at": entered_at},
+         "entered_by": entered_by, "entered_at": entered_at,
+         "raw_evidence": Jsonb(raw_evidence or {}), "import_key": import_key},
     ).fetchone()
 
 
@@ -119,3 +122,28 @@ def line_auction_health(conn: psycopg.Connection, line_id: str, *,
             ORDER BY sale_date DESC""",
         (line["wine_id"], line["vintage"], line["bottle_ml"], cutoff)).fetchall()
     return auction_health(lots, uk_reference_per_bottle=uk_reference_per_bottle)
+
+
+def transaction_summary(conn, line_id, *, as_of=None):
+    """Auction-only facts, using the existing health window/normalization."""
+    from app.auction.evidence import per_bottle_hammer_gbp
+    as_of = as_of or datetime.now(timezone.utc)
+    line = conn.execute('SELECT wine_id,vintage,bottle_ml FROM seller_line WHERE line_id=%s', (line_id,)).fetchone()
+    lots = evidence_for_wine(conn, str(line['wine_id']), line['vintage'], line['bottle_ml'])
+    included = [lot for lot in lots if not lot['quarantined'] and
+                (as_of-timedelta(days=AUCTION_HEALTH_WINDOW_DAYS)).date() <= lot['sale_date'] <= as_of.date()]
+    health = auction_health(included, uk_reference_per_bottle=None)
+    prices = [per_bottle_hammer_gbp(l['hammer_gbp'], l['bottles_in_lot']) for l in included if l['hammer_gbp'] is not None]
+    latest = included[0] if included else None
+    return {'count': health.lot_count, 'priced_count': len(prices),
+            'median_per_bottle_gbp': health.median_per_bottle_gbp,
+            'low_per_bottle_gbp': min(prices) if prices else None,
+            'high_per_bottle_gbp': max(prices) if prices else None,
+            'latest_sale_date': health.latest_sale_date, 'oldest_sale_date': health.earliest_sale_date,
+            'age_days': (as_of.date()-health.latest_sale_date).days if health.latest_sale_date else None,
+            'latest': {k: latest[k] for k in ('auction_evidence_id','sale_date','amount','amount_basis',
+                       'currency','bottles_in_lot','source_url')} if latest else None,
+            'evidence': [{k: l[k] for k in ('auction_evidence_id','sale_date','amount','amount_basis',
+                         'currency','bottles_in_lot','source_url','hammer_gbp','raw_evidence')} for l in included],
+            'window_days': AUCTION_HEALTH_WINDOW_DAYS, 'basis': 'Auction hammer GBP per bottle; display only',
+            'quarantined_count': sum(l['quarantined'] for l in lots)}

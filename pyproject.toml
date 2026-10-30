@@ -2,7 +2,7 @@
 name = "uk-fine-wine-pricer"
 version = "0.1.0"
 requires-python = ">=3.11"
-dependencies = ["fastapi", "uvicorn", "httpx", "psycopg[binary]", "redis", "rq",
+dependencies = ["openpyxl==3.1.5", "fastapi", "uvicorn", "httpx", "psycopg[binary]", "redis", "rq",
                 # selectolax 1.0 removed the Modest backend (selectolax.parser.HTMLParser)
                 # outright -- an import that used to warn now raises. Both adapters that
                 # parse HTML (bordeaux_index.py, bordeaux_index_livetrade.py) still use it.

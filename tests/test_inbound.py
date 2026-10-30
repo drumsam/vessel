@@ -744,21 +744,15 @@ def test_no_market_is_the_primary_state_not_an_error_shape(client, monkeypatch, 
     assert r.status_code == 200
     body = r.json()
     assert body["state"] == "NO_MARKET"
-    assert body["blocks_create_offer"] is True
-    assert "no Floor" in body["block_reason"]
+    assert body["blocks_create_offer"] is False
+    assert body["block_reason"] is None
     assert body["checked_merchants"], "must name what was actually checked"
-    assert body["walk_away"] is None
+    assert "walk_away" not in body
 
 
 @pg
-def test_a_real_floor_produces_the_walk_away_price(client, monkeypatch, conn):
-    """Matches buy-side-margin-test.md's own worked example to the penny:
-    Floor £3,400/bt, max sell £3,230, walk-away £2,990.74, ask £2,800/bt
-    -> headroom £190.74/bt, £8,400 across the 3-bottle line, margin
-    15.4%. pack_size=1 here, so uk_floor IS the per-bottle figure (the
-    engine's own Offer.price is "for ONE unit as defined by pack_size")
-    -- seeding comps at a line-total-shaped number under pack_size=1
-    is exactly the bug this test exists to catch."""
+def test_a_real_floor_returns_evidence_without_a_recommendation(client, monkeypatch, conn):
+    """Merchant evidence is returned with the literal ask, without a recommendation."""
     wine_id = _wine(conn, want_list=False)
     _seed_offers(conn, wine_id=wine_id, vintage=2015, prices=["3400.00", "3500.00"],
                 bottle_ml=750, pack_size=1)
@@ -771,23 +765,20 @@ def test_a_real_floor_produces_the_walk_away_price(client, monkeypatch, conn):
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["state"] == "READY"
-    assert body["walk_away"]["uk_floor"] == "3400.00"
-    assert body["walk_away"]["max_sell"] == "3230.00"
-    assert body["walk_away"]["walk_away"] == "2990.74"
-    # ask stated per bottle (£2,800); pack_size=1 so per-unit is identical;
-    # total is across the line's own quantity=3
-    assert body["ask"]["per_unit"] == "2800.00"
-    assert body["ask"]["total"] == "8400.00"
-    assert body["headroom"] == "190.74"
-    assert round(Decimal(body["margin_at_ask_pct"]), 1) == Decimal("15.4")
+    assert body["merchant"]["floor"] == "3400.00"
+    assert body["merchant"]["median"] == "3450.00"
+    assert body["merchant"]["source_count"] == 2
+    assert body["ask"]["amount"] == "2800.00"
+    assert body["ask"]["currency"] == "GBP"
+    assert body["ask"]["basis"] == "per_bottle"
+    assert body["ask"]["quantity"] == 3
+    assert "headroom" not in body and "walk_away" not in body
     assert body["blocks_create_offer"] is False
 
 
 @pg
-def test_an_ask_above_walk_away_blocks_with_the_required_sell_named(client, monkeypatch, conn):
-    """buy-side-margin-test.md's second worked example: ask £3,200/bt
-    against the same £3,400/bt Floor needs a sell of £3,456/bt at 8% —
-    above the Floor, which decision 0033 forbids."""
+def test_a_high_ask_does_not_create_a_commercial_verdict(client, monkeypatch, conn):
+    """A high seller ask is a fact; Pocket does not decide whether Doug trades."""
     wine_id = _wine(conn, want_list=False)
     _seed_offers(conn, wine_id=wine_id, vintage=2015, prices=["3400.00", "3500.00"])
     _use_provider(monkeypatch, _proposal())
@@ -796,17 +787,15 @@ def test_an_ask_above_walk_away_blocks_with_the_required_sell_named(client, monk
                                asking_basis="per_bottle")
     r = client.post(f"/inbound-offers/{offer_id}/evaluate")
     body = r.json()
-    assert body["blocks_create_offer"] is True
-    assert body["required_sell_for_margin"] == "3456.00"
-    assert body["exceeds_floor"] is True
-    assert "above walk-away" in body["block_reason"]
+    assert body["blocks_create_offer"] is False
+    assert body["block_reason"] is None
+    assert "required_sell_for_margin" not in body
+    assert body["ask"]["amount"] == "3200.00"
 
 
 @pg
-def test_a_one_comp_line_is_review_and_blocks_regardless_of_the_ask(client, monkeypatch, conn):
-    """Review flags come first (buy-side-margin-test.md): ONE_COMP is
-    already a REVIEW_FLAGS member, so this blocks even when the ask
-    sits comfortably below walk-away."""
+def test_a_one_comp_line_remains_review_but_does_not_block_the_decision(client, monkeypatch, conn):
+    """ONE_COMP remains visible as evidence quality, without blocking the decision."""
     wine_id = _wine(conn, want_list=False)
     _seed_offers(conn, wine_id=wine_id, vintage=2015, prices=["3400.00"])
     _use_provider(monkeypatch, _proposal())
@@ -817,10 +806,9 @@ def test_a_one_comp_line_is_review_and_blocks_regardless_of_the_ask(client, monk
     body = r.json()
     assert body["state"] == "REVIEW"
     assert "ONE_COMP" in body["flags"]
-    assert body["blocks_create_offer"] is True
-    assert "review" in body["block_reason"]
-    # the number itself still shows -- a fact, not withheld as a verdict
-    assert body["walk_away"] is not None
+    assert body["blocks_create_offer"] is False
+    assert body["block_reason"] is None
+    assert body["merchant"]["floor"] == "3400.00"
 
 
 @pg
@@ -838,5 +826,5 @@ def test_evaluate_is_idempotent_reusing_the_same_deal_and_line(client, monkeypat
 def test_evaluate_renders_no_verdict_language(client, monkeypatch, conn):
     """Structural: the response has no field a verdict could live in."""
     import app.api.schemas as s
-    forbidden = {"verdict", "score", "rating", "recommendation", "is_good_buy"}
+    forbidden = {"verdict", "score", "rating", "recommendation", "is_good_buy", "walk_away", "headroom", "max_sell", "margin_at_ask_pct", "required_sell_for_margin"}
     assert not forbidden & set(s.EvaluateOut.model_fields)

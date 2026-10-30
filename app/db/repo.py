@@ -566,6 +566,7 @@ WITH ranked AS (
       JOIN snapshot s ON s.snapshot_id = sm.snapshot_id
       JOIN merchant m ON m.merchant_id = sm.merchant_id
      WHERE sm.status = 'ok' AND NOT s.is_demo AND m.approved
+       AND s.schema_version <> 'auction-import-1'
        AND sm.captured_at <= %(as_of)s
        AND (sm.scope_producer_key IS NULL
             OR (sm.scope_producer_key = %(producer_key)s AND sm.scope_vintage = %(vintage)s))
@@ -929,12 +930,14 @@ def prune_snapshots(conn: psycopg.Connection, keep: int) -> list[str]:
         raise ValueError("keep must be at least 1")
     rows = conn.execute(
         """WITH ranked AS (
-               SELECT snapshot_id, ROW_NUMBER() OVER (PARTITION BY merchant_id, status
-                                     ORDER BY captured_at DESC, snapshot_id DESC) AS rn
-                 FROM snapshot_merchant),
+               SELECT sm.snapshot_id, ROW_NUMBER() OVER (PARTITION BY sm.merchant_id, sm.status
+                                     ORDER BY sm.captured_at DESC, sm.snapshot_id DESC) AS rn
+                 FROM snapshot_merchant sm JOIN snapshot s USING(snapshot_id)
+                 WHERE s.schema_version <> 'auction-import-1'),
                 keep AS (SELECT DISTINCT snapshot_id FROM ranked WHERE rn <= %s)
            DELETE FROM snapshot s
-            WHERE NOT EXISTS (SELECT 1 FROM keep k WHERE k.snapshot_id = s.snapshot_id)
+            WHERE s.schema_version <> 'auction-import-1'
+              AND NOT EXISTS (SELECT 1 FROM keep k WHERE k.snapshot_id = s.snapshot_id)
         RETURNING snapshot_id""", (keep,)).fetchall()
     return [str(r["snapshot_id"]) for r in rows]
 

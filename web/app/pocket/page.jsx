@@ -47,7 +47,7 @@ export default function PocketPage() {
   // the proposed producer is wrong.
   const [candidateGroups, setCandidateGroups] = useState(ok([]));
   const [showAllWines, setShowAllWines] = useState(false);
-  // Screen 3, EVALUATE: facts only, the walk-away price. Fetched
+  // Screen 3: existing cached merchant and auction evidence, without a recommendation. Fetched
   // automatically the moment identity is confirmed -- this IS the next
   // screen, not a separate action Doug has to remember to trigger.
   const [evaluate, setEvaluate] = useState(ok(null));
@@ -593,100 +593,82 @@ function CandidateScreen({ offer, proposal, wines, candidateGroups, showAllWines
  * genuinely couldn't-check case (the request itself failed) is the one
  * that gets the error styling and a Retry, per decision 0040. */
 function EvaluateScreen({ evaluate, onRetry, collectNow, onCollectNow }) {
-  if (evaluate.status === "loading") {
-    return <p className="muted" style={{ marginTop: 12 }}>Checking the market…</p>;
-  }
-  if (evaluate.status === "error") {
-    return (
-      <div className="notice bad" style={{ marginTop: 12 }}>
-        Couldn&apos;t check the market ({evaluate.error}).{" "}
-        <button type="button" className="small" onClick={onRetry}>Retry</button>
-      </div>
-    );
-  }
+  // Keep the import report while refreshing evidence; the upload control itself
+  // unmounts during the loading render.
+  const [importResult, setImportResult] = useState(ok(null));
+  if (evaluate.status === "loading") return <p>Reading stored market evidence…</p>;
+  if (evaluate.status === "error") return (
+    <div className="notice bad">Couldn&apos;t check the market ({evaluate.error}). <button onClick={onRetry}>Retry</button></div>
+  );
   const data = evaluate.data;
   if (!data) return null;
-
-  if (data.state === null || data.state === "NOT_SEARCHED") {
-    return (
-      <div className="card" style={{ marginTop: 12, background: "#faf8f6" }}>
-        <h2 style={{ marginTop: 0 }}>Market evidence</h2>
-        <p>Nothing has been collected for this wine yet.</p>
-        <p className="muted" style={{ fontSize: 13 }}>{data.block_reason}</p>
-        <CollectNowPanel collectNow={collectNow} onCollectNow={onCollectNow} />
-      </div>
-    );
-  }
-
-  if (data.state === "NO_MARKET") {
-    return (
-      <div className="card" style={{ marginTop: 12, background: "#faf8f6" }}>
-        <h2 style={{ marginTop: 0 }}>No Floor</h2>
-        <p>None of the merchants checked offer this wine — no walk-away price to show.</p>
-        <p className="muted" style={{ fontSize: 13 }}>
-          Checked: {data.checked_merchants.join(", ")}
-        </p>
-        <CollectNowPanel collectNow={collectNow} onCollectNow={onCollectNow} />
-      </div>
-    );
-  }
-
-  const w = data.walk_away;
-  const ask = data.ask;
+  const m = data.merchant;
+  const t = data.transactions;
+  const dated = (a) => a ? `${a.days} days old · ${a.label} · captured ${new Date(a.captured_at).toLocaleDateString()}` : "No dated evidence";
   return (
-    <div className="card" style={{ marginTop: 12, background: "#faf8f6" }}>
-      <h2 style={{ marginTop: 0 }}>Market evidence</h2>
-      <table>
-        <tbody>
-          {ask && (
-            <tr>
-              <td className="muted">Seller ask</td>
-              <td className="num">{money(ask.total)}</td>
-              <td className="muted">({money(ask.per_bottle)}/bt)</td>
-            </tr>
-          )}
-          <tr>
-            <td className="muted">UK Floor</td>
-            <td className="num">{money(w.uk_floor)}</td>
-            <td className="muted">({money(w.uk_floor_per_bottle)}/bt) · {data.comp_count} merchant(s)
-              {data.as_of ? ` · read ${new Date(data.as_of).toLocaleDateString()}` : ""}</td>
-          </tr>
-          <tr>
-            <td className="muted">Walk-away</td>
-            <td className="num">{money(w.walk_away)}</td>
-            <td className="muted">({money(w.walk_away_per_bottle)}/bt)</td>
-          </tr>
-        </tbody>
-      </table>
-
-      {data.state === "REVIEW" && (
-        <div className="notice" style={{ marginTop: 10 }}>
-          Needs review: {data.flags.join(", ")}.
-        </div>
-      )}
-
-      {ask && data.headroom != null && (
-        Number(data.headroom) >= 0 ? (
-          <p style={{ marginTop: 10 }}>
-            {money(data.headroom)} below walk-away ({money(data.headroom_per_bottle)}/bt) —
-            margin at this ask {Number(data.margin_at_ask_pct).toFixed(1)}%.
-          </p>
-        ) : (
-          <p className="notice bad" style={{ marginTop: 10 }}>
-            {money(Math.abs(Number(data.headroom)))} above walk-away. Hitting the trade margin
-            on this ask needs a sell of {money(data.required_sell_for_margin)} —
-            {data.exceeds_floor ? " above" : " within"} the UK Floor
-            {data.exceeds_floor ? ", which decision 0033 forbids." : "."}
-          </p>
-        )
-      )}
-
-      {data.blocks_create_offer && data.state !== "REVIEW" && data.headroom == null && (
-        <p className="notice bad" style={{ marginTop: 10 }}>{data.block_reason}</p>
-      )}
+    <div className="card" style={{ marginTop: 12 }}>
+      <h2>Market evidence</h2>
+      {data.ask && <p>Seller ask: {data.ask.currency || "Currency not stated"} {data.ask.currency ? money(data.ask.amount, data.ask.currency) : data.ask.amount} · {data.ask.basis || "basis not stated"} · {data.ask.quantity} × {data.ask.pack_size} bottles</p>}
+      {data.collection_state === "CHECK_FAILED" && <p className="notice bad">Some sources couldn&apos;t be checked. Any retained evidence is dated below.</p>}
+      {data.state === "NOT_SEARCHED" && <p>No successful covering collection for this wine yet.</p>}
+      {data.state === "NO_MARKET" && <p>No currently eligible merchant asks found. Older or excluded evidence may still exist.</p>}
+      <h3>Available market · UK In Bond · GBP</h3>
+      <p>{m?.pack_size} × {m?.bottle_ml} ml per commercial unit</p>
+      <dl>
+        <dt>Merchant floor</dt><dd>{m?.floor == null ? "No current floor" : money(m.floor)}</dd>
+        <dt>Merchant median</dt><dd>{m?.median == null ? "No current median" : money(m.median)}</dd>
+        <dt>Sources</dt><dd>{m?.source_count || 0} distinct merchant(s)</dd>
+        <dt>Newest evidence</dt><dd>{dated(m?.newest)}</dd>
+        <dt>Oldest included evidence</dt><dd>{dated(m?.oldest)}</dd>
+      </dl>
+      {!!data.flags.length && <p className="muted">Evidence notes: {data.flags.join(", ")}. Pricing-data weakness does not decide the trade.</p>}
+      {m?.evidence.map((e, i) => <p key={i} className="muted">
+        {e.merchant}: {e.currency} {money(e.price, e.currency)} · {e.pack_size} × {e.bottle_ml} ml
+        {e.derived_from && <strong> · Derived evidence — {e.derived_from.note || e.derived_from.basis}</strong>}
+        {e.source_url && <> · <a href={e.source_url} target="_blank" rel="noreferrer">Source</a></>}
+      </p>)}
+      {!!m?.historical.length && <details><summary>Historical merchant evidence · not a current Floor</summary>
+        {m.historical.map((e, i) => <p key={i}>{e.merchant}: {e.currency} {money(e.price, e.currency)} · captured {e.captured_at} · {e.pack_size} × {e.bottle_ml} ml</p>)}
+      </details>}
+      <h3>Transaction market · auction evidence</h3>
+      <p>{t?.count || 0} lots · {t?.priced_count || 0} with GBP hammer normalization · {t?.window_days} day window</p>
+      {t?.count > 0 && <>
+        <p>Hammer range: {money(t.low_per_bottle_gbp)}–{money(t.high_per_bottle_gbp)} per bottle · median {money(t.median_per_bottle_gbp)}</p>
+        <p>Latest sale {t.latest_sale_date} · {t.age_days} days old. Oldest included sale {t.oldest_sale_date}.</p>
+        <p className="muted">Auction context only; never included in merchant Floor or Median.</p>
+        {t.evidence.map((e) => <p key={e.auction_evidence_id}>{e.sale_date} · {e.currency} {e.amount} · {e.amount_basis} · {e.bottles_in_lot} bottles · <a href={e.source_url} target="_blank" rel="noreferrer">Lot source</a></p>)}
+      </>}
+      {t?.quarantined_count > 0 && <p>{t.quarantined_count} quarantined lots excluded from this summary.</p>}
+      {data.blocks_create_offer && <p className="notice bad">{data.block_reason}</p>}
+      <AuctionImportPanel onImported={onRetry} result={importResult} setResult={setImportResult} />
       <CollectNowPanel collectNow={collectNow} onCollectNow={onCollectNow} />
+      {data.collection.map((c) => <p key={c.merchant_id} className="muted">{c.name}: {c.status === "failed" ? "couldn’t check" : "checked"} · {new Date(c.captured_at).toLocaleString()}</p>)}
     </div>
   );
+}
+
+function AuctionImportPanel({ onImported, result, setResult }) {
+  async function upload(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2000000) { setResult(failed("File exceeds 2 MB")); return; }
+    setResult(LOADING);
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      let binary = "";
+      for (const byte of bytes) binary += String.fromCharCode(byte);
+      const response = await api.post("/auction-imports", { filename: file.name, content_base64: btoa(binary) });
+      setResult(ok(response));
+      onImported();
+    } catch (error) { setResult(failed(error.message)); }
+    event.target.value = "";
+  }
+  return <div>
+    <label>Import Christie&apos;s auction CSV/XLSX (2 MB maximum) <input type="file" accept=".csv,.xlsx" disabled={result.status === "loading"} onChange={upload} /></label>
+    {result.status === "loading" && <p>Importing evidence…</p>}
+    {result.status === "error" && <p className="notice bad">Couldn&apos;t import: {result.error}</p>}
+    {result.status === "ok" && result.data && <p>{result.data.written} written · {result.data.unresolved} unresolved · {result.data.rejected} rejected · {result.data.duplicates} duplicates. {result.data.errors.map(e => `Row ${e.row}: ${e.error}`).join("; ")}</p>}
+  </div>;
 }
 
 /** speed-and-cost-plan.md's "Collect now", kept deliberately small: one
@@ -703,7 +685,7 @@ function CollectNowPanel({ collectNow, onCollectNow }) {
   return (
     <div style={{ marginTop: 10 }}>
       <button type="button" className="small" onClick={onCollectNow} disabled={loading}>
-        {loading ? "Collecting…" : "Collect now"}
+        {loading ? "Collecting…" : "Refresh Market"}
       </button>
       {collectNow.status === "error" && (
         <p className="notice bad" style={{ marginTop: 8, fontSize: 13 }}>

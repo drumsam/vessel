@@ -168,6 +168,17 @@ def confirm_identity(conn: psycopg.Connection, inbound_offer_id: str, *, wine_id
         raise NotConfirmable(
             "this offer is not confirmable — not found, not yet parsed, or a whisky "
             "(whisky is captured for the record but never priced or given an identity)")
+    if row['deal_id']:
+        line = conn.execute('SELECT line_id FROM seller_line WHERE deal_id=%s LIMIT 1',
+                            (row['deal_id'],)).fetchone()
+        if line:
+            # Only this explicit, named confirmation may synchronize identity.
+            # Reading evidence must never silently override a later identity review.
+            deal_repo.set_line_identity(conn, str(line['line_id']), wine_id=wine_id,
+                vintage=vintage, bottle_ml=bottle_ml, pack_size=pack_size, flags=[],
+                source='operator', approved_by=confirmed_by)
+            conn.execute('UPDATE seller_line SET quantity=%s WHERE line_id=%s',
+                         (quantity, line['line_id']))
     return row
 
 
@@ -242,10 +253,9 @@ def ensure_evaluation_line(conn: psycopg.Connection, inbound_offer: dict, *,
     """Idempotent: one deal, one line, per inbound offer -- "a Pocket
     trade is a deal with one or two seller_lines" (the build brief),
     never the single shared batch deal decision 0039's own manual tool
-    uses. Opening EVALUATE again later reuses the same line rather than
-    creating a second one; `app/api/inbound.py` re-benchmarks it fresh
-    every time regardless, so a repeat open always reflects current
-    evidence."""
+    uses. Opening EVALUATE again later reuses the same line and valid persisted
+    benchmark. Explicit reconfirmation updates the bound identity; an
+    evidence read must never implicitly overwrite a later operator review."""
     if inbound_offer["confirmed_wine_id"] is None:
         raise NotReadyToEvaluate("identity has not been confirmed yet")
     if inbound_offer["deal_id"]:

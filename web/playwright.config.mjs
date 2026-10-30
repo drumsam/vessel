@@ -9,6 +9,7 @@ export default defineConfig({
   retries: 0,
   use: {
     baseURL: process.env.E2E_WEB_URL || "http://localhost:3077",
+    launchOptions: { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined },
     screenshot: "only-on-failure",
     trace: "retain-on-failure",
   },
