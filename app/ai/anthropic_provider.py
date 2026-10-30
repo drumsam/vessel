@@ -187,11 +187,12 @@ class AnthropicProvider(AIProvider):
         # with zero preceding application log line -- the call was still
         # in flight when Vercel killed the whole process.
         #
-        # 20s, 0 retries: comfortably under the function's own ceiling,
-        # leaving room for everything else in the request, and a fast,
-        # controlled failure the operator can retry from the UI is
-        # strictly better than a silent one the SDK was still "handling".
-        self._client = anthropic.Anthropic(api_key=api_key, timeout=20.0, max_retries=0)
+        # 50s, 0 retries: still under the function's own 60s ceiling, so a
+        # slow call fails as a controlled, retryable 502 rather than a
+        # silent kill. Not 20s: found live, 30 October 2026, every paste
+        # since the 20s limit died at ~22.4s (the one earlier successful
+        # parse took 41.3s) -- the call routinely needs more than 20s.
+        self._client = anthropic.Anthropic(api_key=api_key, timeout=50.0, max_retries=0)
 
     def propose_inbound_offer(self, raw_body: Optional[str], raw_media: Optional[bytes],
                               media_mime: Optional[str]) -> InboundOfferProposal:

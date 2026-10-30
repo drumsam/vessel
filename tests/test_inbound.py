@@ -526,6 +526,14 @@ def test_anthropic_client_timeout_stays_under_vercels_function_ceiling(monkeypat
     assert provider._client.max_retries == 0
 
 
+def test_anthropic_client_timeout_leaves_room_for_a_real_parse(monkeypatch):
+    """Found live, 30 October 2026: at 20s every production paste timed out
+    at ~22.4s, while a real successful parse had taken 41.3s. The limit must
+    cover that, and still leave the 60s function ceiling room to answer."""
+    provider = _provider(monkeypatch)
+    assert 45 <= provider._client.timeout <= 50
+
+
 # ---------------------------------------- supplier attribution (spec, 29 Oct 2026)
 
 @pg
