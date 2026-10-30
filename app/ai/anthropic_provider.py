@@ -80,8 +80,9 @@ count instead. Do not guess the split -- that is a fact only a person can \
 resolve, not you.
 - asking_basis is "per_bottle", "per_case", or "total" -- ONLY when the \
 source says so explicitly ("a bottle", "per bottle", "the case", "in total", \
-"for the lot"). Never infer it from quantity or pack_size; a price with no \
-stated unit gets asking_basis=null, however many bottles are involved.
+"for the lot"). Never infer it from quantity or pack_size; OMIT this field \
+entirely if no unit is stated, however many bottles are involved -- do not \
+send null for it, send nothing.
 - reasoning is one brief sentence on what was read; if category is whisky or \
 unknown, say why.
 """
@@ -144,8 +145,17 @@ PROPOSAL_SCHEMA = {
         "packaging": {"type": ["string", "null"]},
         "asking_price": {"type": ["string", "null"]},
         "asking_currency": {"type": ["string", "null"]},
-        "asking_basis": {"type": ["string", "null"],
-                         "enum": ["per_bottle", "per_case", "total", None]},
+        # Found live, 29-30 October 2026: Anthropic's own schema compiler
+        # rejects an enum combined with a nullable type array ("Enum
+        # value 'per_bottle' does not match declared type ['string',
+        # 'null']") -- its structured-outputs validator does not accept
+        # the standard JSON Schema reading that an enum constrains the
+        # value ONLY when it is not null. asking_basis is not in
+        # `required` above, so the model can simply OMIT the key when
+        # the source states no basis -- the same "null when absent"
+        # meaning, expressed as an absent key rather than an explicit
+        # null this field's own type can no longer carry.
+        "asking_basis": {"type": "string", "enum": ["per_bottle", "per_case", "total"]},
         "reasoning": {"type": "string"},
     },
 }

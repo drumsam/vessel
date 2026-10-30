@@ -496,6 +496,22 @@ def test_anthropic_proposal_schema_round_trips_through_the_validator():
     assert set(PROPOSAL_SCHEMA["properties"]) == set(_ProposalWire.model_fields)
 
 
+def test_asking_basis_never_combines_an_enum_with_a_nullable_type():
+    """Found live, 30 October 2026: "Error code: 400 - output_config.
+    format.schema: Invalid schema: Enum value 'per_bottle' does not
+    match declared type ['string', 'null']" -- Anthropic's own schema
+    compiler rejects an enum paired with a nullable type array, contrary
+    to the standard JSON Schema reading. asking_basis stays a plain
+    "string" with its enum, and relies on NOT being in `required` for
+    "the model may omit this" -- the same meaning, carried by an absent
+    key rather than a type this field can no longer express."""
+    from app.ai.anthropic_provider import PROPOSAL_SCHEMA
+    basis = PROPOSAL_SCHEMA["properties"]["asking_basis"]
+    assert basis["type"] == "string"
+    assert "null" not in basis.get("enum", [])
+    assert "asking_basis" not in PROPOSAL_SCHEMA["required"]
+
+
 def test_anthropic_client_timeout_stays_under_vercels_function_ceiling(monkeypatch):
     """Found live, 29 October 2026: the SDK's own default is a 10-minute
     timeout with 2 retries. Vercel kills this function at 60s
