@@ -50,6 +50,16 @@ live on four real Champagne lines, one of them only 1.7% above Floor. The
 flag is computed from `uk_floor` directly, the same real figure every
 other screen already shows, never re-derived from the chain's own numbers.
 
+## The parcel trade (VESSEL Pocket)
+
+Doug buys a parcel from a supplier and sells it on: the supplier price is his
+cost, and the VESSEL sell price is a number HE sets, never one derived from
+the market. The default he starts from is the supplier price plus
+`MIN_TRADE_MARGIN` (markup on cost, `buy-side-margin-test.md`), but whatever
+he commits is taken exactly as given — refused if it is not whole pence,
+never rounded. The same commercial flags as every other basis are computed
+against the same Floor and Reference, so the same export gates apply.
+
 Two of the system's three rounding points are here: the FX conversion of a
 non-GBP cost into GBP, and the final sell price. Both go to whole pence with
 ROUND_HALF_EVEN. The third is the Median, in app/core/benchmark.py. Nothing
@@ -62,7 +72,7 @@ from dataclasses import dataclass, field
 from decimal import ROUND_HALF_EVEN, Decimal
 from typing import Optional
 
-from app.core.flags import Flag
+from app.core.flags import MIN_TRADE_MARGIN, Flag
 
 CENT = Decimal("0.01")
 RATE = Decimal("0.0001")
@@ -87,7 +97,7 @@ class CannotPrice(Exception):
 
 @dataclass(frozen=True)
 class PricedLine:
-    # manual | line_margin | line_discount | global_margin | buyer_discount
+    # manual | line_margin | line_discount | global_margin | buyer_discount | parcel_trade
     price_basis: str
     sell_price: Decimal
     cost_gbp: Optional[Decimal]
@@ -173,7 +183,22 @@ def price_line(*, uk_reference: Optional[Decimal], cost: Optional[Decimal],
 
     gp = sell - cost_gbp if cost_gbp is not None else None
     gross_margin = (gp / sell).quantize(RATE, rounding=ROUNDING) if gp is not None and sell else None
+    flags = _commercial_flags(sell=sell, cost_gbp=cost_gbp, gp=gp, uk_reference=uk_reference,
+                              uk_floor=uk_floor, deep_discount_threshold=deep_discount_threshold)
 
+    return PricedLine(
+        price_basis=basis, sell_price=sell, cost_gbp=cost_gbp, gp=gp,
+        gross_margin=gross_margin, target_margin=margin, discount=discount,
+        deep_discount_threshold=deep_discount_threshold, flags=flags,
+        buyer_discount=chain_buyer_discount, margin_on_sale=chain_margin_on_sale,
+        buyer_price_gbp=sell if basis == "buyer_discount" else None,
+        seller_price_gbp=cost_gbp if basis == "buyer_discount" else None,
+    )
+
+
+def _commercial_flags(*, sell: Decimal, cost_gbp: Optional[Decimal], gp: Optional[Decimal],
+                      uk_reference: Optional[Decimal], uk_floor: Optional[Decimal],
+                      deep_discount_threshold: Decimal) -> set[Flag]:
     flags: set[Flag] = set()
     if cost_gbp is not None and uk_reference is not None and cost_gbp > uk_reference:
         flags.add(Flag.COST_ABOVE_UK_REFERENCE)
@@ -189,15 +214,44 @@ def price_line(*, uk_reference: Optional[Decimal], cost: Optional[Decimal],
         flags.add(Flag.NEGATIVE_GP)
     if uk_reference is not None and sell < uk_reference * (Decimal(1) - deep_discount_threshold):
         flags.add(Flag.DEEP_DISCOUNT)
+    return flags
 
+
+def default_vessel_sell(supplier_price: Decimal) -> Decimal:
+    """The starting VESSEL sell price: supplier price plus MIN_TRADE_MARGIN,
+    markup on cost. A rounding point, the same as every other sell price."""
+    return round_money(supplier_price * (Decimal(1) + MIN_TRADE_MARGIN))
+
+
+def markup(vessel_sell: Decimal, supplier_price: Decimal) -> Decimal:
+    """(V - S) / S — markup on the supplier price, never gross margin."""
+    if supplier_price <= 0:
+        raise CannotPrice("a markup needs a positive supplier price")
+    return ((vessel_sell - supplier_price) / supplier_price).quantize(RATE, rounding=ROUNDING)
+
+
+def price_parcel_trade(*, vessel_sell: Decimal, supplier_price: Decimal,
+                       supplier_currency: str, uk_reference: Optional[Decimal],
+                       uk_floor: Optional[Decimal], fx_rate: Optional[Decimal] = None,
+                       deep_discount_threshold: Decimal = DEEP_DISCOUNT_THRESHOLD) -> PricedLine:
+    """Both prices are per commercial unit (pack_size), the same basis as
+    uk_floor/uk_reference. The sell price is the operator's, taken as given."""
+    if supplier_price <= 0:
+        raise CannotPrice("the supplier price must be positive")
+    if vessel_sell <= 0:
+        raise CannotPrice("the VESSEL sell price must be positive")
+    if vessel_sell != vessel_sell.quantize(CENT):
+        raise CannotPrice("the VESSEL sell price must be whole pence")
+    cost_gbp = convert_cost(supplier_price, supplier_currency, fx_rate=fx_rate)
+    gp = vessel_sell - cost_gbp
+    gross_margin = (gp / vessel_sell).quantize(RATE, rounding=ROUNDING)
+    flags = _commercial_flags(sell=vessel_sell, cost_gbp=cost_gbp, gp=gp,
+                              uk_reference=uk_reference, uk_floor=uk_floor,
+                              deep_discount_threshold=deep_discount_threshold)
     return PricedLine(
-        price_basis=basis, sell_price=sell, cost_gbp=cost_gbp, gp=gp,
-        gross_margin=gross_margin, target_margin=margin, discount=discount,
-        deep_discount_threshold=deep_discount_threshold, flags=flags,
-        buyer_discount=chain_buyer_discount, margin_on_sale=chain_margin_on_sale,
-        buyer_price_gbp=sell if basis == "buyer_discount" else None,
-        seller_price_gbp=cost_gbp if basis == "buyer_discount" else None,
-    )
+        price_basis="parcel_trade", sell_price=vessel_sell, cost_gbp=cost_gbp, gp=gp,
+        gross_margin=gross_margin, target_margin=None, discount=None,
+        deep_discount_threshold=deep_discount_threshold, flags=flags)
 
 
 def _basis(manual_price, line_margin, line_discount, deal_margin, *, chain_available: bool):

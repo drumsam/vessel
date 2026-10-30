@@ -24,12 +24,14 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from app.ai.provider import AIProvider, InboundOfferProposal, get_provider
 from app.api import schemas as s
 from app.api.deps import current_operator, db, translate
-from app.core.flags import REVIEW_FLAGS
+from app.auction import repo as auction_repo
+from app.core.flags import MIN_TRADE_MARGIN, REVIEW_FLAGS
 from app.db import repo
 from app.db.connection import transaction
 from app.evaluate import walkaway
 from app.identity.want_list import match_want_list
 from app.inbound import repo as inbound_repo
+from app.pricing import pricer
 from app.worker import jobs
 
 router = APIRouter(tags=["inbound"], dependencies=[Depends(current_operator)])
@@ -164,6 +166,8 @@ def confirm_identity(inbound_offer_id: UUID, body: s.ConfirmIdentityIn,
     refuses this call outright without want_list_ack=true. No confidence
     score anywhere in this path can override that — there is no field
     for one to override."""
+    if inbound_repo.get_fulfilment(conn, str(inbound_offer_id)):
+        raise HTTPException(409, "this trade is already confirmed — what was agreed can't change")
     wine = repo.get_wine(conn, str(body.wine_id))
     if wine is None:
         raise HTTPException(404, "wine not found")
@@ -226,6 +230,90 @@ def _round2(d: Decimal) -> Decimal:
     return d.quantize(Decimal("0.01"), rounding=ROUND_HALF_EVEN)
 
 
+def _dec(v) -> Optional[Decimal]:
+    return Decimal(str(v)) if v is not None else None
+
+
+def _ask_unit(offer: dict, line_row: dict) -> Optional[Decimal]:
+    if offer["confirmed_asking_price"] is None:
+        return None
+    return walkaway.ask_per_unit(Decimal(str(offer["confirmed_asking_price"])),
+                                 offer["confirmed_asking_basis"], line_row["pack_size"],
+                                 line_row["quantity"])
+
+
+def _market(conn: psycopg.Connection, run: dict, pack_size: int) -> Optional[s.MarketOut]:
+    if run is None or run["uk_floor"] is None:
+        return None
+    comps = []
+    for c in repo.run_comps(conn, run["run_id"]):
+        if c["role"] != "merchant_best":
+            continue
+        o = c["offer_snapshot"]
+        per_bottle = (Decimal(o["per_bottle"]) if o.get("per_bottle")
+                      else Decimal(o["price"]) / o["pack_size"])
+        comps.append(s.MarketCompOut(merchant=o["merchant"], per_bottle=_round2(per_bottle),
+                                     captured_at=o.get("captured_at"), source_url=o.get("source_url")))
+    comps.sort(key=lambda c: c.per_bottle)
+    floor = Decimal(str(run["uk_floor"]))
+    return s.MarketOut(floor_per_unit=floor, floor_per_bottle=_round2(floor / pack_size),
+                       comp_count=run["comp_count"],
+                       checked_at=max((c.captured_at for c in comps if c.captured_at), default=None),
+                       comps=comps)
+
+
+def _market_note(run: Optional[dict]) -> Optional[str]:
+    if run is None or run["state"] not in ("REVIEW", "NO_MARKET"):
+        return None
+    return repo.gate_reason_phrase({"flags": run["flags"] or [], "comp_count": run["comp_count"],
+                                    "state": run["state"]})
+
+
+def _committed(conn: psycopg.Connection, line_id: str) -> Optional[s.CommittedOfferOut]:
+    p = repo.latest_pricing(conn, line_id)
+    if p is None or p["price_basis"] != "parcel_trade":
+        return None
+    return s.CommittedOfferOut(
+        pricing_id=p["pricing_id"], priced_at=p["priced_at"], vessel_sell=p["sell_price"],
+        supplier_price=p["cost_gbp"], gp=p["gp"],
+        requires_acknowledgement=p["requires_acknowledgement"],
+        accepted=p["acknowledgement"] is not None)
+
+
+def _pocket_facts(conn: psycopg.Connection, offer: dict, line_row: dict,
+                  run: Optional[dict]) -> dict:
+    """Everything the four-price screen shows beyond the benchmark itself.
+    Read, never computed here: the Floor is the engine's, the auction figure
+    is app/auction's own health rule, the default sell is the pricer's."""
+    wine = repo.get_wine(conn, str(line_row["wine_id"]))
+    pack_size = line_row["pack_size"]
+    facts = dict(
+        producer=wine["producer"], cuvee=wine["cuvee"], vintage=line_row["vintage"],
+        bottle_ml=line_row["bottle_ml"], pack_size=pack_size, quantity=line_row["quantity"],
+        packaging=offer["confirmed_packaging"], bond_status=offer["confirmed_bond_status"],
+        stock_location=offer["confirmed_stock_location"], availability=offer["availability"],
+        supplier_currency=offer["confirmed_asking_currency"], min_trade_margin=MIN_TRADE_MARGIN,
+        market=_market(conn, run, pack_size), market_note=_market_note(run),
+        committed=_committed(conn, str(line_row["line_id"])))
+    ask_unit = _ask_unit(offer, line_row)
+    if ask_unit is not None:
+        facts["ask"] = s.AskOut(per_unit=ask_unit, per_bottle=_round2(ask_unit / pack_size),
+                                total=_round2(ask_unit * line_row["quantity"]))
+        facts["default_vessel_sell"] = pricer.default_vessel_sell(ask_unit)
+    ref = _dec(run["uk_reference"]) if run else None
+    health = auction_repo.line_auction_health(
+        conn, str(line_row["line_id"]),
+        uk_reference_per_bottle=_round2(ref / pack_size) if ref is not None else None)
+    if health.lot_count:
+        facts["auction"] = s.AuctionOut(median_per_bottle=health.median_per_bottle_gbp,
+                                        lot_count=health.lot_count,
+                                        latest_sale_date=health.latest_sale_date)
+    f = inbound_repo.get_fulfilment(conn, str(offer["inbound_offer_id"]))
+    if f is not None:
+        facts["fulfilment"] = s.FulfilmentOut.model_validate(f)
+    return facts
+
+
 def _evaluate(conn: psycopg.Connection, inbound_offer_id: UUID, operator: dict) -> s.EvaluateOut:
     """Screen 3, EVALUATE: facts only, the walk-away price (buy-side-
     margin-test.md). Reuses the same engine every other line in this
@@ -244,10 +332,13 @@ def _evaluate(conn: psycopg.Connection, inbound_offer_id: UUID, operator: dict) 
     Shared by both /evaluate and /collect-now: a fresh collection ends
     in exactly the same re-benchmark a plain EVALUATE open does, never
     a second response shape for "the same facts, now with more
-    evidence."""
+    evidence." A confirmed trade is never re-benchmarked: what was
+    agreed is the record, not today's market."""
     offer = inbound_repo.get_inbound_offer(conn, str(inbound_offer_id))
     if offer is None:
         raise HTTPException(404, "inbound offer not found")
+    if offer["deal_id"] and inbound_repo.get_fulfilment(conn, str(inbound_offer_id)):
+        return _view(conn, offer)
     try:
         with conn.transaction():
             deal_id, line_id = inbound_repo.ensure_evaluation_line(
@@ -267,22 +358,37 @@ def _evaluate(conn: psycopg.Connection, inbound_offer_id: UUID, operator: dict) 
         # into it (invariant 10).
         return s.EvaluateOut(
             deal_id=UUID(deal_id), line_id=UUID(line_id), state=None, blocks_create_offer=True,
-            block_reason="nothing in this system has ever been collected yet")
+            block_reason="nothing in this system has ever been collected yet",
+            **_pocket_facts(conn, offer, line_row, None))
     with conn.transaction():
         jobs.benchmark_with_band(conn, line, res, when)
+    return _view(conn, inbound_repo.get_inbound_offer(conn, str(inbound_offer_id)))
+
+
+def _view(conn: psycopg.Connection, offer: dict) -> s.EvaluateOut:
+    """The screen's facts from the line's LATEST run, without running a new
+    one — shared by EVALUATE (just after benchmarking), CREATE OFFER and
+    CONFIRM, so all three answer in exactly one shape."""
+    line_row = repo.deal_lines(conn, str(offer["deal_id"]))[0]
+    line_id = str(line_row["line_id"])
     run = repo.latest_run(conn, line_id)
+    facts = _pocket_facts(conn, offer, line_row, run)
+    base = dict(deal_id=offer["deal_id"], line_id=line_row["line_id"])
+    if run is None:
+        return s.EvaluateOut(**base, state=None, blocks_create_offer=True,
+                             block_reason="nothing in this system has ever been collected yet",
+                             **facts)
 
     if run["state"] == "NO_MARKET":
         checked = sorted(m["name"] for m in repo.list_merchants(conn))
         return s.EvaluateOut(
-            deal_id=UUID(deal_id), line_id=UUID(line_id), state="NO_MARKET", as_of=run["as_of"],
+            **base, state="NO_MARKET", as_of=run["as_of"],
             comp_count=0, flags=run["flags"] or [], checked_merchants=checked,
             blocks_create_offer=True,
-            block_reason="no Floor — none of the merchants checked offer this wine")
+            block_reason="no Floor — none of the merchants checked offer this wine", **facts)
 
-    out = s.EvaluateOut(deal_id=UUID(deal_id), line_id=UUID(line_id), state=run["state"],
-                        as_of=run["as_of"], comp_count=run["comp_count"],
-                        flags=run["flags"] or [])
+    out = s.EvaluateOut(**base, state=run["state"], as_of=run["as_of"],
+                        comp_count=run["comp_count"], flags=run["flags"] or [], **facts)
 
     uk_floor = Decimal(str(run["uk_floor"]))
     w = walkaway.compute(uk_floor)
@@ -301,12 +407,8 @@ def _evaluate(conn: psycopg.Connection, inbound_offer_id: UUID, operator: dict) 
     else:
         out.blocks_create_offer = False
 
-    if offer["confirmed_asking_price"] is not None:
-        ask_price = Decimal(str(offer["confirmed_asking_price"]))
-        ask_unit = walkaway.ask_per_unit(ask_price, offer["confirmed_asking_basis"],
-                                         pack_size, line_row["quantity"])
-        out.ask = s.AskOut(per_unit=ask_unit, per_bottle=_round2(ask_unit / pack_size),
-                           total=_round2(ask_unit * line_row["quantity"]))
+    if out.ask is not None:
+        ask_unit = out.ask.per_unit
         out.headroom = w.walk_away - ask_unit
         out.headroom_per_bottle = _round2(out.headroom / pack_size)
         out.margin_at_ask_pct = (walkaway.margin_at_ask(w.max_sell, ask_unit)
@@ -350,3 +452,148 @@ def collect_now_for_offer(inbound_offer_id: UUID, conn: psycopg.Connection = Dep
     collected = jobs.collect_now(str(offer["confirmed_wine_id"]), offer["confirmed_vintage"])
     evaluation = _evaluate(conn, inbound_offer_id, operator)
     return s.CollectNowOut(collected=collected["results"], evaluation=evaluation)
+
+
+# ------------------------------------------------- CREATE OFFER and CONFIRM
+
+
+class _NeedsAccept(Exception):
+    pass
+
+
+def _trade_context(conn: psycopg.Connection, inbound_offer_id: UUID) -> tuple[dict, dict, dict]:
+    """The offer, its Pocket line and wine — refusing, in plain English,
+    anything that cannot be traded yet or any more."""
+    offer = inbound_repo.get_inbound_offer(conn, str(inbound_offer_id))
+    if offer is None:
+        raise HTTPException(404, "inbound offer not found")
+    if inbound_repo.get_fulfilment(conn, str(inbound_offer_id)):
+        raise HTTPException(409, "this trade is already confirmed — what was agreed can't change")
+    if offer["confirmed_wine_id"] is None or offer["deal_id"] is None:
+        raise HTTPException(422, "check the market for this wine first")
+    line_row = repo.deal_lines(conn, str(offer["deal_id"]))[0]
+    wine = repo.get_wine(conn, str(line_row["wine_id"]))
+    name = repo.wine_display_name(line_row, wine)
+    # decision 0038, the listing-side check the share link applies too.
+    if wine["want_list"] and line_row["want_list_ack_at"] is None:
+        raise HTTPException(409, f"{name} is on the client want list and needs a one-time "
+                                 "identity check")
+    return offer, line_row, wine
+
+
+@router.post("/inbound-offers/{inbound_offer_id}/offer", response_model=s.EvaluateOut)
+def create_offer(inbound_offer_id: UUID, body: s.CreatePocketOfferIn,
+                 conn: psycopg.Connection = Depends(db),
+                 operator: dict = Depends(current_operator)):
+    """CREATE OFFER: commits Doug's VESSEL sell price as one parcel_trade
+    pricing_result on the Pocket line, against the market the screen just
+    showed. The export gates are the database's own (requires_acknowledgement);
+    when one applies and Doug has not accepted it, nothing is written and the
+    reason comes back for a one-tap accept."""
+    offer, line_row, wine = _trade_context(conn, inbound_offer_id)
+    line_id = str(line_row["line_id"])
+    name = repo.wine_display_name(line_row, wine)
+    run = repo.latest_run(conn, line_id)
+    if run is None or run["computed_at"] < offer["identity_confirmed_at"]:
+        raise HTTPException(422, "check the market again — the wine's details changed since")
+    ask_unit = _ask_unit(offer, line_row)
+    if ask_unit is None:
+        raise HTTPException(422, "no supplier price was recorded for this offer")
+    currency = offer["confirmed_asking_currency"]
+    if not currency:
+        raise HTTPException(422, "the supplier price has no currency")
+    if currency != "GBP":
+        raise HTTPException(422, f"the supplier price is in {currency} — Pocket can only price "
+                                 "a GBP supplier price for now")
+    try:
+        priced = pricer.price_parcel_trade(
+            vessel_sell=body.vessel_sell, supplier_price=ask_unit, supplier_currency=currency,
+            uk_reference=_dec(run["uk_reference"]), uk_floor=_dec(run["uk_floor"]))
+    except pricer.CannotPrice as e:
+        raise HTTPException(422, str(e))
+
+    try:
+        with conn.transaction():
+            pricing_id = repo.save_pricing(conn, line_id=line_id, run=run, priced=priced,
+                                           priced_by=operator["operator_id"], cost=ask_unit,
+                                           cost_currency=currency, fx_rate=None)
+            pricing = repo.latest_pricing(conn, line_id)
+            if pricing["requires_acknowledgement"]:
+                if not body.accept:
+                    raise _NeedsAccept(f"{name} {repo.gate_reason_phrase(pricing)}")
+                repo.acknowledge_pricing(conn, str(pricing_id),
+                                         acknowledged_by=operator["operator_id"],
+                                         note="accepted in Pocket at CREATE OFFER")
+            inbound_repo.set_availability(conn, str(inbound_offer_id),
+                                          (body.availability or "").strip() or None)
+    except _NeedsAccept as e:
+        raise HTTPException(409, {"error": f"{e} — accept to continue", "needs_accept": True})
+    return _view(conn, inbound_repo.get_inbound_offer(conn, str(inbound_offer_id)))
+
+
+@router.post("/inbound-offers/{inbound_offer_id}/confirm", response_model=s.EvaluateOut)
+def confirm_trade(inbound_offer_id: UUID, body: s.ConfirmTradeIn,
+                  conn: psycopg.Connection = Depends(db),
+                  operator: dict = Depends(current_operator)):
+    """CONFIRM: the buyer said yes. Freezes the committed offer into one
+    fulfilment row — copied, never joined — and nothing about it can change
+    afterwards (the table's own trigger)."""
+    buyer = body.buyer_name.strip()
+    if not buyer:
+        raise HTTPException(422, "name the buyer")
+    offer, line_row, wine = _trade_context(conn, inbound_offer_id)
+    pricing = repo.latest_pricing(conn, str(line_row["line_id"]))
+    if pricing is None or pricing["price_basis"] != "parcel_trade":
+        raise HTTPException(422, "create the offer first")
+    if pricing["priced_at"] < offer["identity_confirmed_at"]:
+        raise HTTPException(409, "the wine's details changed after this offer was created — "
+                                 "create the offer again")
+    if pricing["requires_acknowledgement"] and pricing["acknowledgement"] is None:
+        raise HTTPException(409, f"{repo.wine_display_name(line_row, wine)} "
+                                 f"{repo.gate_reason_phrase(pricing)} and hasn't been accepted")
+    supplier_price = Decimal(str(pricing["cost_gbp"]))
+    sell = Decimal(str(pricing["sell_price"]))
+    quantity = line_row["quantity"]
+    try:
+        with conn.transaction():
+            inbound_repo.create_fulfilment(
+                conn, inbound_offer_id=str(inbound_offer_id), line_id=str(line_row["line_id"]),
+                pricing_id=str(pricing["pricing_id"]),
+                pricing_requires_ack=pricing["requires_acknowledgement"],
+                ack_id=(str(pricing["acknowledgement"]["ack_id"])
+                        if pricing["acknowledgement"] else None),
+                supplier_id=str(offer["supplier_id"]), buyer_name=buyer,
+                wine_id=str(line_row["wine_id"]),
+                wine_name=repo.wine_display_name(line_row, wine), vintage=line_row["vintage"],
+                bottle_ml=line_row["bottle_ml"], pack_size=line_row["pack_size"],
+                quantity=quantity, packaging=offer["confirmed_packaging"],
+                bond_status=offer["confirmed_bond_status"],
+                stock_location=offer["confirmed_stock_location"],
+                availability=offer["availability"], currency=pricing["sell_currency"],
+                supplier_price=supplier_price, vessel_sell_price=sell,
+                gross_total=(sell - supplier_price) * quantity,
+                confirmed_by=operator["operator_id"])
+    except psycopg.Error as e:
+        raise translate(e)
+    return _view(conn, offer)
+
+
+@router.post("/fulfilments/{fulfilment_id}/complete", response_model=s.FulfilmentOut)
+def complete_fulfilment(fulfilment_id: UUID, conn: psycopg.Connection = Depends(db),
+                        operator: dict = Depends(current_operator)):
+    with conn.transaction():
+        row = inbound_repo.complete_fulfilment(conn, str(fulfilment_id),
+                                               completed_by=operator["operator_id"])
+    if row is None:
+        raise HTTPException(409, "this trade is not open")
+    return row
+
+
+@router.get("/pocket/trades", response_model=list[s.PocketTradeOut])
+def pocket_trades(conn: psycopg.Connection = Depends(db)):
+    out = []
+    for r in inbound_repo.list_trades(conn):
+        state = {"OPEN": "CONFIRMED", "COMPLETE": "COMPLETE"}.get(r["fulfilment_state"], "OFFERED")
+        name = repo.wine_display_name(r, {"producer": r["producer"], "cuvee": r["cuvee"]})
+        out.append(s.PocketTradeOut(**r, wine_name=name, state=state))
+    return out

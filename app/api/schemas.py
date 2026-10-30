@@ -951,6 +951,7 @@ class InboundOfferOut(_Out):
     #: supplier-attribution-spec.md: nullable here (capture is never
     #: blocked) but required by ConfirmIdentityIn below.
     supplier_id: Optional[UUID] = None
+    availability: Optional[str] = None
 
 
 class InboundOfferProposalOut(_Out):
@@ -1116,6 +1117,119 @@ class EvaluateOut(_Out):
     exceeds_floor: Optional[bool] = None
     blocks_create_offer: bool = True
     block_reason: Optional[str] = None
+
+    # ---- VESSEL Pocket's four prices (Milestone 1). The walk-away fields
+    # above stay as reported facts; the Pocket screen leads with these.
+    producer: Optional[str] = None
+    cuvee: Optional[str] = None
+    vintage: Optional[int] = None
+    bottle_ml: Optional[int] = None
+    pack_size: Optional[int] = None
+    quantity: Optional[int] = None
+    packaging: Optional[str] = None
+    bond_status: Optional[str] = None
+    stock_location: Optional[str] = None
+    availability: Optional[str] = None
+    supplier_currency: Optional[str] = None
+    market: Optional["MarketOut"] = None
+    #: Plain English, set when the market itself needs accepting (REVIEW or
+    #: NO_MARKET) — never a flag constant.
+    market_note: Optional[str] = None
+    auction: Optional["AuctionOut"] = None
+    #: Per commercial unit: supplier price + MIN_TRADE_MARGIN, the starting point.
+    default_vessel_sell: Optional[Money] = None
+    min_trade_margin: Decimal
+    committed: Optional["CommittedOfferOut"] = None
+    fulfilment: Optional["FulfilmentOut"] = None
+
+
+class MarketCompOut(_Out):
+    merchant: str
+    per_bottle: Money
+    captured_at: Optional[datetime] = None
+    source_url: Optional[str] = None
+
+
+class MarketOut(_Out):
+    """MARKET: the UK Floor — the lowest trusted current comparable — per
+    bottle, with the merchants behind it for the tap-to-expand view."""
+    floor_per_unit: Money
+    floor_per_bottle: Money
+    comp_count: int
+    #: The newest capture among the comps, not when the benchmark ran.
+    checked_at: Optional[datetime] = None
+    comps: list[MarketCompOut] = []
+
+
+class AuctionOut(_Out):
+    """The existing auction health rule (app/auction/evidence.py): median
+    per bottle over hand-entered lots in the window. Context, never a price."""
+    median_per_bottle: Optional[Money] = None
+    lot_count: int
+    latest_sale_date: Optional[date] = None
+
+
+class CommittedOfferOut(_Out):
+    """The VESSEL sell price as committed at CREATE OFFER — one
+    pricing_result row, basis parcel_trade. Money per commercial unit."""
+    pricing_id: UUID
+    priced_at: datetime
+    vessel_sell: Money
+    supplier_price: Money
+    gp: Money
+    requires_acknowledgement: bool
+    accepted: bool
+
+
+class FulfilmentOut(_Out):
+    fulfilment_id: UUID
+    supplier_name: str
+    buyer_name: str
+    wine_name: str
+    vintage: int
+    bottle_ml: int
+    pack_size: int
+    quantity: int
+    packaging: Optional[str] = None
+    bond_status: Optional[str] = None
+    stock_location: Optional[str] = None
+    availability: Optional[str] = None
+    currency: str
+    supplier_price: Money
+    vessel_sell_price: Money
+    gross_total: Money
+    state: Literal["OPEN", "COMPLETE"]
+    confirmed_at: datetime
+    completed_at: Optional[datetime] = None
+
+
+class CreatePocketOfferIn(_In):
+    #: Per commercial unit, exactly as committed — never rounded server-side.
+    vessel_sell: PositiveMoney
+    availability: Optional[str] = Field(default=None, max_length=200)
+    #: Doug's one-tap acceptance of whatever gates this price; the API
+    #: refuses with the reason when it is needed and absent.
+    accept: bool = False
+
+
+class ConfirmTradeIn(_In):
+    buyer_name: str = Field(min_length=1, max_length=200)
+
+
+class PocketTradeOut(_Out):
+    inbound_offer_id: UUID
+    wine_name: str
+    quantity: int
+    pack_size: int
+    bottle_ml: int
+    vessel_sell: Money
+    priced_at: datetime
+    supplier_name: Optional[str] = None
+    state: Literal["OFFERED", "CONFIRMED", "COMPLETE"]
+    buyer_name: Optional[str] = None
+
+
+EvaluateOut.model_rebuild()
 
 
 class CollectResultOut(_Out):

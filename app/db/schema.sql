@@ -703,7 +703,7 @@ CREATE TABLE pricing_result (
     -- Which rule produced sell_price, and the inputs it used (decision 0007).
     price_basis       text NOT NULL CHECK (price_basis IN
                           ('manual','line_margin','line_discount','global_margin',
-                           'buyer_discount')),
+                           'buyer_discount','parcel_trade')),
     target_margin     numeric(6,4),
     discount          numeric(6,4),
     deep_discount_threshold numeric(6,4) NOT NULL,
@@ -1318,3 +1318,77 @@ CREATE TABLE supplier_alias (
 );
 
 ALTER TABLE inbound_offer ADD COLUMN supplier_id uuid REFERENCES supplier(supplier_id);
+
+-- ================================================ VESSEL Pocket: confirmed trades
+
+-- Lead time / hold details, typed by the operator at CREATE OFFER. Nothing
+-- else captured them, and a tombstone may not print "Available now" unless
+-- he did.
+ALTER TABLE inbound_offer ADD COLUMN availability text;
+
+-- A confirmed parcel trade (build brief Phase 1b step 6, cut to Milestone 1's
+-- OPEN/COMPLETE). Every commercial fact is COPIED, not joined, so a re-price
+-- or a corrected inbound record can never change what was agreed; the
+-- trigger below forbids any change but OPEN -> COMPLETE, and any delete. The
+-- two composite keys are buyer_offer_line's own export gate: a trade cannot
+-- be confirmed on a price that needed accepting and was not.
+CREATE TABLE fulfilment (
+    fulfilment_id     uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    inbound_offer_id  uuid NOT NULL UNIQUE REFERENCES inbound_offer(inbound_offer_id),
+    line_id           uuid NOT NULL REFERENCES seller_line(line_id),
+    pricing_id        uuid NOT NULL,
+    pricing_requires_ack boolean NOT NULL,
+    ack_id            uuid,
+    supplier_id       uuid NOT NULL REFERENCES supplier(supplier_id),
+    buyer_name        text NOT NULL CHECK (btrim(buyer_name) <> ''),
+    wine_id           uuid NOT NULL REFERENCES wine(wine_id),
+    wine_name         text NOT NULL,
+    vintage           int NOT NULL,
+    bottle_ml         int NOT NULL,
+    pack_size         int NOT NULL,
+    quantity          int NOT NULL CHECK (quantity > 0),
+    packaging         text,
+    bond_status       text,
+    stock_location    text,
+    availability      text,
+    currency          char(3) NOT NULL,
+    supplier_price    numeric(14,2) NOT NULL CHECK (supplier_price > 0),     -- per unit
+    vessel_sell_price numeric(14,2) NOT NULL CHECK (vessel_sell_price > 0),  -- per unit
+    gross_total       numeric(14,2) NOT NULL,
+    state             text NOT NULL DEFAULT 'OPEN' CHECK (state IN ('OPEN', 'COMPLETE')),
+    confirmed_by      uuid NOT NULL REFERENCES operator(operator_id),
+    confirmed_at      timestamptz NOT NULL DEFAULT now(),
+    completed_by      uuid REFERENCES operator(operator_id),
+    completed_at      timestamptz,
+    FOREIGN KEY (pricing_id, pricing_requires_ack)
+        REFERENCES pricing_result (pricing_id, requires_acknowledgement),
+    FOREIGN KEY (ack_id, pricing_id)
+        REFERENCES pricing_acknowledgement (ack_id, pricing_id),
+    CONSTRAINT fulfilment_acknowledged CHECK (NOT pricing_requires_ack OR ack_id IS NOT NULL),
+    CONSTRAINT fulfilment_gross_total CHECK (
+        gross_total = (vessel_sell_price - supplier_price) * quantity),
+    CONSTRAINT fulfilment_completion_attributed CHECK (
+        (state = 'COMPLETE') = (completed_by IS NOT NULL AND completed_at IS NOT NULL))
+);
+
+CREATE OR REPLACE FUNCTION fulfilment_freeze() RETURNS trigger AS $$
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        RAISE EXCEPTION 'fulfilment % is a confirmed trade and cannot be deleted',
+            OLD.fulfilment_id;
+    END IF;
+    IF OLD.state = 'COMPLETE' THEN
+        RAISE EXCEPTION 'fulfilment % is already complete', OLD.fulfilment_id;
+    END IF;
+    IF (to_jsonb(NEW) - 'state' - 'completed_by' - 'completed_at')
+       IS DISTINCT FROM (to_jsonb(OLD) - 'state' - 'completed_by' - 'completed_at') THEN
+        RAISE EXCEPTION 'fulfilment % is a confirmed trade; its facts are frozen',
+            OLD.fulfilment_id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER fulfilment_no_mutation
+    BEFORE UPDATE OR DELETE ON fulfilment
+    FOR EACH ROW EXECUTE FUNCTION fulfilment_freeze();

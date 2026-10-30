@@ -265,3 +265,47 @@ table.oev .u { color: var(--muted); font-size: .8rem; }
   .stack-sm { display: block; }
   .stack-sm > * { margin-bottom: 10px; }
 }
+
+/* ---- VESSEL Pocket pricing screen: a calculator, not a form. */
+.pocket { max-width: 520px; }
+.pocket-head { margin: 12px 0 14px; }
+.pocket-producer { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.pocket-wine { font-size: 22px; font-weight: 650; line-height: 1.25; }
+.pocket-label { font-size: 12px; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
+.pocket-row { border-top: 1px solid var(--line); }
+.pocket-row-head {
+  display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; width: 100%;
+  background: none; border: 0; color: var(--ink); padding: 12px 0; text-align: left;
+  border-radius: 0; cursor: pointer;
+}
+.pocket-row-head:disabled { opacity: 1; cursor: default; }
+.pocket-row-head .pocket-label { grid-column: 1; align-self: center; }
+.pocket-value { grid-column: 2; font-size: 18px; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+.pocket-sub { grid-column: 2; font-size: 13px; color: var(--muted); text-align: right; }
+.pocket-detail { padding: 0 0 12px; font-size: 14px; }
+.pocket-comp { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; }
+.pocket-sell {
+  border-top: 2px solid var(--wine); margin-top: 6px; padding: 14px 0 4px; text-align: center;
+}
+.pocket-sell-price { display: flex; align-items: baseline; justify-content: center; gap: 4px; margin: 6px 0; }
+.pocket-sell-price span:first-child { font-size: 30px; font-weight: 650; }
+.pocket-sell-price input {
+  width: 7ch; font-size: 34px; font-weight: 700; text-align: center; padding: 4px 6px;
+  font-variant-numeric: tabular-nums; color: var(--wine);
+}
+.pocket-stepper { display: flex; align-items: center; justify-content: center; gap: 18px; margin: 6px 0 10px; }
+.pocket-stepper button { width: 56px; height: 48px; font-size: 24px; padding: 0; }
+.pocket-stepper span { min-width: 7ch; font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.pocket-gross { font-size: 16px; }
+.pocket-vs { margin-top: 6px; font-size: 16px; font-weight: 600; color: var(--ready); }
+.pocket-warn { margin-top: 8px; font-size: 13px; color: var(--stop); }
+.pocket-actions { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; margin-top: 14px; }
+.pocket-actions button { padding: 14px; font-weight: 600; }
+.pocket-message {
+  white-space: pre-wrap; font: inherit; background: var(--bg); border-radius: 8px;
+  padding: 10px 12px; margin: 8px 0 0;
+}
+.pocket-trade {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  background: var(--card); color: var(--ink); border: 1px solid var(--line); margin-bottom: 8px;
+}

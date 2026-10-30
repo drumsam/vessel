@@ -252,6 +252,7 @@ def ensure_evaluation_line(conn: psycopg.Connection, inbound_offer: dict, *,
         line = conn.execute("SELECT line_id FROM seller_line WHERE deal_id = %s LIMIT 1",
                             (str(inbound_offer["deal_id"]),)).fetchone()
         if line:
+            _sync_line(conn, str(line["line_id"]), inbound_offer, created_by=created_by)
             return str(inbound_offer["deal_id"]), str(line["line_id"])
 
     deal = deal_repo.create_deal(conn, {
@@ -271,6 +272,98 @@ def ensure_evaluation_line(conn: psycopg.Connection, inbound_offer: dict, *,
         vintage=inbound_offer["confirmed_vintage"], bottle_ml=inbound_offer["confirmed_bottle_ml"],
         pack_size=inbound_offer["confirmed_pack_size"], flags=[], source="operator",
         approved_by=created_by)
+    _sync_want_list_ack(conn, str(line["line_id"]), inbound_offer)
     conn.execute("UPDATE inbound_offer SET deal_id = %s WHERE inbound_offer_id = %s",
                 (deal["deal_id"], inbound_offer["inbound_offer_id"]))
     return str(deal["deal_id"]), str(line["line_id"])
+
+
+def _sync_line(conn: psycopg.Connection, line_id: str, inbound_offer: dict, *,
+               created_by: str) -> None:
+    """A re-confirmed identity (a corrected quantity, a different wine) must
+    reach the line EVALUATE prices, or the line keeps pricing the old one."""
+    line = deal_repo.get_line(conn, line_id)
+    wanted = (str(inbound_offer["confirmed_wine_id"]), inbound_offer["confirmed_vintage"],
+              inbound_offer["confirmed_bottle_ml"], inbound_offer["confirmed_pack_size"])
+    if (str(line["wine_id"]), line["vintage"], line["bottle_ml"], line["pack_size"]) != wanted:
+        deal_repo.set_line_identity(
+            conn, line_id, wine_id=wanted[0], vintage=wanted[1], bottle_ml=wanted[2],
+            pack_size=wanted[3], flags=[], source="operator", approved_by=created_by)
+    if line["quantity"] != inbound_offer["confirmed_quantity"]:
+        conn.execute("UPDATE seller_line SET quantity = %s WHERE line_id = %s",
+                     (inbound_offer["confirmed_quantity"], line_id))
+    _sync_want_list_ack(conn, line_id, inbound_offer)
+
+
+def _sync_want_list_ack(conn: psycopg.Connection, line_id: str, inbound_offer: dict) -> None:
+    """confirm-identity refuses a want-list wine without the acknowledgement,
+    so a confirmed inbound offer for one already carries it — recorded on the
+    line too, where decision 0038's export check reads it, as the same
+    person at the same moment. Cleared when the wine is not on the list."""
+    wine = deal_repo.get_wine(conn, str(inbound_offer["confirmed_wine_id"]))
+    by, at = ((inbound_offer["identity_confirmed_by"], inbound_offer["identity_confirmed_at"])
+              if wine["want_list"] else (None, None))
+    conn.execute("""UPDATE seller_line SET want_list_ack_by = %s, want_list_ack_at = %s
+                     WHERE line_id = %s""", (by, at, line_id))
+
+
+# ---------------------------------------------------------- offer and confirm
+
+
+def set_availability(conn: psycopg.Connection, inbound_offer_id: str,
+                     availability: Optional[str]) -> None:
+    conn.execute("UPDATE inbound_offer SET availability = %s WHERE inbound_offer_id = %s",
+                 (availability, inbound_offer_id))
+
+
+def get_fulfilment(conn: psycopg.Connection, inbound_offer_id: str) -> Optional[dict]:
+    return conn.execute(
+        """SELECT f.*, s.name AS supplier_name FROM fulfilment f
+             JOIN supplier s USING (supplier_id)
+            WHERE f.inbound_offer_id = %s""", (inbound_offer_id,)).fetchone()
+
+
+def create_fulfilment(conn: psycopg.Connection, **facts) -> dict:
+    row = conn.execute(
+        """INSERT INTO fulfilment
+               (inbound_offer_id, line_id, pricing_id, pricing_requires_ack, ack_id, supplier_id,
+                buyer_name, wine_id, wine_name, vintage, bottle_ml, pack_size, quantity,
+                packaging, bond_status, stock_location, availability, currency,
+                supplier_price, vessel_sell_price, gross_total, confirmed_by)
+           VALUES (%(inbound_offer_id)s, %(line_id)s, %(pricing_id)s, %(pricing_requires_ack)s,
+                   %(ack_id)s, %(supplier_id)s, %(buyer_name)s, %(wine_id)s, %(wine_name)s,
+                   %(vintage)s, %(bottle_ml)s, %(pack_size)s, %(quantity)s, %(packaging)s,
+                   %(bond_status)s, %(stock_location)s, %(availability)s, %(currency)s,
+                   %(supplier_price)s, %(vessel_sell_price)s, %(gross_total)s, %(confirmed_by)s)
+           RETURNING inbound_offer_id""", facts).fetchone()
+    return get_fulfilment(conn, str(row["inbound_offer_id"]))
+
+
+def complete_fulfilment(conn: psycopg.Connection, fulfilment_id: str, *,
+                        completed_by: str) -> Optional[dict]:
+    row = conn.execute(
+        """UPDATE fulfilment SET state = 'COMPLETE', completed_by = %s, completed_at = now()
+            WHERE fulfilment_id = %s AND state = 'OPEN' RETURNING inbound_offer_id""",
+        (completed_by, fulfilment_id)).fetchone()
+    return get_fulfilment(conn, str(row["inbound_offer_id"])) if row else None
+
+
+def list_trades(conn: psycopg.Connection, limit: int = 30) -> list[dict]:
+    """Pocket offers that have a committed VESSEL sell price, newest first —
+    how Doug gets back to one when the buyer replies hours later."""
+    return conn.execute("""
+        WITH latest AS (
+            SELECT DISTINCT ON (line_id) line_id, sell_price, priced_at
+              FROM pricing_result WHERE price_basis = 'parcel_trade'
+             ORDER BY line_id, priced_at DESC, pricing_id DESC)
+        SELECT io.inbound_offer_id, w.producer, w.cuvee, l.vintage, l.quantity, l.pack_size,
+               l.bottle_ml, latest.sell_price AS vessel_sell, latest.priced_at,
+               s.name AS supplier_name, f.state AS fulfilment_state, f.buyer_name
+          FROM inbound_offer io
+          JOIN seller_line l ON l.deal_id = io.deal_id
+          JOIN latest ON latest.line_id = l.line_id
+          JOIN wine w ON w.wine_id = l.wine_id
+          LEFT JOIN supplier s ON s.supplier_id = io.supplier_id
+          LEFT JOIN fulfilment f ON f.inbound_offer_id = io.inbound_offer_id
+         ORDER BY latest.priced_at DESC
+         LIMIT %s""", (limit,)).fetchall()

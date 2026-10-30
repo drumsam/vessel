@@ -856,3 +856,242 @@ def test_evaluate_renders_no_verdict_language(client, monkeypatch, conn):
     import app.api.schemas as s
     forbidden = {"verdict", "score", "rating", "recommendation", "is_good_buy"}
     assert not forbidden & set(s.EvaluateOut.model_fields)
+
+
+# ------------------------------------------- Milestone 1: price, offer, confirm
+# One real one-line trade: Rousseau-shaped, 3 x 75cl loose, supplier
+# £2,800/bt, two merchants at £3,400 and £3,500 (Floor £3,400).
+
+
+def _priced_offer(client, conn, monkeypatch, *, prices=("3400.00", "3500.00"), want_list=False,
+                  asking_price="2800.00", currency="GBP"):
+    wine_id = _wine(conn, producer="Armand Rousseau", cuvee="Clos St Jacques",
+                    want_list=want_list)
+    if prices:
+        _seed_offers(conn, wine_id=wine_id, vintage=2015, prices=list(prices))
+    else:
+        other = _wine(conn, producer="Someone Else", cuvee="Unrelated", want_list=False)
+        _seed_offers(conn, wine_id=other, vintage=2015, prices=["50.00"])
+    _use_provider(monkeypatch, _proposal())
+    offer = client.post("/inbound-offers", json={"channel": "paste", "raw_body": "x"}).json()
+    offer_id = offer["offer"]["inbound_offer_id"]
+    body = {"wine_id": wine_id, "vintage": 2015, "bottle_ml": 750, "pack_size": 1, "quantity": 3,
+            "supplier_id": _supplier(client, "ABC Wines"), "asking_price": asking_price,
+            "asking_currency": currency, "asking_basis": "per_bottle",
+            "bond_status": "UK IB", "stock_location": "LCB", "want_list_ack": want_list}
+    r = client.post(f"/inbound-offers/{offer_id}/confirm-identity", json=body)
+    assert r.status_code == 200, r.text
+    ev = client.post(f"/inbound-offers/{offer_id}/evaluate")
+    assert ev.status_code == 200, ev.text
+    return offer_id, ev.json()
+
+
+def _offer(client, offer_id, vessel_sell, **kw):
+    return client.post(f"/inbound-offers/{offer_id}/offer",
+                       json={"vessel_sell": vessel_sell, **kw})
+
+
+@pg
+def test_pricing_screen_carries_the_four_prices(client, monkeypatch, conn):
+    """SUPPLIER £2,800/bt, MARKET the Floor £3,400/bt from two merchants,
+    no AUCTION evidence at all, VESSEL SELL defaulting to £3,024 (+8%)."""
+    _, ev = _priced_offer(client, conn, monkeypatch)
+    assert ev["ask"]["per_bottle"] == "2800.00"
+    assert ev["market"]["floor_per_bottle"] == "3400.00"
+    assert ev["market"]["comp_count"] == 2
+    assert [c["per_bottle"] for c in ev["market"]["comps"]] == ["3400.00", "3500.00"]
+    assert ev["market"]["checked_at"] is not None
+    assert ev["auction"] is None
+    assert ev["default_vessel_sell"] == "3024.00"
+    assert Decimal(ev["min_trade_margin"]) == Decimal("0.08")
+    assert (ev["producer"], ev["quantity"], ev["bond_status"]) == ("Armand Rousseau", 3, "UK IB")
+    assert ev["committed"] is None and ev["fulfilment"] is None
+
+
+@pg
+def test_auction_is_the_existing_health_median_never_blended_into_market(client, monkeypatch, conn):
+    from datetime import date
+
+    from app.auction import repo as auction_repo
+    offer_id, ev = _priced_offer(client, conn, monkeypatch)
+    op = conn.execute("SELECT operator_id FROM operator").fetchone()["operator_id"]
+    wine_id = conn.execute("SELECT confirmed_wine_id FROM inbound_offer WHERE inbound_offer_id = %s",
+                           (offer_id,)).fetchone()["confirmed_wine_id"]
+    auction_repo.record_auction_evidence(
+        conn, wine_id=str(wine_id), vintage=2015, bottle_ml=750, bottles_in_lot=3,
+        auction_house="CHRISTIES", sale_date=date(2026, 9, 12), lot_ref="101",
+        source_url="https://example.com/lot/101", currency="GBP", amount=Decimal("9150.00"),
+        amount_basis="HAMMER", entered_by=str(op))
+    ev = client.post(f"/inbound-offers/{offer_id}/evaluate").json()
+    assert ev["auction"] == {"median_per_bottle": "3050.00", "lot_count": 1,
+                             "latest_sale_date": "2026-09-12"}
+    assert ev["market"]["floor_per_bottle"] == "3400.00"
+
+
+@pg
+def test_create_offer_commits_the_vessel_sell_price_exactly(client, monkeypatch, conn):
+    """£3,150 on £2,800 x 3: £350/bt gross, £1,050 total — stored as one
+    parcel_trade pricing_result, the sell price exactly as entered."""
+    offer_id, _ = _priced_offer(client, conn, monkeypatch)
+    r = _offer(client, offer_id, "3150.00", availability="Available now")
+    assert r.status_code == 200, r.text
+    c = r.json()["committed"]
+    assert (c["vessel_sell"], c["supplier_price"], c["gp"]) == ("3150.00", "2800.00", "350.00")
+    assert Decimal(c["gp"]) * r.json()["quantity"] == Decimal("1050.00")
+    assert c["requires_acknowledgement"] is False
+    assert r.json()["availability"] == "Available now"
+    row = conn.execute("SELECT price_basis, sell_price, cost FROM pricing_result").fetchone()
+    assert (row["price_basis"], row["sell_price"], row["cost"]) == (
+        "parcel_trade", Decimal("3150.00"), Decimal("2800.00"))
+
+
+@pg
+def test_a_fractional_pence_sell_price_is_refused_not_rounded(client, monkeypatch, conn):
+    offer_id, _ = _priced_offer(client, conn, monkeypatch)
+    assert _offer(client, offer_id, "3150.005").status_code == 422
+    assert conn.execute("SELECT count(*) AS n FROM pricing_result").fetchone()["n"] == 0
+
+
+@pg
+def test_selling_at_the_floor_needs_an_accept_and_writes_nothing_without_one(
+        client, monkeypatch, conn):
+    """Decision 0033 holds for a parcel trade: £3,400 against a £3,400 Floor
+    is not below the market. Refused with the reason, nothing written; one
+    accept and it goes through, recorded as that operator's acknowledgement."""
+    offer_id, _ = _priced_offer(client, conn, monkeypatch)
+    r = _offer(client, offer_id, "3400.00")
+    assert r.status_code == 409
+    assert r.json()["detail"]["needs_accept"] is True
+    assert "not actually priced below the market" in r.json()["detail"]["error"]
+    assert "0033" not in r.json()["detail"]["error"]
+    assert conn.execute("SELECT count(*) AS n FROM pricing_result").fetchone()["n"] == 0
+    r = _offer(client, offer_id, "3400.00", accept=True)
+    assert r.status_code == 200, r.text
+    assert r.json()["committed"]["accepted"] is True
+
+
+@pg
+def test_no_market_still_lets_doug_proceed_with_an_accept(client, monkeypatch, conn):
+    """The 20 want-list producers usually have no merchant evidence at all;
+    NO_MARKET gates (invariant 12) but never dead-ends the trade."""
+    offer_id, ev = _priced_offer(client, conn, monkeypatch, prices=())
+    assert ev["state"] == "NO_MARKET" and ev["market"] is None
+    assert ev["market_note"] == "has no market found for it"
+    assert ev["default_vessel_sell"] == "3024.00"
+    r = _offer(client, offer_id, "3024.00")
+    assert r.status_code == 409 and r.json()["detail"]["needs_accept"] is True
+    assert _offer(client, offer_id, "3024.00", accept=True).status_code == 200
+
+
+@pg
+def test_a_want_list_acknowledgement_reaches_the_line(client, monkeypatch, conn):
+    """Doug acknowledges a want-list wine at confirm-identity; without that
+    reaching seller_line, decision 0038's own check would refuse every
+    want-list trade at the share step."""
+    offer_id, _ = _priced_offer(client, conn, monkeypatch, want_list=True)
+    line = conn.execute("SELECT want_list_ack_by, want_list_ack_at FROM seller_line").fetchone()
+    assert line["want_list_ack_by"] is not None and line["want_list_ack_at"] is not None
+    assert _offer(client, offer_id, "3150.00").status_code == 200
+
+
+@pg
+def test_a_non_gbp_supplier_price_is_refused_in_plain_english(client, monkeypatch, conn):
+    offer_id, _ = _priced_offer(client, conn, monkeypatch, currency="EUR")
+    r = _offer(client, offer_id, "3150.00")
+    assert r.status_code == 422
+    assert "EUR" in r.json()["detail"]
+
+
+@pg
+def test_confirm_needs_an_offer_and_a_buyer(client, monkeypatch, conn):
+    offer_id, _ = _priced_offer(client, conn, monkeypatch)
+    r = client.post(f"/inbound-offers/{offer_id}/confirm", json={"buyer_name": "Client X"})
+    assert r.status_code == 422 and "create the offer first" in r.json()["detail"]
+    assert _offer(client, offer_id, "3150.00").status_code == 200
+    r = client.post(f"/inbound-offers/{offer_id}/confirm", json={"buyer_name": "   "})
+    assert r.status_code == 422
+
+
+@pg
+def test_confirm_freezes_the_commercial_facts(client, monkeypatch, conn):
+    """Buy £8,400, sell £9,450, gross £1,050 — and after CONFIRM neither the
+    supplier price nor the sell price can change: not by re-pricing, not by
+    re-confirming identity, not by an UPDATE straight to the table."""
+    offer_id, _ = _priced_offer(client, conn, monkeypatch)
+    _offer(client, offer_id, "3150.00", availability="Available now")
+    r = client.post(f"/inbound-offers/{offer_id}/confirm", json={"buyer_name": "Client X"})
+    assert r.status_code == 200, r.text
+    f = r.json()["fulfilment"]
+    assert (f["supplier_name"], f["buyer_name"], f["wine_name"]) == (
+        "ABC Wines", "Client X", "Armand Rousseau Clos St Jacques 2015")
+    assert (f["supplier_price"], f["vessel_sell_price"], f["gross_total"]) == (
+        "2800.00", "3150.00", "1050.00")
+    assert (f["quantity"], f["stock_location"], f["bond_status"], f["availability"]) == (
+        3, "LCB", "UK IB", "Available now")
+    assert f["state"] == "OPEN"
+
+    assert _offer(client, offer_id, "3300.00").status_code == 409
+    assert client.post(f"/inbound-offers/{offer_id}/confirm",
+                       json={"buyer_name": "Someone"}).status_code == 409
+    frozen = conn.execute("SELECT wine_id, supplier_id FROM fulfilment").fetchone()
+    again = client.post(f"/inbound-offers/{offer_id}/confirm-identity", json={
+        "wine_id": str(frozen["wine_id"]), "vintage": 2015, "bottle_ml": 750, "pack_size": 1,
+        "quantity": 6, "supplier_id": str(frozen["supplier_id"])})
+    assert again.status_code == 409
+    with pytest.raises(psycopg.Error, match="frozen"):
+        conn.execute("UPDATE fulfilment SET vessel_sell_price = 3300.00, gross_total = 1500.00")
+    with pytest.raises(psycopg.Error, match="cannot be deleted"):
+        conn.execute("DELETE FROM fulfilment")
+    # reopening shows the agreed trade, never a fresh re-benchmark of it
+    runs = conn.execute("SELECT count(*) AS n FROM benchmark_run").fetchone()["n"]
+    ev = client.post(f"/inbound-offers/{offer_id}/evaluate").json()
+    assert ev["fulfilment"]["vessel_sell_price"] == "3150.00"
+    assert conn.execute("SELECT count(*) AS n FROM benchmark_run").fetchone()["n"] == runs
+
+
+@pg
+def test_a_confirmed_trade_completes_once(client, monkeypatch, conn):
+    offer_id, _ = _priced_offer(client, conn, monkeypatch)
+    _offer(client, offer_id, "3150.00")
+    f = client.post(f"/inbound-offers/{offer_id}/confirm", json={"buyer_name": "X"}).json()
+    fid = f["fulfilment"]["fulfilment_id"]
+    r = client.post(f"/fulfilments/{fid}/complete")
+    assert r.status_code == 200 and r.json()["state"] == "COMPLETE"
+    assert client.post(f"/fulfilments/{fid}/complete").status_code == 409
+
+
+@pg
+def test_changed_details_after_the_offer_block_confirm_until_it_is_recreated(
+        client, monkeypatch, conn):
+    """The supplier says only two are left: identity re-confirmed at
+    quantity 2 after the offer was made at 3. Confirming the stale offer
+    would freeze the wrong total."""
+    offer_id, _ = _priced_offer(client, conn, monkeypatch)
+    _offer(client, offer_id, "3150.00")
+    row = conn.execute("SELECT * FROM inbound_offer").fetchone()
+    r = client.post(f"/inbound-offers/{offer_id}/confirm-identity", json={
+        "wine_id": str(row["confirmed_wine_id"]), "vintage": 2015, "bottle_ml": 750,
+        "pack_size": 1, "quantity": 2, "supplier_id": str(row["supplier_id"]),
+        "asking_price": "2800.00", "asking_currency": "GBP", "asking_basis": "per_bottle"})
+    assert r.status_code == 200, r.text
+    r = client.post(f"/inbound-offers/{offer_id}/confirm", json={"buyer_name": "X"})
+    assert r.status_code == 409 and "create the offer again" in r.json()["detail"]
+    assert _offer(client, offer_id, "3150.00").status_code == 422   # market not re-checked
+    ev = client.post(f"/inbound-offers/{offer_id}/evaluate").json()
+    assert ev["quantity"] == 2
+    assert _offer(client, offer_id, "3150.00").status_code == 200
+    f = client.post(f"/inbound-offers/{offer_id}/confirm", json={"buyer_name": "X"}).json()
+    assert f["fulfilment"]["gross_total"] == "700.00"
+
+
+@pg
+def test_trades_list_shows_offers_out_then_confirmed(client, monkeypatch, conn):
+    offer_id, _ = _priced_offer(client, conn, monkeypatch)
+    assert client.get("/pocket/trades").json() == []
+    _offer(client, offer_id, "3150.00")
+    [t] = client.get("/pocket/trades").json()
+    assert (t["state"], t["vessel_sell"], t["wine_name"], t["supplier_name"]) == (
+        "OFFERED", "3150.00", "Armand Rousseau Clos St Jacques 2015", "ABC Wines")
+    client.post(f"/inbound-offers/{offer_id}/confirm", json={"buyer_name": "Client X"})
+    [t] = client.get("/pocket/trades").json()
+    assert (t["state"], t["buyer_name"]) == ("CONFIRMED", "Client X")

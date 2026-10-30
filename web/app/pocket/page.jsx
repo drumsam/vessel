@@ -1,8 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api, BASE, money } from "../../lib/api";
+import { api, BASE } from "../../lib/api";
 import { LOADING, ok, failed, fetchInto } from "../../lib/fetchState";
+import { adminHandoff, perBottlePence, supplierHandoff, tombstone } from "../../lib/pocketMessages";
+import {
+  formatBp, gbp, inputText, markupBp, parsePounds, sellFromMarkup, stepBp, toMoney, toPence,
+  vsMarketBp,
+} from "../../lib/vesselSell";
 
 /** VESSEL Pocket, build brief Phase 1b step 2: Screen 1 (NEW) and Screen 2
  * (CANDIDATE). Capture first, structure afterwards — the only thing this
@@ -47,16 +52,9 @@ export default function PocketPage() {
   // the proposed producer is wrong.
   const [candidateGroups, setCandidateGroups] = useState(ok([]));
   const [showAllWines, setShowAllWines] = useState(false);
-  // Screen 3, EVALUATE: facts only, the walk-away price. Fetched
-  // automatically the moment identity is confirmed -- this IS the next
-  // screen, not a separate action Doug has to remember to trigger.
-  const [evaluate, setEvaluate] = useState(ok(null));
-  // speed-and-cost-plan.md's "Collect now": one wine, synchronous. A
-  // separate three-state object from `evaluate` itself, since a stale
-  // collect result must never look like it belongs to a later fetch --
-  // but a successful run also replaces `evaluate` with the fresh facts
-  // it produced, so the screen always shows one consistent picture.
-  const [collectNow, setCollectNow] = useState(ok(null));
+  // A trade reopened from the Offers out list — straight to its pricing
+  // screen, since its identity is already confirmed.
+  const [openOfferId, setOpenOfferId] = useState(null);
 
   useEffect(() => { api.get("/wines").then(setWines).catch(() => {}); }, []);
   const refreshSuppliers = () => api.get("/suppliers").then(setSuppliers).catch(() => {});
@@ -77,30 +75,8 @@ export default function PocketPage() {
     setConfirmState(ok(null));
     setCandidateGroups(ok([]));
     setShowAllWines(false);
-    setEvaluate(ok(null));
-    setCollectNow(ok(null));
+    setOpenOfferId(null);
   }
-
-  function runEvaluate(offerId) {
-    fetchInto(setEvaluate, api.post(`/inbound-offers/${offerId}/evaluate`));
-  }
-
-  async function runCollectNow(offerId) {
-    setCollectNow(LOADING);
-    try {
-      const data = await api.post(`/inbound-offers/${offerId}/collect-now`);
-      setCollectNow(ok(data.collected));
-      setEvaluate(ok(data.evaluation));
-    } catch (e) {
-      setCollectNow(failed(e));
-    }
-  }
-
-  // Fires once, the moment confirmation sets identity_confirmed_at --
-  // EVALUATE is the next screen, not a separate action to remember.
-  useEffect(() => {
-    if (offer?.identity_confirmed_at) runEvaluate(offer.inbound_offer_id);
-  }, [offer?.identity_confirmed_at]);
 
   // wine_id is never prefilled regardless of what follows: decision
   // 0038's gate means picking the actual wine is always a deliberate,
@@ -221,10 +197,15 @@ export default function PocketPage() {
     <div className="card">
       <h1 style={{ marginTop: 0 }}>Pocket</h1>
 
-      {!candidate ? (
-        <NewScreen pasteText={pasteText} setPasteText={setPasteText} onPaste={submitPaste}
-                  onPhoto={(f) => submitFile("photo", f)} onUpload={(f) => submitFile("upload", f)}
-                  create={create} retryId={retryId} onRetry={retry} />
+      {openOfferId ? (
+        <PricingScreen offerId={openOfferId} onStartOver={startOver} />
+      ) : !candidate ? (
+        <>
+          <NewScreen pasteText={pasteText} setPasteText={setPasteText} onPaste={submitPaste}
+                    onPhoto={(f) => submitFile("photo", f)} onUpload={(f) => submitFile("upload", f)}
+                    create={create} retryId={retryId} onRetry={retry} />
+          <TradesList onOpen={setOpenOfferId} />
+        </>
       ) : (
         <CandidateScreen offer={offer} proposal={proposal} wines={wines}
                          candidateGroups={candidateGroups} showAllWines={showAllWines}
@@ -236,11 +217,7 @@ export default function PocketPage() {
                          stated={stated} setStated={setStated} commercialFork={commercialFork}
                          needsWantListAck={needsWantListAck} confirmState={confirmState}
                          onConfirm={confirmIdentity} onReparse={retry} onStartOver={startOver}
-                         reparsing={create.status === "loading"}
-                         evaluate={evaluate}
-                         onRetryEvaluate={() => runEvaluate(offer.inbound_offer_id)}
-                         collectNow={collectNow}
-                         onCollectNow={() => runCollectNow(offer.inbound_offer_id)} />
+                         reparsing={create.status === "loading"} />
       )}
     </div>
   );
@@ -308,8 +285,7 @@ function CandidateScreen({ offer, proposal, wines, candidateGroups, showAllWines
                           suppliers, matchedSupplierIds, onSupplierCreated,
                           confirmForm, setConfirmForm, stated, setStated, commercialFork,
                           needsWantListAck,
-                          confirmState, onConfirm, onReparse, onStartOver, reparsing,
-                          evaluate, onRetryEvaluate, collectNow, onCollectNow }) {
+                          confirmState, onConfirm, onReparse, onStartOver, reparsing }) {
   const confirmed = !!offer.identity_confirmed_at;
 
   if (offer.category === "whisky") {
@@ -361,7 +337,7 @@ function CandidateScreen({ offer, proposal, wines, candidateGroups, showAllWines
         </div>
         {proposal.asking_price && (
           <div style={{ marginTop: 4 }}>
-            Seller ask: {proposal.asking_price} {proposal.asking_currency || ""}
+            Supplier price: {proposal.asking_price} {proposal.asking_currency || ""}
             {proposal.asking_basis ? ` (${proposal.asking_basis.replace("_", " ")})`
               : " — no basis stated"}
           </div>
@@ -495,7 +471,7 @@ function CandidateScreen({ offer, proposal, wines, candidateGroups, showAllWines
 
           <div className="row" style={{ marginTop: 10 }}>
             <div style={{ width: 130 }}>
-              <label htmlFor="pask">Seller ask <StatedTag stated={stated.asking_price} /></label>
+              <label htmlFor="pask">Supplier price <StatedTag stated={stated.asking_price} /></label>
               <input id="pask" inputMode="decimal" value={confirmForm.asking_price}
                      onChange={(e) => setConfirmForm({ ...confirmForm, asking_price: e.target.value })} />
             </div>
@@ -569,123 +545,10 @@ function CandidateScreen({ offer, proposal, wines, candidateGroups, showAllWines
               <> From {suppliers.find((sp) => sp.supplier_id === offer.supplier_id)?.name || "—"}.</>
             )}
           </div>
-          <EvaluateScreen evaluate={evaluate} onRetry={onRetryEvaluate}
-                         collectNow={collectNow} onCollectNow={onCollectNow} />
-          <div style={{ marginTop: 12 }}>
-            <button type="button" onClick={onStartOver}>Start another</button>
-          </div>
+          <PricingScreen offerId={offer.inbound_offer_id} onStartOver={onStartOver} />
         </>
       )}
     </>
-  );
-}
-
-/** Screen 3, EVALUATE: facts, then stop. No verdict anywhere here — no
- * "good buy", no score, no traffic light; Doug compares the ask with
- * the walk-away price himself.
- *
- * "No Floor, no walk-away" is the PRIMARY state this is built around,
- * not an error path (Doug's own framing, 29 Oct 2026): merchant
- * evidence on the 20 want-list producers is measurably thin to absent,
- * so this will be the common case, not the edge case. It renders
- * through the calm `.notice`, never `.notice.bad` — a screen that
- * looks broken when it is working correctly will not get trusted. The
- * genuinely couldn't-check case (the request itself failed) is the one
- * that gets the error styling and a Retry, per decision 0040. */
-function EvaluateScreen({ evaluate, onRetry, collectNow, onCollectNow }) {
-  if (evaluate.status === "loading") {
-    return <p className="muted" style={{ marginTop: 12 }}>Checking the market…</p>;
-  }
-  if (evaluate.status === "error") {
-    return (
-      <div className="notice bad" style={{ marginTop: 12 }}>
-        Couldn&apos;t check the market ({evaluate.error}).{" "}
-        <button type="button" className="small" onClick={onRetry}>Retry</button>
-      </div>
-    );
-  }
-  const data = evaluate.data;
-  if (!data) return null;
-
-  if (data.state === null || data.state === "NOT_SEARCHED") {
-    return (
-      <div className="card" style={{ marginTop: 12, background: "#faf8f6" }}>
-        <h2 style={{ marginTop: 0 }}>Market evidence</h2>
-        <p>Nothing has been collected for this wine yet.</p>
-        <p className="muted" style={{ fontSize: 13 }}>{data.block_reason}</p>
-        <CollectNowPanel collectNow={collectNow} onCollectNow={onCollectNow} />
-      </div>
-    );
-  }
-
-  if (data.state === "NO_MARKET") {
-    return (
-      <div className="card" style={{ marginTop: 12, background: "#faf8f6" }}>
-        <h2 style={{ marginTop: 0 }}>No Floor</h2>
-        <p>None of the merchants checked offer this wine — no walk-away price to show.</p>
-        <p className="muted" style={{ fontSize: 13 }}>
-          Checked: {data.checked_merchants.join(", ")}
-        </p>
-        <CollectNowPanel collectNow={collectNow} onCollectNow={onCollectNow} />
-      </div>
-    );
-  }
-
-  const w = data.walk_away;
-  const ask = data.ask;
-  return (
-    <div className="card" style={{ marginTop: 12, background: "#faf8f6" }}>
-      <h2 style={{ marginTop: 0 }}>Market evidence</h2>
-      <table>
-        <tbody>
-          {ask && (
-            <tr>
-              <td className="muted">Seller ask</td>
-              <td className="num">{money(ask.total)}</td>
-              <td className="muted">({money(ask.per_bottle)}/bt)</td>
-            </tr>
-          )}
-          <tr>
-            <td className="muted">UK Floor</td>
-            <td className="num">{money(w.uk_floor)}</td>
-            <td className="muted">({money(w.uk_floor_per_bottle)}/bt) · {data.comp_count} merchant(s)
-              {data.as_of ? ` · read ${new Date(data.as_of).toLocaleDateString()}` : ""}</td>
-          </tr>
-          <tr>
-            <td className="muted">Walk-away</td>
-            <td className="num">{money(w.walk_away)}</td>
-            <td className="muted">({money(w.walk_away_per_bottle)}/bt)</td>
-          </tr>
-        </tbody>
-      </table>
-
-      {data.state === "REVIEW" && (
-        <div className="notice" style={{ marginTop: 10 }}>
-          Needs review: {data.flags.join(", ")}.
-        </div>
-      )}
-
-      {ask && data.headroom != null && (
-        Number(data.headroom) >= 0 ? (
-          <p style={{ marginTop: 10 }}>
-            {money(data.headroom)} below walk-away ({money(data.headroom_per_bottle)}/bt) —
-            margin at this ask {Number(data.margin_at_ask_pct).toFixed(1)}%.
-          </p>
-        ) : (
-          <p className="notice bad" style={{ marginTop: 10 }}>
-            {money(Math.abs(Number(data.headroom)))} above walk-away. Hitting the trade margin
-            on this ask needs a sell of {money(data.required_sell_for_margin)} —
-            {data.exceeds_floor ? " above" : " within"} the UK Floor
-            {data.exceeds_floor ? ", which decision 0033 forbids." : "."}
-          </p>
-        )
-      )}
-
-      {data.blocks_create_offer && data.state !== "REVIEW" && data.headroom == null && (
-        <p className="notice bad" style={{ marginTop: 10 }}>{data.block_reason}</p>
-      )}
-      <CollectNowPanel collectNow={collectNow} onCollectNow={onCollectNow} />
-    </div>
   );
 }
 
@@ -802,19 +665,22 @@ function SupplierPicker({ suppliers, matchedSupplierIds, value, onChange, onCrea
       </div>
 
       {adding && (
-        <form onSubmit={submitNew} className="row" style={{ marginTop: 8, alignItems: "flex-end" }}>
+        // Not a <form>: this sits inside the confirm-identity form, and a
+        // nested form's Add submitted the outer one natively — reloading
+        // the page and losing the capture.
+        <div className="row" style={{ marginTop: 8, alignItems: "flex-end" }}>
           <div className="grow">
             <label htmlFor="sup_name">Name</label>
-            <input id="sup_name" required value={name} onChange={(e) => setName(e.target.value)} />
+            <input id="sup_name" required value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submitNew(e); }} />
           </div>
           <div className="grow">
             <label htmlFor="sup_phone">Phone</label>
-            <input id="sup_phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+            <input id="sup_phone" value={phone} onChange={(e) => setPhone(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submitNew(e); }} />
           </div>
-          <button type="submit" className="small" disabled={busy || !name.trim()}>
+          <button type="button" className="small" onClick={submitNew} disabled={busy || !name.trim()}>
             {busy ? "Adding…" : "Add"}
           </button>
-        </form>
+        </div>
       )}
       {error && <p className="notice bad" style={{ fontSize: 13 }}>{error}</p>}
     </div>
@@ -858,5 +724,407 @@ function WineSelect({ wines, candidateGroups, showAllWines, value, onChange }) {
         </optgroup>
       ))}
     </select>
+  );
+}
+
+function wineTitle(v) {
+  return [v.producer, v.cuvee, v.vintage === 1000 ? null : v.vintage].filter(Boolean).join(" ");
+}
+
+function shortDate(iso) {
+  return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+
+function monthYear(iso) {
+  return new Date(iso).toLocaleDateString("en-GB", { month: "short", year: "numeric" });
+}
+
+/** Offers out and confirmed trades, newest first — the way back to a trade
+ * when the buyer replies hours later. */
+function TradesList({ onOpen }) {
+  const [trades, setTrades] = useState(LOADING);
+  useEffect(() => { fetchInto(setTrades, api.get("/pocket/trades")); }, []);
+  if (trades.status === "loading") return null;
+  if (trades.status === "error") {
+    return <p className="notice bad" style={{ marginTop: 16 }}>Couldn&apos;t load your offers ({trades.error}).</p>;
+  }
+  if (!trades.data.length) return null;
+  const label = { OFFERED: "Offer out", CONFIRMED: "Confirmed", COMPLETE: "Complete" };
+  return (
+    <div style={{ marginTop: 20 }}>
+      <h2 style={{ marginTop: 0 }}>Offers</h2>
+      {trades.data.map((t) => (
+        <button key={t.inbound_offer_id} type="button" className="pocket-trade"
+                onClick={() => onOpen(t.inbound_offer_id)}>
+          <span className="grow">
+            <strong>{t.wine_name}</strong>
+            <span className="muted"> · {t.quantity} × {t.pack_size > 1 ? `${t.pack_size} × ` : ""}{t.bottle_ml / 10}cl</span>
+            <span className="muted" style={{ display: "block", fontSize: 13 }}>
+              {gbp(toPence(t.vessel_sell))}{t.pack_size > 1 ? "/case" : "/bt"}
+              {t.buyer_name ? ` · ${t.buyer_name}` : ""}{` · ${shortDate(t.priced_at)}`}
+            </span>
+          </span>
+          <span className={t.state === "OFFERED" ? "tag" : "tag ready"}>{label[t.state]}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Copy, or the phone's own share sheet (WhatsApp, Messages, mail…). We
+ * never send anything ourselves. */
+function ShareButtons({ text, disabled }) {
+  const [done, setDone] = useState(null);
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(text);
+      setDone("Copied");
+    } catch {
+      setDone("Couldn't copy — select the text above");
+    }
+  }
+  async function share() {
+    if (!navigator.share) return copy();
+    try {
+      await navigator.share({ text });
+    } catch (e) {
+      if (e?.name !== "AbortError") setDone("Couldn't open sharing");
+    }
+  }
+  return (
+    <div className="row" style={{ gap: 8, marginTop: 8, alignItems: "center" }}>
+      <button type="button" className="quiet" onClick={copy} disabled={disabled}>COPY</button>
+      <button type="button" onClick={share} disabled={disabled}>SHARE</button>
+      {done && <span className="muted" style={{ fontSize: 13 }}>{done}</span>}
+    </div>
+  );
+}
+
+function PriceRow({ label, value, sub, children, open, onToggle }) {
+  return (
+    <div className="pocket-row">
+      <button type="button" className="pocket-row-head" onClick={onToggle} disabled={!onToggle}>
+        <span className="pocket-label">{label}</span>
+        <span className="pocket-value">{value}</span>
+        {sub && <span className="pocket-sub">{sub}</span>}
+      </button>
+      {open && children && <div className="pocket-detail">{children}</div>}
+    </div>
+  );
+}
+
+/** The pricing screen: SUPPLIER, MARKET, AUCTION, then VESSEL SELL — the one
+ * number Doug sets, by % or by typing it, the two always in step. Every
+ * figure shown is per bottle; the server stores and checks per commercial
+ * unit. Gates that would need an accept are previewed here and decided by
+ * the server at CREATE OFFER. */
+function PricingScreen({ offerId, onStartOver }) {
+  const [view, setView] = useState(LOADING);
+  const [collect, setCollect] = useState(ok(null));
+  const [sell, setSell] = useState(null);          // per commercial unit, pence
+  const [sellText, setSellText] = useState("");    // per bottle, as typed
+  const [availability, setAvailability] = useState("");
+  const [create, setCreate] = useState(ok(null));
+  const [gate, setGate] = useState(null);
+  const [buyer, setBuyer] = useState("");
+  const [confirm, setConfirm] = useState(ok(null));
+  const [complete, setComplete] = useState(ok(null));
+  const [openRow, setOpenRow] = useState(null);
+
+  function setSellUnit(unitPence, packSize) {
+    setSell(unitPence);
+    setSellText(inputText(perBottlePence(unitPence, packSize)));
+  }
+
+  function adopt(data, { keepSell = false } = {}) {
+    setView(ok(data));
+    const start = data.committed?.vessel_sell ?? data.default_vessel_sell;
+    if (start != null && !(keepSell && sell != null)) setSellUnit(toPence(start), data.pack_size);
+    if (!keepSell) setAvailability(data.availability || "");
+  }
+
+  async function load() {
+    setView(LOADING);
+    try {
+      adopt(await api.post(`/inbound-offers/${offerId}/evaluate`));
+    } catch (e) {
+      setView(failed(e));
+    }
+  }
+  useEffect(() => { load(); }, [offerId]);
+
+  async function runCollect() {
+    setCollect(LOADING);
+    try {
+      const data = await api.post(`/inbound-offers/${offerId}/collect-now`);
+      setCollect(ok(data.collected));
+      adopt(data.evaluation, { keepSell: true });
+    } catch (e) {
+      setCollect(failed(e));
+    }
+  }
+
+  async function createOffer(accept) {
+    setCreate(LOADING);
+    try {
+      const data = await api.post(`/inbound-offers/${offerId}/offer`, {
+        vessel_sell: toMoney(sell), availability: availability.trim() || null, accept });
+      setGate(null);
+      setCreate(ok(true));
+      adopt(data, { keepSell: true });
+      setAvailability(data.availability || "");
+    } catch (e) {
+      if (e.status === 409 && e.detail?.needs_accept) {
+        setGate(e.message);
+        setCreate(ok(null));
+      } else {
+        setCreate(failed(e));
+      }
+    }
+  }
+
+  async function confirmTrade() {
+    setConfirm(LOADING);
+    try {
+      adopt(await api.post(`/inbound-offers/${offerId}/confirm`, { buyer_name: buyer.trim() }),
+            { keepSell: true });
+      setConfirm(ok(true));
+    } catch (e) {
+      setConfirm(failed(e));
+    }
+  }
+
+  async function markComplete(fulfilmentId) {
+    setComplete(LOADING);
+    try {
+      await api.post(`/fulfilments/${fulfilmentId}/complete`);
+      setComplete(ok(true));
+      load();
+    } catch (e) {
+      setComplete(failed(e));
+    }
+  }
+
+  if (view.status === "loading") {
+    return <p className="muted" style={{ marginTop: 12 }}>Checking the market…</p>;
+  }
+  if (view.status === "error") {
+    return (
+      <div className="notice bad" style={{ marginTop: 12 }}>
+        Couldn&apos;t check the market ({view.error}).{" "}
+        <button type="button" className="small" onClick={load}>Retry</button>
+      </div>
+    );
+  }
+  const v = view.data;
+  if (!v) return null;
+  const pack = v.pack_size;
+  const title = wineTitle(v);
+  const lineText = `${v.quantity} × ${pack > 1 ? `${pack} × ` : ""}${v.bottle_ml / 10}cl`;
+  const where = [v.bond_status, v.stock_location].filter(Boolean).join(" · ");
+
+  if (v.fulfilment) {
+    return <ConfirmedTrade f={v.fulfilment} complete={complete} onComplete={markComplete}
+                           onStartOver={onStartOver} />;
+  }
+
+  const supplier = v.ask ? toPence(v.ask.per_unit) : null;
+  const floor = v.market ? toPence(v.market.floor_per_unit) : null;
+  const bp = supplier && sell != null ? markupBp(sell, supplier) : null;
+  const minBp = Math.round(Number(v.min_trade_margin) * 10000);
+  const grossUnit = supplier != null && sell != null ? sell - supplier : null;
+  const vsMarket = floor && sell != null ? vsMarketBp(sell, floor) : null;
+  const committed = v.committed;
+  const dirty = committed && (toPence(committed.vessel_sell) !== sell
+                              || (availability.trim() || null) !== (v.availability || null));
+  const canCreate = sell != null && sell > 0 && create.status !== "loading";
+
+  const warnings = [];
+  if (floor && sell != null && sell >= floor) warnings.push("At or above the market price — needs your accept.");
+  if (supplier && sell != null && sell < supplier) warnings.push("Below the supplier price — needs your accept.");
+  if (v.market_note) warnings.push(`The market ${v.market_note} — needs your accept.`);
+
+  return (
+    <div className="pocket">
+      <div className="pocket-head">
+        <div className="pocket-producer">{v.producer}</div>
+        <div className="pocket-wine">{[v.cuvee, v.vintage === 1000 ? "NV" : v.vintage].filter(Boolean).join(" ")}</div>
+        <div className="muted">{lineText}{where ? ` · ${where}` : ""}</div>
+        {v.packaging && <div className="muted">{v.packaging}</div>}
+      </div>
+
+      <PriceRow label="SUPPLIER"
+                value={v.ask ? `${gbp(toPence(v.ask.per_bottle))} / bt` : "No price recorded"}
+                sub={v.ask ? `${gbp(toPence(v.ask.total))} total` : "Start over to add the supplier's price"} />
+
+      {v.market ? (
+        <PriceRow label="MARKET" value={`${gbp(toPence(v.market.floor_per_bottle))} / bt`}
+                  sub={`${v.market.comp_count} source${v.market.comp_count === 1 ? "" : "s"}`
+                       + (v.market.checked_at ? ` · checked ${shortDate(v.market.checked_at)}` : "")}
+                  open={openRow === "market"}
+                  onToggle={() => setOpenRow(openRow === "market" ? null : "market")}>
+          {v.market.comps.map((c) => (
+            <div key={c.merchant} className="pocket-comp">
+              <span>{c.merchant}</span>
+              <span>{gbp(toPence(c.per_bottle))}{c.captured_at ? ` · ${shortDate(c.captured_at)}` : ""}</span>
+            </div>
+          ))}
+          {v.walk_away && (
+            <p className="muted" style={{ fontSize: 13, margin: "8px 0 0" }}>
+              Walk-away {gbp(toPence(v.walk_away.walk_away_per_bottle))}/bt — the most you can pay
+              and still make {formatBp(minBp, { signed: false })} selling 5% under market.
+            </p>
+          )}
+          <CollectNowPanel collectNow={collect} onCollectNow={runCollect} />
+        </PriceRow>
+      ) : (
+        <PriceRow label="MARKET" value={v.state === "NO_MARKET" ? "None found" : "Not checked yet"}
+                  sub={v.state === "NO_MARKET" ? `${v.checked_merchants.length} merchants checked` : null}
+                  open={openRow === "market"}
+                  onToggle={() => setOpenRow(openRow === "market" ? null : "market")}>
+          {v.state === "NO_MARKET" && (
+            <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>Checked: {v.checked_merchants.join(", ")}</p>
+          )}
+          <CollectNowPanel collectNow={collect} onCollectNow={runCollect} />
+        </PriceRow>
+      )}
+
+      <PriceRow label="AUCTION"
+                value={v.auction?.median_per_bottle ? `${gbp(toPence(v.auction.median_per_bottle))} / bt` : "None on record"}
+                sub={v.auction ? `${v.auction.lot_count} lot${v.auction.lot_count === 1 ? "" : "s"}`
+                                 + (v.auction.latest_sale_date ? ` · ${monthYear(v.auction.latest_sale_date)}` : "")
+                               : null} />
+
+      <div className="pocket-sell">
+        <div className="pocket-label">VESSEL SELL</div>
+        <div className="pocket-sell-price">
+          <span>£</span>
+          <input inputMode="decimal" aria-label="VESSEL sell price per bottle" value={sellText}
+                 onChange={(e) => {
+                   setSellText(e.target.value);
+                   const p = parsePounds(e.target.value);
+                   if (p != null && p > 0) setSell(p * pack);
+                 }} />
+          <span className="muted">/ bt</span>
+        </div>
+        <div className="pocket-stepper">
+          <button type="button" className="quiet" aria-label="lower markup" disabled={bp == null}
+                  onClick={() => setSellUnit(sellFromMarkup(supplier, stepBp(bp, -1)), pack)}>−</button>
+          <span>{bp == null ? "—" : formatBp(bp)}</span>
+          <button type="button" className="quiet" aria-label="raise markup" disabled={bp == null}
+                  onClick={() => setSellUnit(sellFromMarkup(supplier, stepBp(bp, +1)), pack)}>+</button>
+        </div>
+        {grossUnit != null && (
+          <div className="pocket-gross">
+            <div><strong>{gbp(perBottlePence(grossUnit, pack))} / bt gross</strong></div>
+            <div>{gbp(grossUnit * v.quantity)} total</div>
+          </div>
+        )}
+        {vsMarket != null && (
+          <div className="pocket-vs">
+            {vsMarket === 0 ? "At market" : `${formatBp(Math.abs(vsMarket), { signed: false })} ${vsMarket > 0 ? "below" : "above"} market`}
+          </div>
+        )}
+        {bp != null && bp < minBp && (
+          <div className="muted" style={{ fontSize: 13 }}>Below your usual {formatBp(minBp)}.</div>
+        )}
+        {warnings.map((w) => <div key={w} className="pocket-warn">{w}</div>)}
+      </div>
+
+      <div style={{ marginTop: 12 }}>
+        <label htmlFor="pavail">Availability (optional)</label>
+        <input id="pavail" value={availability} placeholder="e.g. Available now · ETA 3 weeks"
+               onChange={(e) => setAvailability(e.target.value)} />
+      </div>
+
+      {create.status === "error" && <div className="notice bad" style={{ marginTop: 10 }}>{create.error}</div>}
+      {gate && (
+        <div className="notice bad" style={{ marginTop: 10 }}>
+          {gate}
+          <div style={{ marginTop: 8 }}>
+            <button type="button" onClick={() => createOffer(true)} disabled={!canCreate}>
+              Accept and create offer
+            </button>
+          </div>
+        </div>
+      )}
+
+      {(!committed || dirty) && !gate && (
+        <div className="pocket-actions">
+          <button type="button" className="quiet" onClick={onStartOver}>PASS</button>
+          <button type="button" onClick={() => createOffer(false)} disabled={!canCreate}>
+            {create.status === "loading" ? "Creating…" : committed ? "UPDATE OFFER" : "CREATE OFFER"}
+          </button>
+        </div>
+      )}
+
+      {committed && (
+        <div className="card" style={{ marginTop: 14 }}>
+          <div className="pocket-label">OFFER</div>
+          <pre className="pocket-message">{tombstone({
+            wineName: title, quantity: v.quantity, pack_size: pack, bottle_ml: v.bottle_ml,
+            bond_status: v.bond_status, stock_location: v.stock_location,
+            availability: v.availability, vesselSell: committed.vessel_sell })}</pre>
+          {dirty && <p className="notice" style={{ fontSize: 13 }}>Price changed — update the offer before sharing.</p>}
+          <ShareButtons disabled={dirty} text={tombstone({
+            wineName: title, quantity: v.quantity, pack_size: pack, bottle_ml: v.bottle_ml,
+            bond_status: v.bond_status, stock_location: v.stock_location,
+            availability: v.availability, vesselSell: committed.vessel_sell })} />
+
+          <div style={{ marginTop: 16 }}>
+            <label htmlFor="pbuyer">Buyer said yes? Who</label>
+            <input id="pbuyer" value={buyer} placeholder="Buyer name"
+                   onChange={(e) => setBuyer(e.target.value)} />
+            {confirm.status === "error" && <div className="notice bad" style={{ marginTop: 8 }}>{confirm.error}</div>}
+            <button type="button" style={{ marginTop: 8, width: "100%" }}
+                    disabled={dirty || !buyer.trim() || confirm.status === "loading"}
+                    onClick={confirmTrade}>
+              {confirm.status === "loading" ? "Confirming…" : `CONFIRM at ${gbp(perBottlePence(toPence(committed.vessel_sell), pack))}/bt`}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {committed && (
+        <div style={{ marginTop: 12 }}>
+          <button type="button" className="quiet" onClick={onStartOver}>Back to Pocket</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** CONFIRMED: the frozen record and the two handoffs, copy or share. */
+function ConfirmedTrade({ f, complete, onComplete, onStartOver }) {
+  return (
+    <div className="pocket">
+      <div className="notice good" style={{ marginTop: 12 }}>
+        <strong>CONFIRMED</strong> · {f.buyer_name} · {f.wine_name}
+        {f.state === "COMPLETE" && " · complete"}
+      </div>
+
+      <div className="card">
+        <div className="pocket-label">TO SUPPLIER · {f.supplier_name}</div>
+        <pre className="pocket-message">{supplierHandoff(f)}</pre>
+        <ShareButtons text={supplierHandoff(f)} />
+      </div>
+
+      <div className="card">
+        <div className="pocket-label">TO ADMIN</div>
+        <pre className="pocket-message">{adminHandoff(f)}</pre>
+        <ShareButtons text={adminHandoff(f)} />
+      </div>
+
+      {f.state === "OPEN" && (
+        <div style={{ marginBottom: 12 }}>
+          <button type="button" className="quiet" onClick={() => onComplete(f.fulfilment_id)}
+                  disabled={complete.status === "loading"}>
+            Mark trade complete
+          </button>
+          {complete.status === "error" && <div className="notice bad" style={{ marginTop: 8 }}>{complete.error}</div>}
+        </div>
+      )}
+      <button type="button" onClick={onStartOver}>Back to Pocket</button>
+    </div>
   );
 }

@@ -388,3 +388,82 @@ def test_other_bases_never_carry_chain_fields():
     assert p.price_basis == "manual"
     assert (p.buyer_price_gbp, p.seller_price_gbp) == (None, None)
     assert (p.buyer_discount, p.margin_on_sale) == (None, None)
+
+
+# ---------------------------------------------------------------- parcel trade
+# VESSEL Pocket: Doug buys from a supplier and sells on. The supplier price
+# is cost; the VESSEL sell price is his own number, never derived from the
+# market. Worked figures: Rousseau, 3 x 75cl, supplier £2,800/bt, Floor £3,400.
+
+from app.pricing import pricer  # noqa: E402
+
+S = D("2800.00")
+FLOOR = D("3400.00")
+
+
+def parcel(vessel_sell, *, supplier=S, reference=D("3500.00"), floor=FLOOR, currency="GBP"):
+    return pricer.price_parcel_trade(vessel_sell=vessel_sell, supplier_price=supplier,
+                                     supplier_currency=currency, uk_reference=reference,
+                                     uk_floor=floor)
+
+
+def test_default_vessel_sell_is_supplier_price_plus_min_trade_margin():
+    """£2,800 at +8% is £3,024 — a hard-coded second 8% would drift from
+    the one in app/core/flags.py the day Doug changes it."""
+    assert pricer.default_vessel_sell(S) == D("3024.00")
+
+
+def test_default_vessel_sell_follows_min_trade_margin_not_a_literal(monkeypatch):
+    monkeypatch.setattr(pricer, "MIN_TRADE_MARGIN", D("0.10"))
+    assert pricer.default_vessel_sell(S) == D("3080.00")
+
+
+def test_markup_is_on_supplier_price_never_gross_margin():
+    """£3,150 on £2,800 is +12.5% markup; as gross margin it would read
+    11.1% — a 1.4-point misstatement of Doug's own number."""
+    assert pricer.markup(D("3150.00"), S) == D("0.1250")
+    assert pricer.markup(D("3080.00"), S) == D("0.1000")
+
+
+def test_parcel_trade_takes_the_sell_price_exactly_as_given():
+    p = parcel(D("3150.00"))
+    assert (p.price_basis, p.sell_price, p.cost_gbp, p.gp) == (
+        "parcel_trade", D("3150.00"), D("2800.00"), D("350.00"))
+    assert p.flags == set()
+
+
+def test_parcel_trade_vs_market_reads_off_the_floor():
+    """£3,150 against a £3,400 Floor is 7.4% below market."""
+    assert floor_saving(D("3150.00"), FLOOR) == D("0.0735")
+
+
+def test_parcel_trade_gross_total_scales_with_quantity():
+    assert parcel(D("3150.00")).gp * 3 == D("1050.00")
+
+
+def test_parcel_trade_refuses_rather_than_rounds_a_fractional_sell_price():
+    with pytest.raises(CannotPrice, match="whole pence"):
+        parcel(D("3150.005"))
+
+
+def test_parcel_trade_refuses_a_non_gbp_supplier_price_with_no_fx_rate():
+    """A GP on a EUR parcel with no rate could never be reproduced."""
+    with pytest.raises(CannotPrice, match="FX"):
+        parcel(D("3150.00"), currency="EUR")
+
+
+def test_parcel_trade_at_or_above_the_floor_carries_the_floor_guard():
+    """Decision 0033 holds regardless of basis: a buyer who can already find
+    it at £3,400 must not be offered it at £3,400."""
+    assert Flag.SELL_AT_OR_ABOVE_UK_FLOOR in parcel(D("3400.00")).flags
+    assert Flag.SELL_AT_OR_ABOVE_UK_FLOOR not in parcel(D("3399.99")).flags
+
+
+def test_parcel_trade_below_supplier_price_is_negative_gp():
+    assert Flag.NEGATIVE_GP in parcel(D("2799.99")).flags
+
+
+def test_parcel_trade_with_no_market_carries_no_market_flags():
+    """No Floor, no Reference: nothing to compare against, so no commercial
+    flag — the NO_MARKET state itself is what gates, not a flag invented here."""
+    assert parcel(D("3024.00"), reference=None, floor=None).flags == set()
