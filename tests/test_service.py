@@ -2683,3 +2683,15 @@ def test_a_cost_or_margin_still_outranks_the_chain_through_the_api(client):
     p = client.get(f"/lines/{line_id}/pricing").json()
     assert p["price_basis"] == "line_margin"
     assert (p["buyer_price_gbp"], p["seller_price_gbp"]) == (None, None)
+
+
+def test_expected_head_revision_is_the_real_alembic_head():
+    """Found live, 30 October 2026: migration 0037 shipped without bumping
+    EXPECTED_HEAD_REVISION, so production /health read schema_mismatch on a
+    correctly migrated database. Offline, no database: reads migrations/."""
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
+    from app.db.connection import EXPECTED_HEAD_REVISION
+    script = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
+    assert script.get_heads() == [EXPECTED_HEAD_REVISION]
