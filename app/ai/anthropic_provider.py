@@ -56,7 +56,7 @@ present in it, as the one JSON object described to you.
 
 Rules, all of them hard:
 - Never infer, estimate, compute, or default a value. If the source does not \
-state a field, omit it (send null) -- do not guess "OWC" for packaging, do not \
+state a field, send null for it -- do not guess "OWC" for packaging, do not \
 guess a bond status, do not round or convert a price.
 - A seller's asking price may only be reported if a figure is literally written \
 in the source, exactly as written, labelled as the seller's ask. Never compute, \
@@ -80,9 +80,8 @@ count instead. Do not guess the split -- that is a fact only a person can \
 resolve, not you.
 - asking_basis is "per_bottle", "per_case", or "total" -- ONLY when the \
 source says so explicitly ("a bottle", "per bottle", "the case", "in total", \
-"for the lot"). Never infer it from quantity or pack_size; OMIT this field \
-entirely if no unit is stated, however many bottles are involved -- do not \
-send null for it, send nothing.
+"for the lot"). Never infer it from quantity or pack_size; a price with no \
+stated unit gets asking_basis=null, however many bottles are involved.
 - reasoning is one brief sentence on what was read; if category is whisky or \
 unknown, say why.
 """
@@ -130,7 +129,6 @@ class _ProposalWire(BaseModel):
 PROPOSAL_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["category", "reasoning"],
     "properties": {
         "category": {"type": "string", "enum": ["wine", "whisky", "unknown"]},
         "producer": {"type": ["string", "null"]},
@@ -145,20 +143,21 @@ PROPOSAL_SCHEMA = {
         "packaging": {"type": ["string", "null"]},
         "asking_price": {"type": ["string", "null"]},
         "asking_currency": {"type": ["string", "null"]},
-        # Found live, 29-30 October 2026: Anthropic's own schema compiler
-        # rejects an enum combined with a nullable type array ("Enum
+        # Anthropic rejects an enum combined with a nullable type ("Enum
         # value 'per_bottle' does not match declared type ['string',
-        # 'null']") -- its structured-outputs validator does not accept
-        # the standard JSON Schema reading that an enum constrains the
-        # value ONLY when it is not null. asking_basis is not in
-        # `required` above, so the model can simply OMIT the key when
-        # the source states no basis -- the same "null when absent"
-        # meaning, expressed as an absent key rather than an explicit
-        # null this field's own type can no longer carry.
-        "asking_basis": {"type": "string", "enum": ["per_bottle", "per_case", "total"]},
+        # 'null']"), so the grammar only says text-or-null here;
+        # _ProposalWire's Literal is what refuses anything but the three
+        # real values.
+        "asking_basis": {"type": ["string", "null"]},
         "reasoning": {"type": "string"},
     },
 }
+#: Every field required, absence as an explicit null. Measured live, 30
+#: October 2026, on the real Salon request: with 13 OPTIONAL fields
+#: Anthropic's compiler failed 9 calls of 9 -- "Schema is too complex" or a
+#: connection cut at ~60s, whatever the thinking setting -- and with every
+#: field required it answered 3 of 3 in 2.8-5.2s, every field correct.
+PROPOSAL_SCHEMA["required"] = list(PROPOSAL_SCHEMA["properties"])
 
 
 def _not_built_yet(capability: str) -> NoReturn:

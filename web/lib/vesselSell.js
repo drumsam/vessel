@@ -81,3 +81,17 @@ export function parsePounds(text) {
 export function inputText(pence) {
   return pence % 100 ? toMoney(pence) : String(Math.floor(pence / 100));
 }
+
+const SYMBOL_CURRENCY = { "£": "GBP", "€": "EUR", "$": "USD" };
+
+/** The supplier price as the AI read it ("£3,995", "GBP 19,500") split into
+ * the bare amount for the input and the currency the text itself named —
+ * reformatting what was written, never interpreting the figure. */
+export function splitStatedPrice(text) {
+  const raw = String(text ?? "").trim();
+  const code = raw.match(/\b([A-Z]{3})\b/)?.[1] ?? null;
+  const hk = /HK\$/.test(raw);
+  const symbol = [...raw].find((ch) => ch in SYMBOL_CURRENCY);
+  const amount = raw.replace(/\b[A-Z]{3}\b/g, "").replace(/HK(?=\$)/g, "").replace(/[£€$,\s]/g, "");
+  return { amount, currency: code ?? (hk ? "HKD" : symbol ? SYMBOL_CURRENCY[symbol] : null) };
+}

@@ -69,3 +69,13 @@ test("money round-trips as the API's own string shape", () => {
   assert.equal(inputText(315000), "3150");
   assert.equal(inputText(315050), "3150.50");
 });
+
+test("a stated price prefills as a bare amount, its currency kept separately", async () => {
+  const { splitStatedPrice } = await import("../lib/vesselSell.js");
+  assert.deepEqual(splitStatedPrice("£3,995"), { amount: "3995", currency: "GBP" });
+  assert.deepEqual(splitStatedPrice("GBP 19,500"), { amount: "19500", currency: "GBP" });
+  assert.deepEqual(splitStatedPrice("2,800"), { amount: "2800", currency: null });
+  assert.deepEqual(splitStatedPrice("€1,250.50"), { amount: "1250.50", currency: "EUR" });
+  assert.deepEqual(splitStatedPrice("HK$41,500"), { amount: "41500", currency: "HKD" });
+  assert.equal(parsePounds(splitStatedPrice("£3,995").amount), 399500);
+});

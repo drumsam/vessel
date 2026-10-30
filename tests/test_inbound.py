@@ -500,16 +500,26 @@ def test_asking_basis_never_combines_an_enum_with_a_nullable_type():
     """Found live, 30 October 2026: "Error code: 400 - output_config.
     format.schema: Invalid schema: Enum value 'per_bottle' does not
     match declared type ['string', 'null']" -- Anthropic's own schema
-    compiler rejects an enum paired with a nullable type array, contrary
-    to the standard JSON Schema reading. asking_basis stays a plain
-    "string" with its enum, and relies on NOT being in `required` for
-    "the model may omit this" -- the same meaning, carried by an absent
-    key rather than a type this field can no longer express."""
-    from app.ai.anthropic_provider import PROPOSAL_SCHEMA
+    compiler rejects an enum paired with a nullable type array. The grammar
+    says text-or-null; _ProposalWire alone enforces the three real values."""
+    from app.ai.anthropic_provider import PROPOSAL_SCHEMA, _ProposalWire
     basis = PROPOSAL_SCHEMA["properties"]["asking_basis"]
-    assert basis["type"] == "string"
-    assert "null" not in basis.get("enum", [])
-    assert "asking_basis" not in PROPOSAL_SCHEMA["required"]
+    assert basis == {"type": ["string", "null"]}
+    for prop in PROPOSAL_SCHEMA["properties"].values():
+        assert not ("enum" in prop and isinstance(prop["type"], list)), prop
+    with pytest.raises(Exception):
+        _ProposalWire.model_validate({**{k: None for k in PROPOSAL_SCHEMA["properties"]},
+                                      "category": "wine", "reasoning": "x",
+                                      "asking_basis": "per_magnum"})
+
+
+def test_every_proposal_field_is_required_absence_is_null():
+    """Measured live, 30 October 2026, on the real Salon request: 13
+    OPTIONAL fields failed 9 calls of 9 ("Schema is too complex", or a
+    connection cut at ~60s) whatever the thinking setting; every field
+    required answered 3 of 3 in under 6s. Optional fields are the cost."""
+    from app.ai.anthropic_provider import PROPOSAL_SCHEMA
+    assert PROPOSAL_SCHEMA["required"] == list(PROPOSAL_SCHEMA["properties"])
 
 
 def test_anthropic_client_timeout_stays_under_vercels_function_ceiling(monkeypatch):

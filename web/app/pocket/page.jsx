@@ -5,8 +5,8 @@ import { api, BASE } from "../../lib/api";
 import { LOADING, ok, failed, fetchInto } from "../../lib/fetchState";
 import { adminHandoff, perBottlePence, supplierHandoff, tombstone } from "../../lib/pocketMessages";
 import {
-  formatBp, gbp, inputText, markupBp, parsePounds, sellFromMarkup, stepBp, toMoney, toPence,
-  vsMarketBp,
+  formatBp, gbp, inputText, markupBp, parsePounds, sellFromMarkup, splitStatedPrice, stepBp,
+  toMoney, toPence, vsMarketBp,
 } from "../../lib/vesselSell";
 
 /** VESSEL Pocket, build brief Phase 1b step 2: Screen 1 (NEW) and Screen 2
@@ -100,6 +100,7 @@ export default function PocketPage() {
         stock_location: proposal.stock_location != null,
         asking_price: proposal.asking_price != null, asking_basis: proposal.asking_basis != null,
       });
+      const statedPrice = splitStatedPrice(proposal.asking_price);
       setConfirmForm((f) => ({
         ...f,
         vintage: proposal.vintage != null ? String(proposal.vintage) : "",
@@ -113,8 +114,8 @@ export default function PocketPage() {
         // ("2,800") -- stripped here so the field holds a value the
         // Money type can actually parse without Doug having to do it;
         // this is reformatting, not interpreting the figure.
-        asking_price: proposal.asking_price ? proposal.asking_price.replace(/,/g, "") : "",
-        asking_currency: proposal.asking_currency || "",
+        asking_price: statedPrice.amount,
+        asking_currency: proposal.asking_currency || statedPrice.currency || "",
         asking_basis: proposal.asking_basis || "",
       }));
       setShowAllWines(false);
