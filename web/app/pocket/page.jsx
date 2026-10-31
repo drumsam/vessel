@@ -50,7 +50,7 @@ export default function PocketPage() {
   // that plus its known fork, never the full 234) — fetched fresh for
   // each candidate. showAllWines is the deliberate escape hatch for when
   // the proposed producer is wrong.
-  const [candidateGroups, setCandidateGroups] = useState(ok([]));
+  const [candidateGroups, setCandidateGroups] = useState(LOADING);
   const [showAllWines, setShowAllWines] = useState(false);
   // A trade reopened from the Offers out list — straight to its pricing
   // screen, since its identity is already confirmed.
@@ -73,7 +73,7 @@ export default function PocketPage() {
     setStated({});
     setCommercialFork(null);
     setConfirmState(ok(null));
-    setCandidateGroups(ok([]));
+    setCandidateGroups(LOADING);
     setShowAllWines(false);
     setOpenOfferId(null);
   }
@@ -698,6 +698,20 @@ function SupplierPicker({ suppliers, matchedSupplierIds, value, onChange, onCrea
 function WineSelect({ wines, candidateGroups, showAllWines, value, onChange }) {
   const groups = candidateGroups.status === "ok" ? candidateGroups.data : [];
   const hasFilteredGroups = groups.length > 0 && groups.some((g) => g.wines.length > 0);
+
+  // Never the full register by default while matching is unfinished or
+  // failed: a tap in that window could pick a materially wrong wine. Only
+  // the explicit "Show all wines" reaches it then.
+  if (!showAllWines && candidateGroups.status !== "ok") {
+    return (
+      <select id="pwine" required disabled value="">
+        <option value="">
+          {candidateGroups.status === "loading" ? "Matching wines…"
+            : "Couldn't match wines — use Show all wines"}
+        </option>
+      </select>
+    );
+  }
 
   if (showAllWines || !hasFilteredGroups) {
     return (
