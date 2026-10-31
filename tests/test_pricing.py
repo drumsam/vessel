@@ -407,10 +407,41 @@ def parcel(vessel_sell, *, supplier=S, reference=D("3500.00"), floor=FLOOR, curr
                                      uk_floor=floor)
 
 
-def test_default_vessel_sell_is_supplier_price_plus_min_trade_margin():
-    """£2,800 at +8% is £3,024 — a hard-coded second 8% would drift from
-    the one in app/core/flags.py the day Doug changes it."""
-    assert pricer.default_vessel_sell(S) == D("3024.00")
+def test_default_vessel_sell_is_supplier_price_plus_min_trade_margin_rounded_up():
+    """£2,800 at +8% is £3,024, quoted as £3,025 (decision 0047) — a hard-coded
+    second 8% would drift from the one in app/core/flags.py."""
+    assert pricer.default_vessel_sell(S) == D("3025.00")
+
+
+def test_salon_default_is_4315_per_case():
+    """Salon 2006, GBP 3,995 /cs of 6: +8% is 4,314.60, quoted 4,315 /cs (+8.0%).
+    The case price itself is rounded — never a per-bottle figure multiplied back
+    (that would give 4,320)."""
+    assert pricer.default_vessel_sell(D("3995.00")) == D("4315.00")
+    assert pricer.markup(D("4315.00"), D("3995.00")) == D("0.0801")
+
+
+@pytest.mark.parametrize("raw,quoted", [("4314.60", "4315.00"), ("4320.00", "4320.00"),
+                                        ("719.10", "720.00"), ("721.00", "725.00"),
+                                        ("720.01", "725.00"), ("0.01", "5.00")])
+def test_commercial_quote_rounds_up_to_the_next_5_never_to_nearest(raw, quoted):
+    """Decision 0047: ceiling, not nearest — 721 is 725, never 720."""
+    assert pricer.round_up_to_step(D(raw)) == D(quoted)
+
+
+@pytest.mark.parametrize("basis,pack,unit", [("per_case", 6, "case"), ("per_case", 12, "case"),
+                                             ("per_bottle", 6, "bottle"), ("per_bottle", 1, "bottle"),
+                                             ("total", 6, "case"), ("total", 1, "bottle"),
+                                             ("per_case", 1, "bottle"), (None, 1, "bottle")])
+def test_quote_unit_follows_the_suppliers_commercial_basis(basis, pack, unit):
+    assert pricer.quote_unit(basis, pack) == unit
+
+
+def test_only_a_whole_5_in_the_quote_unit_may_be_committed():
+    assert pricer.is_quotable(D("4320.00"), "case", 6)
+    assert not pricer.is_quotable(D("4314.60"), "case", 6)
+    assert pricer.is_quotable(D("4320.00"), "bottle", 6)       # GBP 720 /btl x 6
+    assert not pricer.is_quotable(D("4326.00"), "bottle", 6)   # GBP 721 /btl
 
 
 def test_default_vessel_sell_follows_min_trade_margin_not_a_literal(monkeypatch):

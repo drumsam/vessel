@@ -1,8 +1,8 @@
 // The VESSEL Sell calculator. Integer pence and basis points throughout, so
-// the % and the £ stay in sync with no float ever touching a price; rounding
-// is half-even to the penny, the same rule app/pricing/pricer.py uses. The
-// server re-derives everything from the committed sell price — this only
-// drives the screen while Doug adjusts it.
+// the % and the price stay in sync with no float ever touching a price. Every
+// figure here is in the supplier's QUOTE unit (/btl or /cs of N, decision
+// 0047); a VESSEL sell is always rounded UP to the next whole 5 in that unit,
+// the same rule app/pricing/pricer.py enforces when the offer is committed.
 
 /** "3150.00" (or a number of pounds as a string) → 315000. */
 export function toPence(money) {
@@ -29,9 +29,35 @@ export function divHalfEven(n, d) {
   return sign * (up ? q + 1 : q);
 }
 
-/** Supplier price plus a markup in basis points (800 = +8%). */
+const STEP = 500; // a whole 5, in pence
+
+function ceilDiv(n, d) {
+  return Math.floor((n + d - 1) / d);
+}
+
+/** Up to the next whole 5: 431460 -> 431500, 432000 -> 432000, 72100 -> 72500. */
+export function ceilToStep(pence) {
+  return ceilDiv(pence, STEP) * STEP;
+}
+
+/** Supplier quote plus a markup in basis points (800 = +8%), rounded UP to
+ * the next whole 5 — from the exact product, never a half-even intermediate. */
 export function sellFromMarkup(supplierPence, bp) {
-  return divHalfEven(supplierPence * (10000 + bp), 10000);
+  return ceilDiv(supplierPence * (10000 + bp), 10000 * STEP) * STEP;
+}
+
+/** One whole percentage point up or down, then rounded up to 5 — skipping on
+ * whenever the rounding would land back on the price already shown, so "−"
+ * from GBP 4,320 (+8.1%) is never 4,320 again. */
+export function stepQuote(sellPence, supplierPence, direction) {
+  let bp = markupBp(sellPence, supplierPence);
+  for (let i = 0; i < 1000; i += 1) {
+    bp = stepBp(bp, direction);
+    const next = sellFromMarkup(supplierPence, bp);
+    if (next > 0 && next !== sellPence) return next;
+    if (next <= 0) return sellPence;
+  }
+  return sellPence;
 }
 
 /** (V - S) / S in basis points — markup on supplier, never gross margin. */
@@ -60,13 +86,32 @@ export function formatBp(bp, { signed = true } = {}) {
   return `${tenths < 0 ? "−" : "+"}${text}`;
 }
 
-/** 315000 → "£3,150"; 315050 → "£3,150.50". Display only. */
-export function gbp(pence) {
-  const sign = pence < 0 ? "-" : "";
-  const p = Math.abs(pence);
-  const pounds = String(Math.floor(p / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+/** ("GBP", 315000) → "GBP 3,150"; 315050 → "GBP 3,150.50" — an ISO code,
+ * never a symbol. `whole` rounds to whole units (half-even) for figures that
+ * are commercial output, not source facts. Display only. */
+export function fmt(pence, currency = "GBP", { whole = false } = {}) {
+  const value = whole ? divHalfEven(pence, 100) * 100 : pence;
+  const sign = value < 0 ? "-" : "";
+  const p = Math.abs(value);
+  const units = String(Math.floor(p / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   const rest = p % 100;
-  return `${sign}£${pounds}${rest ? `.${String(rest).padStart(2, "0")}` : ""}`;
+  return `${currency} ${sign}${units}${rest ? `.${String(rest).padStart(2, "0")}` : ""}`;
+}
+
+/** "/btl" or "/cs of 6" — the case size always repeated. */
+export function quoteLabel(unit, packSize) {
+  return unit === "case" ? `/cs of ${packSize}` : "/btl";
+}
+
+/** Per-commercial-unit pence in the quote unit (exact; a bottle quote of a
+ * case line divides by the pack, rounded half-even only for display). */
+export function toQuote(unitPence, unit, packSize) {
+  return unit === "case" ? unitPence : divHalfEven(unitPence, packSize);
+}
+
+/** A quote back to per-commercial-unit pence, the shape the API stores. */
+export function fromQuote(quotePence, unit, packSize) {
+  return unit === "case" ? quotePence : quotePence * packSize;
 }
 
 /** What Doug types for a price — "3150", "3,150", "£3,150.50" — in pence,

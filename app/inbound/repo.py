@@ -358,7 +358,8 @@ def list_trades(conn: psycopg.Connection, limit: int = 30) -> list[dict]:
              ORDER BY line_id, priced_at DESC, pricing_id DESC)
         SELECT io.inbound_offer_id, w.producer, w.cuvee, l.vintage, l.quantity, l.pack_size,
                l.bottle_ml, latest.sell_price AS vessel_sell, latest.priced_at,
-               s.name AS supplier_name, f.state AS fulfilment_state, f.buyer_name
+               s.name AS supplier_name, f.state AS fulfilment_state, f.buyer_name,
+               io.confirmed_asking_basis AS asking_basis
           FROM inbound_offer io
           JOIN seller_line l ON l.deal_id = io.deal_id
           JOIN latest ON latest.line_id = l.line_id

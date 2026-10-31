@@ -69,7 +69,7 @@ ratio stored at its own scale.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from decimal import ROUND_HALF_EVEN, Decimal
+from decimal import ROUND_CEILING, ROUND_HALF_EVEN, Decimal
 from typing import Optional
 
 from app.core.flags import MIN_TRADE_MARGIN, Flag
@@ -217,10 +217,41 @@ def _commercial_flags(*, sell: Decimal, cost_gbp: Optional[Decimal], gp: Optiona
     return flags
 
 
-def default_vessel_sell(supplier_price: Decimal) -> Decimal:
-    """The starting VESSEL sell price: supplier price plus MIN_TRADE_MARGIN,
-    markup on cost. A rounding point, the same as every other sell price."""
-    return round_money(supplier_price * (Decimal(1) + MIN_TRADE_MARGIN))
+#: Decision 0047: a parcel-trade VESSEL sell is quoted in whole steps of this
+#: many currency units, always rounded UP, in the supplier's quote unit.
+QUOTE_STEP = Decimal("5")
+
+
+def round_up_to_step(amount: Decimal) -> Decimal:
+    """Ceiling to the next multiple of QUOTE_STEP: 4314.60 -> 4320, 4320 -> 4320,
+    719.10 -> 720, 721 -> 725. The parcel-trade sell price's one rounding rule
+    (decision 0047) -- not half-even, and applied to nothing else."""
+    steps = (amount / QUOTE_STEP).to_integral_value(rounding=ROUND_CEILING)
+    return (steps * QUOTE_STEP).quantize(CENT)
+
+
+def quote_unit(asking_basis: Optional[str], pack_size: int) -> str:
+    """"case" or "bottle": the supplier's own commercial unit. A total is quoted
+    per case when the line is cases, per bottle otherwise (decision 0047)."""
+    return "case" if pack_size > 1 and asking_basis in ("per_case", "total") else "bottle"
+
+
+def per_quote(per_unit: Decimal, unit: str, pack_size: int) -> Decimal:
+    """A per-commercial-unit amount in the quote unit (exact; may carry pence)."""
+    return per_unit if unit == "case" else per_unit / pack_size
+
+
+def default_vessel_sell(supplier_quote: Decimal) -> Decimal:
+    """The starting VESSEL sell price, in the quote unit: supplier price plus
+    MIN_TRADE_MARGIN (markup on cost), rounded UP to the next QUOTE_STEP."""
+    return round_up_to_step(supplier_quote * (Decimal(1) + MIN_TRADE_MARGIN))
+
+
+def is_quotable(vessel_sell_per_unit: Decimal, unit: str, pack_size: int) -> bool:
+    """Whether a committed per-unit sell price is a whole QUOTE_STEP in the quote
+    unit -- the only shape a parcel-trade offer may be committed in."""
+    quote = per_quote(vessel_sell_per_unit, unit, pack_size)
+    return quote > 0 and quote % QUOTE_STEP == 0
 
 
 def markup(vessel_sell: Decimal, supplier_price: Decimal) -> Decimal:

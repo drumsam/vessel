@@ -46,7 +46,11 @@ export default function Chrome({ children }) {
     if (settled && session.status === "out" && !isPublicPath(pathname)) router.replace("/login");
   }, [settled, session.status, pathname, router]);
 
-  if (isPublicPath(pathname)) return <main>{children}</main>;
+  // Customer-facing pages get the quiet black-and-white scope; /login is the
+  // operator's own door and keeps the operator palette.
+  if (isPublicPath(pathname)) {
+    return <main className={pathname === "/login" ? undefined : "public"}>{children}</main>;
+  }
   if (!settled) return <main><p className="muted">Loading…</p></main>;
   if (session.status === "out") return <main><p className="muted">Signing in…</p></main>;
   const operator = session.operator;

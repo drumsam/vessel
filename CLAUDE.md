@@ -91,7 +91,10 @@ The invariants, in short:
    the Median and a comparable derived across case sizes (`benchmark.py`), FX
    conversion of a non-GBP cost and the sell price (`app/pricing/pricer.py`).
    A price that is not whole pence is refused as `NOT_WHOLE_PENCE`, never
-   rounded. See `docs/decisions/0007`.
+   rounded. See `docs/decisions/0007`. One exception (decision 0047): a
+   `parcel_trade` VESSEL sell is a commercial quote, rounded UP to the next
+   whole 5 in the supplier's own quote unit (`/btl` or `/cs of N`), and only
+   such a figure may be committed. Supplier prices are never rounded.
 8. Freshness: an offer is comparable only if captured within
    `MAX_OFFER_AGE_DAYS` (14) before `as_of`, and not after it. Undated ⇒ `STALE`.
    `as_of` is an argument, never the clock. See `docs/decisions/0003`.

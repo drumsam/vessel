@@ -1,40 +1,44 @@
 // VESSEL Pocket's three outbound texts. Pure: same facts in, same text out.
 // The tombstone goes to a buyer and passes assertBuyerSafe() like every
 // other buyer message; the two handoffs go to the supplier and to admin and
-// are built only from the frozen confirmation record.
+// are built only from the frozen confirmation record. Every price is in the
+// supplier's quote unit with an ISO code, never a symbol (decision 0047).
 import { assertBuyerSafe } from "./offerMessages.js";
-import { divHalfEven, gbp, toPence } from "./vesselSell.js";
+import { fmt, quoteLabel, toPence, toQuote } from "./vesselSell.js";
 
 function size(bottleMl) {
   return `${bottleMl / 10}cl`;
 }
 
-/** "3 × 75cl" loose, "1 × 6 × 75cl" for cases — the trade's own shorthand. */
+/** "3 × 75cl" loose, "5 × 6 × 75cl" for cases — the trade's own shorthand. */
 export function formatLine({ quantity, pack_size, bottle_ml }) {
   return pack_size === 1 ? `${quantity} × ${size(bottle_ml)}`
     : `${quantity} × ${pack_size} × ${size(bottle_ml)}`;
 }
 
-function unitPrice(unitPence, packSize) {
-  return packSize === 1 ? `${gbp(unitPence)}/bt` : `${gbp(unitPence)}/case`;
+/** "GBP 4,315 /cs of 6" from a per-commercial-unit amount. */
+export function quotePrice(unitAmount, unit, packSize, currency = "GBP", opts = {}) {
+  return `${fmt(toQuote(toPence(unitAmount), unit, packSize), currency, opts)} ${quoteLabel(unit, packSize)}`;
 }
 
-/** Wine, line, where it is, the committed VESSEL sell price, and
- * availability only if Doug stated it — nothing else, and never the
- * supplier, the supplier price or any market figure. */
+/** Wine, line, where it is, the committed VESSEL sell price in the supplier's
+ * own unit, and availability only if Doug stated it — never the supplier,
+ * the supplier price or any market figure. */
 export function tombstone({ wineName, quantity, pack_size, bottle_ml, bond_status,
-                            stock_location, availability, vesselSell }) {
+                            stock_location, availability, vesselSell, quoteUnit,
+                            currency = "GBP" }) {
   const where = [bond_status, stock_location].filter(Boolean).join(" · ");
   const lines = [
     wineName,
     [formatLine({ quantity, pack_size, bottle_ml }), where].filter(Boolean).join(" · "),
-    unitPrice(toPence(vesselSell), pack_size),
+    quotePrice(vesselSell, quoteUnit, pack_size, currency, { whole: true }),
     availability || null,
   ].filter(Boolean);
   return assertBuyerSafe(lines.join("\n"));
 }
 
-/** To the supplier, from the frozen record: the agreed supplier price only. */
+/** To the supplier, from the frozen record: the agreed supplier price, exactly
+ * as quoted — a supplier's own decimals are never rounded away. */
 export function supplierHandoff(f) {
   return [
     "CONFIRMED",
@@ -42,7 +46,7 @@ export function supplierHandoff(f) {
     f.wine_name,
     formatLine(f),
     "",
-    `Agreed ${unitPrice(toPence(f.supplier_price), f.pack_size)}`,
+    `Agreed ${quotePrice(f.supplier_price, f.quote_unit, f.pack_size, f.currency)}`,
     "",
     "Please hold stock.",
     "Transfer details to follow.",
@@ -63,9 +67,9 @@ export function adminHandoff(f) {
     f.wine_name,
     formatLine(f),
     "",
-    `Buy: ${gbp(buy)}`,
-    `Sell: ${gbp(sell)}`,
-    `Gross: ${gbp(toPence(f.gross_total))}`,
+    `Buy: ${fmt(buy, f.currency)}`,
+    `Sell: ${fmt(sell, f.currency, { whole: true })}`,
+    `Gross: ${fmt(toPence(f.gross_total), f.currency, { whole: true })}`,
     ...(stock ? ["", `Stock: ${stock}`] : []),
     ...(f.availability ? [`Availability: ${f.availability}`] : []),
     "",
@@ -74,9 +78,4 @@ export function adminHandoff(f) {
     "confirm supplier",
     "arrange transfer",
   ].join("\n");
-}
-
-/** Per-bottle display of a per-unit amount (a case price / its pack size). */
-export function perBottlePence(unitPence, packSize) {
-  return divHalfEven(unitPence, packSize);
 }

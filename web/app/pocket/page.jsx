@@ -3,10 +3,10 @@
 import { useEffect, useState } from "react";
 import { api, BASE } from "../../lib/api";
 import { LOADING, ok, failed, fetchInto } from "../../lib/fetchState";
-import { adminHandoff, perBottlePence, supplierHandoff, tombstone } from "../../lib/pocketMessages";
+import { adminHandoff, quotePrice, supplierHandoff, tombstone } from "../../lib/pocketMessages";
 import {
-  formatBp, gbp, inputText, markupBp, parsePounds, sellFromMarkup, splitStatedPrice, stepBp,
-  toMoney, toPence, vsMarketBp,
+  ceilToStep, fmt, formatBp, fromQuote, inputText, markupBp, parsePounds, quoteLabel,
+  splitStatedPrice, stepQuote, toMoney, toPence, toQuote, vsMarketBp,
 } from "../../lib/vesselSell";
 
 /** VESSEL Pocket, build brief Phase 1b step 2: Screen 1 (NEW) and Screen 2
@@ -324,7 +324,7 @@ function CandidateScreen({ offer, proposal, wines, candidateGroups, showAllWines
              alt="captured" style={{ maxWidth: "100%", maxHeight: 320, borderRadius: 8, marginBottom: 12 }} />
       )}
 
-      <div className="card" style={{ background: "#faf8f6" }}>
+      <div className="card" style={{ background: "var(--bg)" }}>
         <strong>{proposal.producer || "(producer not stated)"}</strong> · {proposal.cuvee || "(cuvée not stated)"}
         {proposal.vintage ? ` · ${proposal.vintage}` : ""}
         <div className="muted" style={{ marginTop: 4 }}>
@@ -654,7 +654,7 @@ function SupplierPicker({ suppliers, matchedSupplierIds, value, onChange, onCrea
           return (
             <button key={sp.supplier_id} type="button"
                     className={selected ? "small" : "small quiet"}
-                    style={matched && !selected ? { borderColor: "var(--ready)" } : undefined}
+                    style={matched && !selected ? { borderColor: "var(--ocean)" } : undefined}
                     onClick={() => onChange(selected ? "" : sp.supplier_id)}>
               {sp.name}
             </button>
@@ -775,7 +775,7 @@ function TradesList({ onOpen }) {
             <strong>{t.wine_name}</strong>
             <span className="muted"> · {t.quantity} × {t.pack_size > 1 ? `${t.pack_size} × ` : ""}{t.bottle_ml / 10}cl</span>
             <span className="muted" style={{ display: "block", fontSize: 13 }}>
-              {gbp(toPence(t.vessel_sell))}{t.pack_size > 1 ? "/case" : "/bt"}
+              {quotePrice(t.vessel_sell, t.quote_unit, t.pack_size, "GBP", { whole: true })}
               {t.buyer_name ? ` · ${t.buyer_name}` : ""}{` · ${shortDate(t.priced_at)}`}
             </span>
           </span>
@@ -830,14 +830,16 @@ function PriceRow({ label, value, sub, children, open, onToggle }) {
 
 /** The pricing screen: SUPPLIER, MARKET, AUCTION, then VESSEL SELL — the one
  * number Doug sets, by % or by typing it, the two always in step. Every
- * figure shown is per bottle; the server stores and checks per commercial
- * unit. Gates that would need an accept are previewed here and decided by
- * the server at CREATE OFFER. */
+ * figure is shown in the supplier's own quote unit (/btl or /cs of N,
+ * decision 0047) with an ISO currency code; the API stores and checks per
+ * commercial unit. A VESSEL sell is always a whole 5 in the quote unit,
+ * rounded UP. Gates that would need an accept are previewed here and decided
+ * by the server at CREATE OFFER. */
 function PricingScreen({ offerId, onStartOver }) {
   const [view, setView] = useState(LOADING);
   const [collect, setCollect] = useState(ok(null));
-  const [sell, setSell] = useState(null);          // per commercial unit, pence
-  const [sellText, setSellText] = useState("");    // per bottle, as typed
+  const [sell, setSell] = useState(null);          // in the quote unit, pence, a whole 5
+  const [sellText, setSellText] = useState("");    // in the quote unit, as typed
   const [availability, setAvailability] = useState("");
   const [create, setCreate] = useState(ok(null));
   const [gate, setGate] = useState(null);
@@ -846,15 +848,17 @@ function PricingScreen({ offerId, onStartOver }) {
   const [complete, setComplete] = useState(ok(null));
   const [openRow, setOpenRow] = useState(null);
 
-  function setSellUnit(unitPence, packSize) {
-    setSell(unitPence);
-    setSellText(inputText(perBottlePence(unitPence, packSize)));
+  function setSellQuote(quotePence) {
+    setSell(quotePence);
+    setSellText(inputText(quotePence));
   }
 
   function adopt(data, { keepSell = false } = {}) {
     setView(ok(data));
     const start = data.committed?.vessel_sell ?? data.default_vessel_sell;
-    if (start != null && !(keepSell && sell != null)) setSellUnit(toPence(start), data.pack_size);
+    if (start != null && !(keepSell && sell != null)) {
+      setSellQuote(toQuote(toPence(start), data.quote_unit, data.pack_size));
+    }
     if (!keepSell) setAvailability(data.availability || "");
   }
 
@@ -879,11 +883,13 @@ function PricingScreen({ offerId, onStartOver }) {
     }
   }
 
-  async function createOffer(accept) {
+  async function createOffer(accept, unit, pack) {
     setCreate(LOADING);
+    setSellText(inputText(sell));
     try {
       const data = await api.post(`/inbound-offers/${offerId}/offer`, {
-        vessel_sell: toMoney(sell), availability: availability.trim() || null, accept });
+        vessel_sell: toMoney(fromQuote(sell, unit, pack)),
+        availability: availability.trim() || null, accept });
       setGate(null);
       setCreate(ok(true));
       adopt(data, { keepSell: true });
@@ -934,29 +940,41 @@ function PricingScreen({ offerId, onStartOver }) {
   const v = view.data;
   if (!v) return null;
   const pack = v.pack_size;
+  const unit = v.quote_unit;
+  const label = quoteLabel(unit, pack);
+  const cur = v.supplier_currency || "GBP";
   const title = wineTitle(v);
   const lineText = `${v.quantity} × ${pack > 1 ? `${pack} × ` : ""}${v.bottle_ml / 10}cl`;
   const where = [v.bond_status, v.stock_location].filter(Boolean).join(" · ");
+  // Quote-unit figures for display; comparisons and arithmetic run per
+  // commercial unit, exactly as the server stores them.
+  const quoteOf = (unitPence) => toQuote(unitPence, unit, pack);
+  const perBottleToQuote = (bottlePence) => (unit === "case" ? bottlePence * pack : bottlePence);
+  const units = unit === "case" ? `${v.quantity} cs` : `${v.quantity * pack} btl`;
 
   if (v.fulfilment) {
     return <ConfirmedTrade f={v.fulfilment} complete={complete} onComplete={markComplete}
                            onStartOver={onStartOver} />;
   }
 
-  const supplier = v.ask ? toPence(v.ask.per_unit) : null;
-  const floor = v.market ? toPence(v.market.floor_per_unit) : null;
-  const bp = supplier && sell != null ? markupBp(sell, supplier) : null;
+  const supplierUnit = v.ask ? toPence(v.ask.per_unit) : null;
+  const supplierQuote = v.supplier_quote != null ? toPence(v.supplier_quote) : null;
+  const floorUnit = v.market ? toPence(v.market.floor_per_unit) : null;
+  const sellUnit = sell != null ? fromQuote(sell, unit, pack) : null;
+  const bp = supplierUnit && sellUnit != null ? markupBp(sellUnit, supplierUnit) : null;
   const minBp = Math.round(Number(v.min_trade_margin) * 10000);
-  const grossUnit = supplier != null && sell != null ? sell - supplier : null;
-  const vsMarket = floor && sell != null ? vsMarketBp(sell, floor) : null;
+  const grossUnit = supplierUnit != null && sellUnit != null ? sellUnit - supplierUnit : null;
+  const vsMarket = floorUnit && sellUnit != null ? vsMarketBp(sellUnit, floorUnit) : null;
   const committed = v.committed;
-  const dirty = committed && (toPence(committed.vessel_sell) !== sell
+  const dirty = committed && (toPence(committed.vessel_sell) !== sellUnit
                               || (availability.trim() || null) !== (v.availability || null));
   const canCreate = sell != null && sell > 0 && create.status !== "loading";
+  const typed = parsePounds(sellText);
+  const roundsTo = typed != null && typed > 0 && ceilToStep(typed) !== typed ? ceilToStep(typed) : null;
 
   const warnings = [];
-  if (floor && sell != null && sell >= floor) warnings.push("At or above the market price — needs your accept.");
-  if (supplier && sell != null && sell < supplier) warnings.push("Below the supplier price — needs your accept.");
+  if (floorUnit && sellUnit != null && sellUnit >= floorUnit) warnings.push("At or above the market price — needs your accept.");
+  if (supplierUnit && sellUnit != null && sellUnit < supplierUnit) warnings.push("Below the supplier price — needs your accept.");
   // Four market states, never collapsed (decision 0040/0046): evidence
   // found, checked and none found, never checked, and a check that failed.
   const marketMissing = !v.market;
@@ -969,6 +987,11 @@ function PricingScreen({ offerId, onStartOver }) {
     warnings.push(`The market ${v.market_note} — needs your accept.`);
   }
 
+  const offerText = committed && tombstone({
+    wineName: title, quantity: v.quantity, pack_size: pack, bottle_ml: v.bottle_ml,
+    bond_status: v.bond_status, stock_location: v.stock_location,
+    availability: v.availability, vesselSell: committed.vessel_sell, quoteUnit: unit });
+
   return (
     <div className="pocket">
       <div className="pocket-head">
@@ -979,11 +1002,11 @@ function PricingScreen({ offerId, onStartOver }) {
       </div>
 
       <PriceRow label="SUPPLIER"
-                value={v.ask ? `${gbp(toPence(v.ask.per_bottle))} / bt` : "No price recorded"}
-                sub={v.ask ? `${gbp(toPence(v.ask.total))} total` : "Start over to add the supplier's price"} />
+                value={supplierQuote != null ? `${fmt(supplierQuote, cur)} ${label}` : "No price recorded"}
+                sub={v.ask ? `${fmt(toPence(v.ask.total), cur)} · ${units}` : "Start over to add the supplier's price"} />
 
       {v.market ? (
-        <PriceRow label="MARKET" value={`${gbp(toPence(v.market.floor_per_bottle))} / bt`}
+        <PriceRow label="MARKET" value={`${fmt(quoteOf(floorUnit), "GBP", { whole: true })} ${label}`}
                   sub={`${v.market.comp_count} source${v.market.comp_count === 1 ? "" : "s"}`
                        + (v.market.checked_at ? ` · checked ${shortDate(v.market.checked_at)}` : "")}
                   open={openRow === "market"}
@@ -991,13 +1014,14 @@ function PricingScreen({ offerId, onStartOver }) {
           {v.market.comps.map((c) => (
             <div key={c.merchant} className="pocket-comp">
               <span>{c.merchant}</span>
-              <span>{gbp(toPence(c.per_bottle))}{c.captured_at ? ` · ${shortDate(c.captured_at)}` : ""}</span>
+              <span>{fmt(perBottleToQuote(toPence(c.per_bottle)), "GBP", { whole: true })}
+                {c.captured_at ? ` · ${shortDate(c.captured_at)}` : ""}</span>
             </div>
           ))}
           {v.walk_away && (
             <p className="muted" style={{ fontSize: 13, margin: "8px 0 0" }}>
-              Walk-away {gbp(toPence(v.walk_away.walk_away_per_bottle))}/bt — the most you can pay
-              and still make {formatBp(minBp, { signed: false })} selling 5% under market.
+              Walk-away {fmt(quoteOf(toPence(v.walk_away.walk_away)), "GBP", { whole: true })} {label} — the
+              most you can pay and still make {formatBp(minBp, { signed: false })} selling 5% under market.
             </p>
           )}
           <CollectNowPanel collectNow={collect} onCollectNow={runCollect} />
@@ -1018,7 +1042,9 @@ function PricingScreen({ offerId, onStartOver }) {
       )}
 
       <PriceRow label="AUCTION"
-                value={v.auction?.median_per_bottle ? `${gbp(toPence(v.auction.median_per_bottle))} / bt` : "None on record"}
+                value={v.auction?.median_per_bottle
+                  ? `${fmt(perBottleToQuote(toPence(v.auction.median_per_bottle)), "GBP", { whole: true })} ${label}`
+                  : "None on record"}
                 sub={v.auction ? `${v.auction.lot_count} lot${v.auction.lot_count === 1 ? "" : "s"}`
                                  + (v.auction.latest_sale_date ? ` · ${monthYear(v.auction.latest_sale_date)}` : "")
                                : null} />
@@ -1026,26 +1052,30 @@ function PricingScreen({ offerId, onStartOver }) {
       <div className="pocket-sell">
         <div className="pocket-label">VESSEL SELL</div>
         <div className="pocket-sell-price">
-          <span>£</span>
-          <input inputMode="decimal" aria-label="VESSEL sell price per bottle" value={sellText}
+          <span className="pocket-currency">GBP</span>
+          <input inputMode="decimal" aria-label={`VESSEL sell price ${label}`} value={sellText}
                  onChange={(e) => {
                    setSellText(e.target.value);
                    const p = parsePounds(e.target.value);
-                   if (p != null && p > 0) setSell(p * pack);
-                 }} />
-          <span className="muted">/ bt</span>
+                   if (p != null && p > 0) setSell(ceilToStep(p));
+                 }}
+                 onBlur={() => { if (sell != null) setSellText(inputText(sell)); }} />
+          <span className="muted">{label}</span>
         </div>
+        {roundsTo != null && (
+          <div className="muted" style={{ fontSize: 13 }}>→ {fmt(roundsTo, "GBP")} {label}</div>
+        )}
         <div className="pocket-stepper">
           <button type="button" className="quiet" aria-label="lower markup" disabled={bp == null}
-                  onClick={() => setSellUnit(sellFromMarkup(supplier, stepBp(bp, -1)), pack)}>−</button>
+                  onClick={() => setSellQuote(stepQuote(sell, supplierQuote, -1))}>−</button>
           <span>{bp == null ? "—" : formatBp(bp)}</span>
           <button type="button" className="quiet" aria-label="raise markup" disabled={bp == null}
-                  onClick={() => setSellUnit(sellFromMarkup(supplier, stepBp(bp, +1)), pack)}>+</button>
+                  onClick={() => setSellQuote(stepQuote(sell, supplierQuote, +1))}>+</button>
         </div>
         {grossUnit != null && (
           <div className="pocket-gross">
-            <div><strong>{gbp(perBottlePence(grossUnit, pack))} / bt gross</strong></div>
-            <div>{gbp(grossUnit * v.quantity)} total</div>
+            <div><strong>{fmt(quoteOf(grossUnit), "GBP", { whole: true })} {unit === "case" ? "/cs" : "/btl"} gross</strong></div>
+            <div>{fmt(grossUnit * v.quantity, "GBP", { whole: true })} total</div>
           </div>
         )}
         {vsMarket != null && (
@@ -1070,7 +1100,7 @@ function PricingScreen({ offerId, onStartOver }) {
         <div className="notice bad" style={{ marginTop: 10 }}>
           {gate}
           <div style={{ marginTop: 8 }}>
-            <button type="button" onClick={() => createOffer(true)} disabled={!canCreate}>
+            <button type="button" onClick={() => createOffer(true, unit, pack)} disabled={!canCreate}>
               {marketMissing ? "Proceed without current market evidence" : "Accept and create offer"}
             </button>
           </div>
@@ -1080,7 +1110,7 @@ function PricingScreen({ offerId, onStartOver }) {
       {(!committed || dirty) && !gate && (
         <div className="pocket-actions">
           <button type="button" className="quiet" onClick={onStartOver}>PASS</button>
-          <button type="button" onClick={() => createOffer(false)} disabled={!canCreate}>
+          <button type="button" onClick={() => createOffer(false, unit, pack)} disabled={!canCreate}>
             {create.status === "loading" ? "Creating…" : committed ? "UPDATE OFFER" : "CREATE OFFER"}
           </button>
         </div>
@@ -1089,15 +1119,9 @@ function PricingScreen({ offerId, onStartOver }) {
       {committed && (
         <div className="card" style={{ marginTop: 14 }}>
           <div className="pocket-label">OFFER</div>
-          <pre className="pocket-message">{tombstone({
-            wineName: title, quantity: v.quantity, pack_size: pack, bottle_ml: v.bottle_ml,
-            bond_status: v.bond_status, stock_location: v.stock_location,
-            availability: v.availability, vesselSell: committed.vessel_sell })}</pre>
+          <pre className="pocket-message">{offerText}</pre>
           {dirty && <p className="notice" style={{ fontSize: 13 }}>Price changed — update the offer before sharing.</p>}
-          <ShareButtons disabled={dirty} text={tombstone({
-            wineName: title, quantity: v.quantity, pack_size: pack, bottle_ml: v.bottle_ml,
-            bond_status: v.bond_status, stock_location: v.stock_location,
-            availability: v.availability, vesselSell: committed.vessel_sell })} />
+          <ShareButtons disabled={dirty} text={offerText} />
 
           <div style={{ marginTop: 16 }}>
             <label htmlFor="pbuyer">Buyer said yes? Who</label>
@@ -1107,7 +1131,8 @@ function PricingScreen({ offerId, onStartOver }) {
             <button type="button" style={{ marginTop: 8, width: "100%" }}
                     disabled={dirty || !buyer.trim() || confirm.status === "loading"}
                     onClick={confirmTrade}>
-              {confirm.status === "loading" ? "Confirming…" : `CONFIRM at ${gbp(perBottlePence(toPence(committed.vessel_sell), pack))}/bt`}
+              {confirm.status === "loading" ? "Confirming…"
+                : `CONFIRM at ${quotePrice(committed.vessel_sell, unit, pack, "GBP", { whole: true })}`}
             </button>
           </div>
         </div>

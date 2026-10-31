@@ -1,14 +1,16 @@
 :root {
-  --ink: #1a1614;
-  --muted: #6b625c;
-  --line: #e2dcd6;
-  --bg: #faf8f6;
+  /* Operator palette: calm navy/blue instrument, red only for errors and gates. */
+  --ink: #161B22;
+  --muted: #5B6675;
+  --line: #E1E8EF;
+  --bg: #F5F9FC;
   --card: #ffffff;
-  --wine: #6b1d33;
-  --wine-soft: #f4e9ec;
-  --ready: #1f6f43;
-  --review: #9a6212;
-  --stop: #a3241f;
+  --navy: #102A56;
+  --primary: #174EA6;
+  --ocean: #236FA1;
+  --sky: #8EC5E8;
+  --sky-soft: #E6F1FA;
+  --stop: #B42318;
   --radius: 10px;
 }
 
@@ -23,7 +25,7 @@ html, body {
   -webkit-text-size-adjust: 100%;
 }
 
-a { color: var(--wine); }
+a { color: var(--primary); }
 
 header.top {
   background: var(--card);
@@ -43,7 +45,7 @@ header.top .inner {
   align-items: center;
 }
 
-header.top .brand { font-weight: 650; color: var(--wine); margin-right: auto; }
+header.top .brand { font-weight: 650; color: var(--primary); margin-right: auto; }
 header.top nav { display: flex; gap: 14px; flex-wrap: wrap; }
 header.top nav a { text-decoration: none; color: var(--muted); }
 header.top nav a.on { color: var(--ink); font-weight: 600; }
@@ -82,12 +84,12 @@ button {
   font: inherit;
   padding: 9px 14px;
   border-radius: 8px;
-  border: 1px solid var(--wine);
-  background: var(--wine);
+  border: 1px solid var(--primary);
+  background: var(--primary);
   color: #fff;
   cursor: pointer;
 }
-button.quiet { background: #fff; color: var(--wine); }
+button.quiet { background: #fff; color: var(--primary); }
 button:disabled { opacity: 0.5; cursor: default; }
 button.small { padding: 6px 10px; font-size: 13px; }
 
@@ -102,21 +104,21 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   padding: 2px 8px;
   border-radius: 999px;
   font-size: 12px;
-  background: var(--wine-soft);
-  color: var(--wine);
+  background: var(--sky-soft);
+  color: var(--primary);
   margin: 1px 4px 1px 0;
   white-space: nowrap;
 }
-.tag.ready { background: #e6f2eb; color: var(--ready); }
-.tag.review { background: #fbf0dc; color: var(--review); }
+.tag.ready { background: var(--sky-soft); color: var(--ocean); }
+.tag.review { background: var(--sky-soft); color: var(--navy); }
 /* The "needs you" reason (Cellar Desk) is a short sentence, not a word --
    e.g. "2 merchants, 57% apart" -- so it wraps instead of overflowing. */
-.tag.stop { background: #fae9e8; color: var(--stop); white-space: normal; text-align: left; }
-.tag.plain { background: #f0edea; color: var(--muted); }
+.tag.stop { background: #FDECEA; color: var(--stop); white-space: normal; text-align: left; }
+.tag.plain { background: #EEF2F6; color: var(--muted); }
 
 .notice { padding: 10px 12px; border-radius: 8px; margin-bottom: 14px; }
-.notice.bad { background: #fae9e8; color: var(--stop); }
-.notice.good { background: #e6f2eb; color: var(--ready); }
+.notice.bad { background: #FDECEA; color: var(--stop); }
+.notice.good { background: var(--sky-soft); color: var(--navy); }
 .muted { color: var(--muted); }
 .verbatim { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
 
@@ -132,19 +134,19 @@ tr.off { opacity: 0.4; }
 .w em { font-style: normal; font-weight: 400; color: var(--muted); }
 th.sortable { cursor: pointer; }
 .ev {
-  background: none; border: 0; color: var(--wine); font: inherit; cursor: pointer;
+  background: none; border: 0; color: var(--primary); font: inherit; cursor: pointer;
   padding: 0; text-decoration: underline;
 }
-tr.evrow td { background: var(--wine-soft); font-size: 13.5px; padding: 12px 14px; }
+tr.evrow td { background: var(--sky-soft); font-size: 13.5px; padding: 12px 14px; }
 tr.evrow table { width: auto; margin: 6px 0; }
 tr.evrow .sub2 { padding: 2px 16px 2px 0; border: 0; background: none; }
 .gate {
   margin-top: 8px; padding: 10px 12px; border-radius: 8px;
-  background: var(--card); border: 1px solid var(--review); color: var(--ink);
+  background: var(--card); border: 1px solid var(--navy); color: var(--ink);
 }
-.gate strong { color: var(--review); }
+.gate strong { color: var(--navy); }
 .accept {
-  display: block; margin-top: 8px; font: 600 13px inherit; background: var(--review);
+  display: block; margin-top: 8px; font: 600 13px inherit; background: var(--navy);
   color: #fff; border: 0; border-radius: 6px; padding: 7px 12px; cursor: pointer;
 }
 .agency {
@@ -156,7 +158,7 @@ tr.evrow .sub2 { padding: 2px 16px 2px 0; border: 0; background: none; }
   border: 1px solid var(--line); border-radius: 4px; font: inherit;
 }
 .warn {
-  background: var(--wine-soft); border: 1px solid var(--review); border-radius: 8px;
+  background: var(--sky-soft); border: 1px solid var(--navy); border-radius: 8px;
   padding: 10px 12px; margin: 10px 0; font-size: 13.5px;
 }
 .foot {
@@ -168,11 +170,11 @@ tr.evrow .sub2 { padding: 2px 16px 2px 0; border: 0; background: none; }
 .foot div { min-width: 120px; }
 .foot dt { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
 .foot dd { margin: 0; font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.foot dd.big { font-size: 20px; color: var(--wine); }
+.foot dd.big { font-size: 20px; color: var(--primary); }
 .foot .gbp { font-size: 12px; color: var(--muted); font-weight: 400; }
 .act { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
 .act a.go, .act button.go {
-  background: var(--wine); color: #fff; text-decoration: none; display: inline-block;
+  background: var(--primary); color: #fff; text-decoration: none; display: inline-block;
 }
 .act a.go.disabled { opacity: 0.5; cursor: default; pointer-events: none; }
 
@@ -184,7 +186,7 @@ button.pcell {
   background: none; border: 0; font: inherit; cursor: pointer; padding: 0;
   display: block; width: 100%;
 }
-button.pcell .pb { text-decoration: underline; color: var(--wine); }
+button.pcell .pb { text-decoration: underline; color: var(--primary); }
 .pcell .pb { font-weight: 600; font-size: 14px; }
 .pcell .pbgbp { font-size: 11px; }
 .pcell .pbtot { font-size: 11px; }
@@ -195,7 +197,7 @@ button.pcell .pb { text-decoration: underline; color: var(--wine); }
 }
 .offerdoc .mark {
   font: 600 .85rem/1 ui-sans-serif, system-ui, sans-serif; letter-spacing: .3em;
-  text-transform: uppercase; margin: 0 0 .6rem; color: var(--wine);
+  text-transform: uppercase; margin: 0 0 .6rem; color: var(--primary);
 }
 .offerdoc .to {
   margin: 1.4rem 0 1.8rem; padding: 1rem 1.2rem; background: var(--card);
@@ -223,11 +225,11 @@ button.pcell .pb { text-decoration: underline; color: var(--wine); }
   text-transform: uppercase; letter-spacing: .04em;
 }
 .oline .ogbp { font-size: .78rem; color: var(--muted); margin: .1rem 0 0; }
-.oline .osave { margin: .25rem 0 0; font-size: .85rem; font-weight: 600; color: var(--wine); }
+.oline .osave { margin: .25rem 0 0; font-size: .85rem; font-weight: 600; color: var(--primary); }
 .oline .otot { margin: .4rem 0 0; font-size: .8rem; color: var(--muted); }
 .oline details { margin-top: .85rem; border-top: 1px solid var(--line); padding-top: .65rem; }
 .oline summary {
-  cursor: pointer; font: 600 .8rem ui-sans-serif, system-ui, sans-serif; color: var(--wine);
+  cursor: pointer; font: 600 .8rem ui-sans-serif, system-ui, sans-serif; color: var(--primary);
 }
 table.oev { width: 100%; border-collapse: collapse; margin: .65rem 0 .5rem; font-size: 13.5px; }
 table.oev th {
@@ -239,7 +241,7 @@ table.oev .n { text-align: right; font-variant-numeric: tabular-nums; }
 table.oev .u { color: var(--muted); font-size: .8rem; }
 .oprov { font: 13px/1.55 ui-sans-serif, system-ui, sans-serif; color: var(--muted); margin: .5rem 0 0; }
 .ototals {
-  background: var(--wine-soft); border: 1px solid var(--line); border-radius: 6px;
+  background: var(--sky-soft); border: 1px solid var(--line); border-radius: 6px;
   padding: 1.1rem 1.3rem; margin: 1.4rem 0;
 }
 .ototals dl { margin: 0; display: grid; grid-template-columns: 1fr auto; gap: .5rem 1.4rem; }
@@ -247,7 +249,7 @@ table.oev .u { color: var(--muted); font-size: .8rem; }
 .ototals dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
 .ototals .big { font-size: 1.25rem; font-weight: 650; padding-top: .55rem; border-top: 1px solid var(--line); }
 .ototals .bigl { padding-top: .55rem; border-top: 1px solid var(--line); font-weight: 600; }
-.ototals .sv { color: var(--wine); font-weight: 600; }
+.ototals .sv { color: var(--primary); font-weight: 600; }
 .onote {
   font-size: .88rem; color: var(--muted); border-left: 3px solid var(--line);
   padding-left: 1rem; margin: 1.2rem 0;
@@ -285,19 +287,19 @@ table.oev .u { color: var(--muted); font-size: .8rem; }
 .pocket-detail { padding: 0 0 12px; font-size: 14px; }
 .pocket-comp { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; }
 .pocket-sell {
-  border-top: 2px solid var(--wine); margin-top: 6px; padding: 14px 0 4px; text-align: center;
+  border-top: 2px solid var(--primary); margin-top: 6px; padding: 14px 0 4px; text-align: center;
 }
 .pocket-sell-price { display: flex; align-items: baseline; justify-content: center; gap: 4px; margin: 6px 0; }
 .pocket-sell-price span:first-child { font-size: 30px; font-weight: 650; }
 .pocket-sell-price input {
   width: 7ch; font-size: 34px; font-weight: 700; text-align: center; padding: 4px 6px;
-  font-variant-numeric: tabular-nums; color: var(--wine);
+  font-variant-numeric: tabular-nums; color: var(--primary);
 }
 .pocket-stepper { display: flex; align-items: center; justify-content: center; gap: 18px; margin: 6px 0 10px; }
 .pocket-stepper button { width: 56px; height: 48px; font-size: 24px; padding: 0; }
 .pocket-stepper span { min-width: 7ch; font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .pocket-gross { font-size: 16px; }
-.pocket-vs { margin-top: 6px; font-size: 16px; font-weight: 600; color: var(--ready); }
+.pocket-vs { margin-top: 6px; font-size: 16px; font-weight: 600; color: var(--ocean); }
 .pocket-warn { margin-top: 8px; font-size: 13px; color: var(--stop); }
 .pocket-actions { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; margin-top: 14px; }
 .pocket-actions button { padding: 14px; font-weight: 600; }
@@ -309,3 +311,21 @@ table.oev .u { color: var(--muted); font-size: .8rem; }
   display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
   background: var(--card); color: var(--ink); border: 1px solid var(--line); margin-bottom: 8px;
 }
+
+/* ---- headings and brand in navy: the operator tool's one strong colour. */
+h1, h2 { color: var(--navy); }
+header.top .brand { color: var(--navy); }
+.pocket-currency { font-size: 20px; font-weight: 600; color: var(--muted); align-self: center; }
+
+/* ---- customer-facing pages (shared offers, VESSEL public pages): quiet,
+   editorial, nearly black and white — no operator blue. */
+html:has(main.public), body:has(main.public) { background: #ffffff; }
+main.public {
+  --primary: #161B22; --navy: #161B22; --ocean: #161B22;
+  --sky: #D0D5DB; --sky-soft: #F4F5F7; --bg: #ffffff; --line: #E6E8EB;
+  background: #ffffff;
+}
+main.public h1, main.public h2, main.public strong, main.public th { font-weight: 500; }
+main.public .card { border-color: var(--line); }
+main.public button { background: #161B22; border-color: #161B22; font-weight: 400; }
+main.public button.quiet { background: #ffffff; color: #161B22; }

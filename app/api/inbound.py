@@ -297,11 +297,16 @@ def _pocket_facts(conn: psycopg.Connection, offer: dict, line_row: dict,
         supplier_currency=offer["confirmed_asking_currency"], min_trade_margin=MIN_TRADE_MARGIN,
         market=_market(conn, run, pack_size), market_note=_market_note(run),
         committed=_committed(conn, str(line_row["line_id"])))
+    unit = pricer.quote_unit(offer["confirmed_asking_basis"], pack_size)
+    facts["quote_unit"] = unit
     ask_unit = _ask_unit(offer, line_row)
     if ask_unit is not None:
         facts["ask"] = s.AskOut(per_unit=ask_unit, per_bottle=_round2(ask_unit / pack_size),
                                 total=_round2(ask_unit * line_row["quantity"]))
-        facts["default_vessel_sell"] = pricer.default_vessel_sell(ask_unit)
+        supplier_quote = pricer.per_quote(ask_unit, unit, pack_size)
+        facts["supplier_quote"] = _round2(supplier_quote)
+        default_quote = pricer.default_vessel_sell(supplier_quote)
+        facts["default_vessel_sell"] = default_quote * (1 if unit == "case" else pack_size)
     ref = _dec(run["uk_reference"]) if run else None
     health = auction_repo.line_auction_health(
         conn, str(line_row["line_id"]),
@@ -312,7 +317,8 @@ def _pocket_facts(conn: psycopg.Connection, offer: dict, line_row: dict,
                                         latest_sale_date=health.latest_sale_date)
     f = inbound_repo.get_fulfilment(conn, str(offer["inbound_offer_id"]))
     if f is not None:
-        facts["fulfilment"] = s.FulfilmentOut.model_validate(f)
+        facts["fulfilment"] = s.FulfilmentOut.model_validate(
+            {**f, "quote_unit": pricer.quote_unit(offer["confirmed_asking_basis"], f["pack_size"])})
     return facts
 
 
@@ -519,6 +525,12 @@ def create_offer(inbound_offer_id: UUID, body: s.CreatePocketOfferIn,
     if currency != "GBP":
         raise HTTPException(422, f"the supplier price is in {currency} — Pocket can only price "
                                  "a GBP supplier price for now")
+    pack_size = line_row["pack_size"]
+    unit = pricer.quote_unit(offer["confirmed_asking_basis"], pack_size)
+    if not pricer.is_quotable(body.vessel_sell, unit, pack_size):
+        label = "/btl" if unit == "bottle" else f"/cs of {pack_size}"
+        raise HTTPException(422, f"the VESSEL sell price must be a whole multiple of "
+                                 f"{currency} {pricer.QUOTE_STEP} {label}")
     try:
         priced = pricer.price_parcel_trade(
             vessel_sell=body.vessel_sell, supplier_price=ask_unit, supplier_currency=currency,
@@ -609,5 +621,6 @@ def pocket_trades(conn: psycopg.Connection = Depends(db)):
     for r in inbound_repo.list_trades(conn):
         state = {"OPEN": "CONFIRMED", "COMPLETE": "COMPLETE"}.get(r["fulfilment_state"], "OFFERED")
         name = repo.wine_display_name(r, {"producer": r["producer"], "cuvee": r["cuvee"]})
-        out.append(s.PocketTradeOut(**r, wine_name=name, state=state))
+        out.append(s.PocketTradeOut(**r, wine_name=name, state=state,
+                                    quote_unit=pricer.quote_unit(r["asking_basis"], r["pack_size"])))
     return out

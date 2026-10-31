@@ -1136,7 +1136,14 @@ class EvaluateOut(_Out):
     #: NO_MARKET) — never a flag constant.
     market_note: Optional[str] = None
     auction: Optional["AuctionOut"] = None
-    #: Per commercial unit: supplier price + MIN_TRADE_MARGIN, the starting point.
+    #: Decision 0047: "case" (/cs of pack_size) or "bottle" (/btl) -- the
+    #: supplier's own commercial unit, which every Pocket price is shown in.
+    quote_unit: Optional[Literal["case", "bottle"]] = None
+    #: The supplier price in the quote unit: exactly as stated when stated per
+    #: case or per bottle; derived only for a total.
+    supplier_quote: Optional[Money] = None
+    #: Per commercial unit: supplier price + MIN_TRADE_MARGIN, rounded UP to
+    #: the next whole 5 in the quote unit -- the starting point.
     default_vessel_sell: Optional[Money] = None
     min_trade_margin: Decimal
     committed: Optional["CommittedOfferOut"] = None
@@ -1198,6 +1205,7 @@ class FulfilmentOut(_Out):
     supplier_price: Money
     vessel_sell_price: Money
     gross_total: Money
+    quote_unit: Literal["case", "bottle"] = "bottle"
     state: Literal["OPEN", "COMPLETE"]
     confirmed_at: datetime
     completed_at: Optional[datetime] = None
@@ -1227,6 +1235,7 @@ class PocketTradeOut(_Out):
     supplier_name: Optional[str] = None
     state: Literal["OFFERED", "CONFIRMED", "COMPLETE"]
     buyer_name: Optional[str] = None
+    quote_unit: Literal["case", "bottle"] = "bottle"
 
 
 EvaluateOut.model_rebuild()
