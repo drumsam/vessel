@@ -793,6 +793,15 @@ live; Christie's own is disallowed by robots.txt; iDealwine's is
 unverified), so all three read caller-supplied lot/product paths, same
 discipline as Jeroboams' own `product_paths`.
 
+Market evidence from any provider enters through one source-agnostic pipe
+(decision 0048): `POST /market-evidence/batches`, behind a narrow
+`MARKET_FEED_TOKEN`, runs structured observations through the same
+`jobs.ingest` every adapter uses. Merchants map onto the register (no second
+Farr); a genuinely new merchant is created unapproved and sets no Floor until
+approved. A feed capture is scoped to its one wine (`snapshot_merchant.
+scope_wine_id`) so it can never mask a sibling wine of the same producer and
+vintage. Acquisition is a separate concern: no scraper lives behind this pipe.
+
 Not built yet: the LWIN import (decision 0012 — waiting on the file), Albany and
 Vinum, the remaining merchant adapters, AI provider implementations. A client-
 and buyer-facing exported document (HTML/PDF) is specified

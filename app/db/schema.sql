@@ -1396,3 +1396,11 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER fulfilment_no_mutation
     BEFORE UPDATE OR DELETE ON fulfilment
     FOR EACH ROW EXECUTE FUNCTION fulfilment_freeze();
+
+-- ================================================ market-evidence feeds (0048)
+
+-- A feed capture covers exactly one wine, never every wine of its producer and
+-- vintage: NULL keeps a capture's producer/vintage (or whole-book) scope.
+ALTER TABLE snapshot_merchant ADD COLUMN scope_wine_id uuid REFERENCES wine(wine_id);
+ALTER TABLE snapshot_merchant ADD CONSTRAINT snapshot_merchant_wine_scope
+    CHECK (scope_wine_id IS NULL OR scope_producer_key IS NOT NULL);

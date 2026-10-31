@@ -392,15 +392,16 @@ def write_snapshot_merchant(conn: psycopg.Connection, snapshot_id: str, merchant
                             captured_at: datetime, error: str | None = None,
                             scope_producer_key: str | None = None,
                             scope_vintage: int | None = None, scope_params: dict | None = None,
+                            scope_wine_id: str | None = None,
                             written: int = 0, rejected: int = 0) -> None:
     conn.execute(
         """INSERT INTO snapshot_merchant (snapshot_id, merchant_id, status, captured_at,
                                           scope_producer_key, scope_vintage, scope_params,
-                                          offers_written, offers_rejected, error)
-           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                                          scope_wine_id, offers_written, offers_rejected, error)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
         (snapshot_id, merchant_id, "failed" if error else "ok", captured_at,
          scope_producer_key, scope_vintage, Jsonb(scope_params or {}),
-         written, rejected, error),
+         scope_wine_id, written, rejected, error),
     )
 
 
@@ -556,7 +557,10 @@ def offer_from_row(r: dict) -> Offer:
 # whose scope covers this producer and vintage. A whole-book capture covers
 # everything; a targeted search covers only what it searched. If a merchant's
 # latest covering capture no longer lists the wine, the merchant contributes
-# nothing: an older capture is never used to resurrect a sold listing.
+# nothing: an older capture is never used to resurrect a sold listing. A
+# market-feed capture names its one wine (scope_wine_id, decision 0048) and
+# covers nothing else, so it can never mask a sibling wine of the same
+# producer and vintage.
 _SOURCES_CTE = """
 WITH ranked AS (
     SELECT sm.merchant_id, sm.snapshot_id, sm.captured_at,
@@ -569,6 +573,7 @@ WITH ranked AS (
        AND sm.captured_at <= %(as_of)s
        AND (sm.scope_producer_key IS NULL
             OR (sm.scope_producer_key = %(producer_key)s AND sm.scope_vintage = %(vintage)s))
+       AND (sm.scope_wine_id IS NULL OR sm.scope_wine_id = %(wine_id)s)
 ), src AS (SELECT merchant_id, snapshot_id, captured_at FROM ranked WHERE rn = 1)
 """
 
