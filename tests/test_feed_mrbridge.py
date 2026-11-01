@@ -214,3 +214,12 @@ def test_a_feed_row_that_cannot_count_never_hides_a_merchants_own_in_bond_price(
                               as_of=datetime(2026, 11, 2, tzinfo=timezone.utc))
     farr = [o for o in res.offers if o.merchant_id == "farr"]
     assert [(o.duty_status, str(o.price)) for o in farr] == [(DutyStatus.IN_BOND, "1500.00")]
+
+
+def test_the_post_script_chunks_and_never_needs_the_token_for_a_dry_run(monkeypatch, capsys):
+    import runpy
+    monkeypatch.delenv("MARKET_FEED_TOKEN", raising=False)
+    script = runpy.run_path(str(ROOT / "scripts/post_mrbridge_batch.py"))
+    assert [len(c) for c in script["chunks"](list(range(650)), 300)] == [300, 300, 50]
+    lines = script["overview"](mrbridge.to_batch(ROWS)[0]["observations"])
+    assert len(lines) == 4 and "Mann Fine Wine" in lines[2] and "size not stated" in lines[2]
