@@ -2,86 +2,114 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { api, money } from "../../lib/api";
+import { api } from "../../lib/api";
 import { fetchInto, listStateMessage, LOADING } from "../../lib/fetchState";
-import { Flags, StateTag } from "../state";
+import { TradeRow } from "../trade-row";
 
-/** Everything waiting on a person: lines, LWIN conflicts, alias suggestions.
- * A queue that cannot load is never shown as an empty queue (decision 0040)
- * — "None open"/"None yet" is a checked, clear answer, not a default. */
+/** To Review (decision 0051): exactly what the Workbench's TO REVIEW counts —
+ * Pocket offers, cellar lines, new merchants, LWIN conflicts and wine
+ * spellings — and nothing it does not. Each section appears only when it has
+ * something in it; a list that could not load says so and is never shown as
+ * an empty one (decision 0040). */
 export default function QueuePage() {
-  const [lines, setLines] = useState([]);
+  const [wb, setWb] = useState(LOADING);
+  const [lines, setLines] = useState(LOADING);
+  const [merchants, setMerchants] = useState(LOADING);
   const [conflicts, setConflicts] = useState(LOADING);
   const [suggestions, setSuggestions] = useState(LOADING);
-  const [error, setError] = useState(null);
 
   const load = useCallback(() => {
-    api.get("/review-queue").then(setLines).catch((e) => setError(e.message));
+    fetchInto(setWb, api.get("/workbench"));
+    fetchInto(setLines, api.get("/review-queue"));
+    fetchInto(setMerchants, api.get("/merchants/review"));
     fetchInto(setConflicts, api.get("/lwin-conflicts"));
     fetchInto(setSuggestions, api.get("/alias-suggestions"));
   }, []);
   useEffect(load, [load]);
 
-  function waitingFor(line) {
-    if (line.line_state === "IDENTITY_NOT_APPROVED") return "an approved identity";
-    if (line.line_state === "NOT_SEARCHED") return "a merchant search";
-    if (line.requires_acknowledgement && !line.acknowledged) return "the price to be accepted";
-    if (line.line_state === "REVIEW") return "the evidence to be checked";
-    if (line.line_state === "NO_MARKET") return "nothing — no merchant offers it";
-    return "review";
+  function action(line) {
+    if (line.line_state === "IDENTITY_NOT_APPROVED") return "Review identity";
+    if (line.line_state === "NOT_SEARCHED") return "Check market";
+    if (line.requires_acknowledgement && !line.acknowledged) return "Accept price";
+    if (line.line_state === "REVIEW") return "Check evidence";
+    return "Review";
   }
+
+  const all = [wb, lines, merchants, conflicts, suggestions];
+  const loading = all.some((x) => x.status === "loading");
+  const offers = wb.status === "ok" ? wb.data.to_review : [];
+  const nothing = !loading && all.every((x) => x.status === "ok")
+    && offers.length + lines.data.length + merchants.data.to_review.length
+       + conflicts.data.length + suggestions.data.length === 0;
 
   return (
     <>
       <h1>To review</h1>
-      <p className="sub">Everything a person has to decide, across every deal.</p>
-      {error && <div className="notice bad">{error}</div>}
+      <p className="sub">Everything waiting on your decision.</p>
+      {loading && <p className="muted">Loading…</p>}
+      {nothing && <p className="muted">Nothing to review.</p>}
 
-      <h2>Lines ({lines.length})</h2>
-      {lines.length === 0 ? <p className="muted">Nothing waiting.</p> : (
-        <div className="card scroll">
-          <table>
-            <thead>
-              <tr><th>Deal</th><th>Seller wording</th><th>State</th><th>Waiting for</th>
-                  <th className="num">Reference</th><th className="num">Sell</th></tr>
-            </thead>
-            <tbody>
-              {lines.map((line) => (
-                <tr key={line.line_id}>
-                  <td><Link href={`/deals/${line.deal_id}`}>{line.deal_name}</Link></td>
-                  <td>
-                    <div className="verbatim">{line.raw_description}</div>
-                    <Flags flags={line.benchmark_flags} tone="review" />
-                    <Flags flags={line.line_flags} tone="review" />
-                  </td>
-                  <td><StateTag state={line.line_state} /></td>
-                  <td className="muted">{waitingFor(line)}</td>
-                  <td className="num">{money(line.uk_reference)}</td>
-                  <td className="num">{money(line.sell_price)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <Section id="offers" title="Offers" state={wb} count={offers.length} errorLabel="Couldn't load offers"
+               onRetry={load}>
+        <div className="card tlist">
+          {offers.map((t) => <TradeRow key={t.inbound_offer_id} t={t} onChanged={load} />)}
         </div>
+      </Section>
+
+      <Section id="lines" title="Cellar lines" state={lines} count={lines.data?.length}
+               errorLabel="Couldn't load cellar lines" onRetry={load}>
+        <div className="card tlist">
+          {lines.data?.map((line) => (
+            <div key={line.line_id} className="trow">
+              <div className="t-what">
+                <span className="t-title">{line.raw_description}</span>
+                <div className="muted t-small">{line.deal_name}</div>
+              </div>
+              <div className="t-who t-small muted">Qty {line.quantity}</div>
+              <div />
+              <div className="t-next t-small">
+                <Link href={`/deals/${line.deal_id}/lines`} className="t-action">{action(line)}</Link>
+              </div>
+              <div />
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      <Section id="merchants" title="New merchants" state={merchants}
+               count={merchants.data?.to_review.length} errorLabel="Couldn't load merchants" onRetry={load}>
+        <p className="muted t-small" style={{ marginTop: 0 }}>
+          Introduced by a market feed. Their prices are kept but set no Floor until you approve them.
+        </p>
+        <div className="card tlist">
+          {merchants.data?.to_review.map((m) => <Merchant key={m.merchant_id} m={m} onDone={load} />)}
+        </div>
+      </Section>
+      {merchants.status === "ok" && merchants.data.kept_unapproved.length > 0 && (
+        <details style={{ marginBottom: 16 }}>
+          <summary className="muted t-small" style={{ cursor: "pointer" }}>
+            Kept unapproved ({merchants.data.kept_unapproved.length})
+          </summary>
+          <div className="card tlist" style={{ marginTop: 8 }}>
+            {merchants.data.kept_unapproved.map((m) => <Merchant key={m.merchant_id} m={m} kept onDone={load} />)}
+          </div>
+        </details>
       )}
 
-      <h2>LWIN conflicts {conflicts.status === "ok" ? `(${conflicts.data.length})` : ""}</h2>
-      <QueueMessage state={conflicts} empty="None open." errorLabel="Couldn't load LWIN conflicts"
-                    onRetry={load} />
-      {conflicts.status === "ok" && conflicts.data.length > 0 &&
-        conflicts.data.map((c) => <Conflict key={c.conflict_id} conflict={c} onDone={load} />)}
+      <Section id="lwin" title="LWIN conflicts" state={conflicts} count={conflicts.data?.length}
+               errorLabel="Couldn't load LWIN conflicts" onRetry={load}>
+        {conflicts.data?.map((c) => <Conflict key={c.conflict_id} conflict={c} onDone={load} />)}
+      </Section>
 
-      <h2>Alias suggestions {suggestions.status === "ok" ? `(${suggestions.data.length})` : ""}</h2>
-      <QueueMessage state={suggestions} empty="None yet." errorLabel="Couldn't load alias suggestions"
-                    onRetry={load} />
-      {suggestions.status === "ok" && suggestions.data.length > 0 && (
+      <Section id="spellings" title="Wine spellings to approve" state={suggestions}
+               count={suggestions.data?.length} errorLabel="Couldn't load wine spellings" onRetry={load}>
         <div className="card scroll">
           <table>
             <thead>
               <tr><th>Seller wording</th><th>Corrected to</th><th className="num">Times</th><th>By</th></tr>
             </thead>
             <tbody>
-              {suggestions.data.map((s) => (
+              {suggestions.data?.map((s) => (
                 <tr key={s.normalised + s.wine_id}>
                   <td className="verbatim">{s.seller_text}</td>
                   <td>{s.producer} — {s.cuvee}</td>
@@ -96,8 +124,66 @@ export default function QueuePage() {
             alias is your call: you choose the producer and cuvée wording it should carry.
           </p>
         </div>
-      )}
+      </Section>
     </>
+  );
+}
+
+/** A section shows when it has something to decide, or when it could not
+ * load — never as an empty heading. */
+function Section({ id, title, state, count, errorLabel, onRetry, children }) {
+  if (state.status === "loading") return null;
+  if (state.status === "error") {
+    return (
+      <>
+        <h2 id={id}>{title}</h2>
+        <QueueMessage state={state} empty="" errorLabel={errorLabel} onRetry={onRetry} />
+      </>
+    );
+  }
+  if (!count) return null;
+  return (
+    <>
+      <h2 id={id}>{title} <span className="muted wb-count">{count}</span></h2>
+      {children}
+    </>
+  );
+}
+
+/** APPROVE or KEEP UNAPPROVED (decision 0051). Never automatic. */
+function Merchant({ m, kept = false, onDone }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  async function decide(approve) {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(`/merchants/${encodeURIComponent(m.merchant_id)}/review`, { approve });
+      onDone();
+    } catch (e) {
+      setError(e.message);
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="reg-row" style={{ alignItems: "center", flexWrap: "wrap" }}>
+      <span>
+        <strong>{m.name}</strong>
+        <span className="muted t-small" style={{ display: "block" }}>
+          {m.sources.length ? m.sources.join(", ") : "Source not recorded"}
+          {" · "}{m.observations} observation{m.observations === 1 ? "" : "s"} held
+        </span>
+        {error && <span className="notice bad t-small" style={{ display: "block", marginTop: 6 }}>{error}</span>}
+      </span>
+      <span className="row" style={{ gap: 8 }}>
+        <button type="button" className="small" disabled={busy} onClick={() => decide(true)}>APPROVE</button>
+        {!kept && (
+          <button type="button" className="small quiet" disabled={busy} onClick={() => decide(false)}>
+            KEEP UNAPPROVED
+          </button>
+        )}
+      </span>
+    </div>
   );
 }
 

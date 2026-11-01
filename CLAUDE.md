@@ -808,7 +808,11 @@ shown by human action, never by technical exception category; status and
 next action are derived on read. Offers carry a three-dot menu (Edit · Share
 again · Duplicate · Delete, Delete a soft delete; a confirmed trade is View ·
 Share again · Duplicate and never deleted). Suppliers and clients are a
-register, not a CRM. Agreed later work is in `docs/backlog.md`.
+register, not a CRM. Sign-in lands on the Workbench. To Review is one set
+(decision 0051): what the Workbench counts is exactly what the To Review page
+lists, Pocket's own lines never among them; it includes feed-introduced
+merchants, which an operator approves or keeps unapproved — never
+automatically. Agreed later work is in `docs/backlog.md`.
 
 Not built yet: the LWIN import (decision 0012 — waiting on the file), Albany and
 Vinum, the remaining merchant adapters, AI provider implementations. A client-

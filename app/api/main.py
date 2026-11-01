@@ -28,6 +28,7 @@ from app.api.inbound import router as inbound_router
 from app.api.feed import router as feed_router
 from app.api.workbench import router as workbench_router
 from app.api.counterparties import router as counterparties_router
+from app.inbound import repo as inbound_repo
 from app.auction import repo as auction_repo
 from app.auction.evidence import InvalidAuctionEvidence
 from app.core.enums import StockType
@@ -246,7 +247,8 @@ def list_deals(conn: psycopg.Connection = Depends(db)):
 def review_queue(conn: psycopg.Connection = Depends(db)):
     """Everything waiting on a person, across deals: unapproved identities,
     lines nobody has searched, lines in REVIEW, and prices that need accepting."""
-    rows = repo.review_queue(conn)
+    # The same set the Workbench counts (decision 0051): cellar lines only.
+    rows = inbound_repo.review_lines(conn)
     return [{**r, "line_state": _line_state(r, {"state": r["state"]} if r["state"] else None),
              "benchmark_flags": r["benchmark_flags"] or [],
              "pricing_flags": r["pricing_flags"] or [],

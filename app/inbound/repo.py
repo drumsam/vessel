@@ -462,6 +462,14 @@ def pocket_deal_ids(conn: psycopg.Connection) -> set[str]:
            UNION SELECT deal_id FROM seller_line WHERE raw_row ? 'inbound_offer_id'""")}
 
 
+def review_lines(conn: psycopg.Connection) -> list[dict]:
+    """The cellar lines To Review counts AND lists — one set, so the
+    Workbench count and the review page can never disagree (decision 0051).
+    A Pocket offer's own line is reviewed in Pocket, never here."""
+    pocket = pocket_deal_ids(conn)
+    return [r for r in deal_repo.review_queue(conn) if str(r["deal_id"]) not in pocket]
+
+
 def cellar_deals(conn: psycopg.Connection) -> list[dict]:
     """Deals that are cellars, not the deal a Pocket offer creates for itself."""
     pocket = pocket_deal_ids(conn)

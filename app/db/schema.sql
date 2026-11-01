@@ -1449,3 +1449,10 @@ CREATE TABLE client_alias (
 
 -- buyer_name stays the frozen text of what was agreed; client_id links it.
 ALTER TABLE fulfilment ADD COLUMN client_id uuid REFERENCES client(client_id);
+
+-- Merchant review (decision 0051): an operator approves a feed-introduced
+-- merchant or keeps it unapproved, and either way it is recorded who and when.
+ALTER TABLE merchant ADD COLUMN reviewed_by uuid REFERENCES operator(operator_id);
+ALTER TABLE merchant ADD COLUMN reviewed_at timestamptz;
+ALTER TABLE merchant ADD CONSTRAINT merchant_review_attributed
+    CHECK ((reviewed_at IS NULL) = (reviewed_by IS NULL));

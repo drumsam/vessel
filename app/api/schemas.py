@@ -1365,6 +1365,7 @@ class ActivityOut(_Out):
 
 class ReviewCountsOut(_Out):
     cellar_lines: int
+    merchants: int
     lwin_conflicts: int
     alias_suggestions: int
 
@@ -1421,3 +1422,21 @@ class CollectNowOut(_Out):
     itself would show — one result shape either way."""
     collected: list[CollectResultOut]
     evaluation: EvaluateOut
+
+
+class MerchantReviewOut(_Out):
+    """One unapproved merchant, as the review list shows it (decision 0051)."""
+    merchant_id: str
+    name: str
+    sources: list[str] = []
+    observations: int
+    reviewed_at: Optional[datetime] = None
+
+
+class MerchantReviewListOut(_Out):
+    to_review: list[MerchantReviewOut]
+    kept_unapproved: list[MerchantReviewOut]
+
+
+class MerchantReviewIn(_In):
+    approve: bool

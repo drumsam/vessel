@@ -203,3 +203,71 @@ def test_ready_to_price_says_what_is_missing_in_plain_words(client, monkeypatch,
     conn.execute("UPDATE inbound_offer SET confirmed_asking_price = NULL WHERE inbound_offer_id = %s",
                  (offer_id,))
     assert client.get("/workbench").json()["ready_to_price"][0]["next_action"] == "Complete details"
+
+
+# ---------------------------------------------------------------- decision 0051
+
+
+def _feed(conn):
+    """A feed batch as production's MrBridge one arrived: an approved merchant,
+    and a new one the importer creates unapproved."""
+    from app.feed import importer
+    from tests.test_feed_import import _obs, _wine
+    wine = _wine(conn, "Domaine Armand Rousseau", "Chambertin")
+    farr = conn.execute("SELECT name FROM merchant WHERE merchant_id = 'farr'").fetchone()["name"]
+    importer.import_batch(conn, {"source": "wine-searcher-via-mrbridge", "observations": [
+        _obs(farr, "24500.00"), _obs("Cru Wine Traders", "21000.00")]})
+    return wine
+
+
+@pg
+def test_a_feed_merchant_waits_on_the_review_list_and_approval_lets_it_set_floor(client, conn):
+    from tests.test_feed_import import _floor
+    wine = _feed(conn)
+    review = client.get("/merchants/review").json()
+    assert review["to_review"] == [{"merchant_id": "cru-wine-traders", "name": "Cru Wine Traders",
+                                    "sources": ["wine-searcher-via-mrbridge"], "observations": 1,
+                                    "reviewed_at": None}]
+    assert client.get("/workbench").json()["review_counts"]["merchants"] == 1
+    assert _floor(conn, wine)["uk_floor"] == 24500                    # never auto-approved
+
+    r = client.post("/merchants/cru-wine-traders/review", json={"approve": True})
+    assert r.status_code == 200 and r.json()["to_review"] == []
+    row = conn.execute("SELECT approved, reviewed_by FROM merchant WHERE merchant_id = 'cru-wine-traders'"
+                       ).fetchone()
+    assert row["approved"] is True and row["reviewed_by"] is not None
+    assert client.get("/workbench").json()["review_counts"]["merchants"] == 0
+    assert _floor(conn, wine)["uk_floor"] == 21000                    # the existing rules decide
+
+
+@pg
+def test_keep_unapproved_leaves_the_list_and_still_sets_no_floor(client, conn):
+    from tests.test_feed_import import _floor
+    wine = _feed(conn)
+    r = client.post("/merchants/cru-wine-traders/review", json={"approve": False})
+    assert r.json()["to_review"] == []
+    assert [m["merchant_id"] for m in r.json()["kept_unapproved"]] == ["cru-wine-traders"]
+    assert client.get("/workbench").json()["review_counts"]["merchants"] == 0
+    assert _floor(conn, wine)["uk_floor"] == 24500
+    # approvable later from the kept list; an approved merchant is not reviewed here
+    assert client.post("/merchants/cru-wine-traders/review", json={"approve": True}).status_code == 200
+    assert client.post("/merchants/farr/review", json={"approve": False}).status_code == 404
+    assert conn.execute("SELECT approved FROM merchant WHERE merchant_id = 'farr'").fetchone()["approved"]
+
+
+@pg
+def test_the_review_page_lists_exactly_what_the_workbench_counts(client, monkeypatch, conn):
+    """Decision 0051: if it counts as To Review it appears there; if not, not.
+    A one-merchant Pocket line is in REVIEW but is Pocket's, so neither counts it."""
+    _priced_offer(client, conn, monkeypatch, prices=("3400.00",))
+    from app.db import repo
+    op = conn.execute("SELECT operator_id FROM operator LIMIT 1").fetchone()["operator_id"]
+    repo.create_deal(conn, {"name": "WFS Cellar", "seller": "WFS", "city": None, "source_file": None,
+                            "currency": None, "target_margin": None, "buyer_discount": None,
+                            "margin_on_sale": None, "created_by": op},
+                     [{"row_index": 0, "raw_description": "Some cellar wine 2010", "raw_row": {"a": 1},
+                       "quantity": 6}])
+    assert len(repo.review_queue(conn)) == 2                          # the Pocket line is in REVIEW
+    queue = client.get("/review-queue").json()
+    assert [q["deal_name"] for q in queue] == ["WFS Cellar"]
+    assert client.get("/workbench").json()["review_counts"]["cellar_lines"] == len(queue)

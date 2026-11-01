@@ -44,10 +44,14 @@ export default function Workbench() {
 
 function Sections({ wb, onChanged }) {
   const c = wb.review_counts;
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  // Each links to its section of the To Review page, which lists exactly
+  // this set (decision 0051).
   const technical = [
-    c.cellar_lines > 0 && `Review ${c.cellar_lines} cellar line${c.cellar_lines === 1 ? "" : "s"}`,
-    c.lwin_conflicts > 0 && `Resolve ${c.lwin_conflicts} LWIN conflict${c.lwin_conflicts === 1 ? "" : "s"}`,
-    c.alias_suggestions > 0 && `Approve ${c.alias_suggestions} wine spelling${c.alias_suggestions === 1 ? "" : "s"}`,
+    c.cellar_lines > 0 && ["#lines", `Review ${plural(c.cellar_lines, "cellar line", "cellar lines")}`],
+    c.merchants > 0 && ["#merchants", `Review ${plural(c.merchants, "new merchant", "new merchants")}`],
+    c.lwin_conflicts > 0 && ["#lwin", `Resolve ${plural(c.lwin_conflicts, "LWIN conflict", "LWIN conflicts")}`],
+    c.alias_suggestions > 0 && ["#spellings", `Approve ${plural(c.alias_suggestions, "wine spelling", "wine spellings")}`],
   ].filter(Boolean);
 
   return (
@@ -55,7 +59,7 @@ function Sections({ wb, onChanged }) {
       <Section title="To review" items={wb.to_review} onChanged={onChanged}
                extra={technical.length > 0 && (
                  <div className="wb-technical">
-                   {technical.map((t) => <Link key={t} href="/queue">{t}</Link>)}
+                   {technical.map(([anchor, text]) => <Link key={anchor} href={`/queue${anchor}`}>{text}</Link>)}
                  </div>
                )} />
       <Section title="Ready to price" items={wb.ready_to_price} onChanged={onChanged} />

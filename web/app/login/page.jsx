@@ -20,7 +20,7 @@ export default function LoginPage() {
       // Pocket is the default landing, not Deals: Doug is mobile first,
       // and leaving "/" as the post-login target is how he kept ending
       // up on the wrong screen (29 Oct 2026).
-      router.replace("/pocket");
+      router.replace("/");
     } catch (e) {
       setError(e.message);
     } finally {

@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.api import schemas as s
 from app.api.deps import current_operator, db
 from app.db import repo
+from app.feed import merchant_review
 from app.inbound import repo as inbound_repo
 from app.pricing import pricer
 
@@ -100,8 +101,6 @@ def workbench(conn: psycopg.Connection = Depends(db)):
     rows = inbound_repo.pocket_offers(conn)
     items = [_item(r) for r in rows]
     by = lambda *statuses: [i for i in items if i.status in statuses]  # noqa: E731
-    pocket_deals = inbound_repo.pocket_deal_ids(conn)
-    cellar_lines = sum(1 for r in repo.review_queue(conn) if str(r["deal_id"]) not in pocket_deals)
     recent = []
     for r, i in zip(rows, items):
         for when, text in ((r["received_at"], "Captured"),
@@ -119,7 +118,8 @@ def workbench(conn: psycopg.Connection = Depends(db)):
     return s.WorkbenchOut(
         to_review=by("UNREADABLE", "NEEDS_IDENTITY"),
         review_counts=s.ReviewCountsOut(
-            cellar_lines=cellar_lines,
+            cellar_lines=len(inbound_repo.review_lines(conn)),
+            merchants=len(merchant_review.to_review(conn)),
             lwin_conflicts=len(repo.list_lwin_conflicts(conn, unresolved_only=True)),
             alias_suggestions=len(repo.alias_suggestions(conn, min_occurrences=2))),
         ready_to_price=by("READY_TO_PRICE"), offers_out=by("OFFER_OUT"),
@@ -162,3 +162,26 @@ def duplicate(inbound_offer_id: UUID, conn: psycopg.Connection = Depends(db),
         raise HTTPException(404, str(e))
     return s.InboundOfferOut.model_validate({**row, "identity_confirmed_by": None,
                                              "has_media": row["raw_media"] is not None})
+
+
+@router.get("/merchants/review", response_model=s.MerchantReviewListOut)
+def merchants_to_review(conn: psycopg.Connection = Depends(db)):
+    """Merchants a market feed introduced, waiting on an operator (decision
+    0051) — and the ones already kept unapproved, so they can still be
+    approved later."""
+    return s.MerchantReviewListOut(to_review=merchant_review.to_review(conn),
+                                   kept_unapproved=merchant_review.kept_unapproved(conn))
+
+
+@router.post("/merchants/{merchant_id}/review", response_model=s.MerchantReviewListOut)
+def review_merchant(merchant_id: str, body: s.MerchantReviewIn,
+                    conn: psycopg.Connection = Depends(db),
+                    operator: dict = Depends(current_operator)):
+    """APPROVE or KEEP UNAPPROVED. Never automatic; who decided is the
+    session's operator, never the caller's claim (invariant 14)."""
+    with conn.transaction():
+        row = merchant_review.review(conn, merchant_id, approve=body.approve,
+                                     reviewed_by=operator["operator_id"])
+    if row is None:
+        raise HTTPException(404, "no unapproved merchant by that name")
+    return merchants_to_review(conn)
