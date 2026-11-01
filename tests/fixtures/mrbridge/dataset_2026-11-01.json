@@ -1,0 +1,268 @@
+[{
+  "inputValue": "La Romanée Grand Cru Comte Liger-Belair",
+  "inputType": "wineName",
+  "wineSearcherUrl": "https://www.wine-searcher.com/find/La+Roman%C3%A9e+Grand+Cru+Comte+Liger-Belair",
+  "wineName": "Domaine du Comte Liger-Belair La Romanee Grand Cru",
+  "appellation": "Cote de Nuits, France",
+  "score": 96,
+  "criticReviewsCount": 237,
+  "style": "Red - Savory and Classic",
+  "grapeVariety": "Pinot Noir",
+  "vintage": null,
+  "labelImageUrl": "https://www.wine-searcher.com/images/labels/12/82/11741282.jpg",
+  "criticReviews": [
+    {
+      "author": "Tim Atkin",
+      "score": 96
+    },
+    {
+      "author": "Jasper Morris - Inside Burgundy",
+      "score": 96
+    },
+    {
+      "author": "Decanter",
+      "score": 93
+    },
+    {
+      "author": "Robert Parker The Wine Advocate",
+      "score": 97
+    },
+    {
+      "author": "Wine Enthusiast",
+      "score": 95
+    },
+    {
+      "author": "Jeannie Cho Lee",
+      "score": 97
+    },
+    {
+      "author": "Doctorwine",
+      "score": 98
+    },
+    {
+      "author": "La Revue du Vin de France",
+      "score": 96
+    },
+    {
+      "author": "CellarTracker",
+      "score": 97
+    },
+    {
+      "author": "Bettane et Desseauve",
+      "score": 97
+    }
+  ],
+  "cheapestPriceAmount": 2667,
+  "cheapestPriceCurrency": "GBP",
+  "cheapestPriceMerchant": "Wilkinson Vintners",
+  "cheapestPriceEur": 3199.03,
+  "bottlesPerUnit": 1,
+  "offersCount": 6,
+  "offersPages": 1,
+  "wineryName": "Domaine du Comte Liger-Belair",
+  "wineryUrl": "https://www.wine-searcher.com/merchant/63333-domaine-du-comte-liger-belair",
+  "winePopularity": "231st",
+  "scrapedAt": "2026-11-01T04:34:38.913Z",
+  "cheapestPriceConverted": 2667,
+  "winePopularityRank": 231,
+  "criticScores": {
+    "Tim Atkin": 96,
+    "Jasper Morris - Inside Burgundy": 96,
+    "Decanter": 93,
+    "Robert Parker The Wine Advocate": 97,
+    "Wine Enthusiast": 95,
+    "Jeannie Cho Lee": 97,
+    "Doctorwine": 98,
+    "La Revue du Vin de France": 96,
+    "CellarTracker": 97,
+    "Bettane et Desseauve": 97
+  },
+  "status": "ok",
+  "targetCurrency": "GBP"
+},
+{
+  "inputValue": "2001 Clos Vougeot, Leroy",
+  "inputType": "wineName",
+  "wineSearcherUrl": "https://www.wine-searcher.com/find/2001+Clos+Vougeot+Leroy",
+  "wineName": "2001 Leroy Clos de Vougeot Grand Cru",
+  "appellation": "Cote de Nuits, France",
+  "score": 94,
+  "criticReviewsCount": 7,
+  "style": "Red - Savory and Classic",
+  "grapeVariety": "Pinot Noir",
+  "vintage": 2001,
+  "labelImageUrl": "https://www.wine-searcher.com/images/labels/30/04/10153004.jpg",
+  "criticReviews": [
+    {
+      "author": "Robert Parker The Wine Advocate",
+      "score": 96
+    },
+    {
+      "author": "Jasper Morris - Inside Burgundy",
+      "score": 94
+    },
+    {
+      "author": "Decanter",
+      "score": 90
+    },
+    {
+      "author": "Jeannie Cho Lee",
+      "score": 95
+    },
+    {
+      "author": "Jamie Goode",
+      "score": 95
+    },
+    {
+      "author": "CellarTracker",
+      "score": 94
+    }
+  ],
+  "cheapestPriceAmount": 3333.33,
+  "cheapestPriceCurrency": "GBP",
+  "cheapestPriceMerchant": "Farthinghoe Fine Wine Ltd",
+  "cheapestPriceEur": 3998.29,
+  "bottlesPerUnit": 6,
+  "offersCount": 6,
+  "offersPages": 1,
+  "wineryName": "Domaine Leroy",
+  "wineryUrl": "https://www.wine-searcher.com/merchant/24850-domaine-leroy",
+  "winePopularity": "519th",
+  "scrapedAt": "2026-11-01T04:34:55.012Z",
+  "cheapestPriceConverted": 3333.33,
+  "winePopularityRank": 519,
+  "criticScores": {
+    "Robert Parker The Wine Advocate": 96,
+    "Jasper Morris - Inside Burgundy": 94,
+    "Decanter": 90,
+    "Jeannie Cho Lee": 95,
+    "Jamie Goode": 95,
+    "CellarTracker": 94
+  },
+  "status": "ok",
+  "targetCurrency": "GBP"
+},
+{
+  "inputValue": "2023 Chambertin Grand Cru Rousseau 2023",
+  "inputType": "wineName",
+  "wineSearcherUrl": "https://www.wine-searcher.com/find/2023+Chambertin+Grand+Cru+Rousseau+2023",
+  "wineName": "2023 Domaine Armand Rousseau Pere et Fils Chambertin Grand Cru",
+  "appellation": "Cote de Nuits, France",
+  "score": 96,
+  "criticReviewsCount": 6,
+  "style": "Red - Savory and Classic",
+  "grapeVariety": "Pinot Noir",
+  "vintage": 2023,
+  "labelImageUrl": "https://www.wine-searcher.com/images/labels/81/58/11438158.jpg",
+  "criticReviews": [
+    {
+      "author": "Robert Parker The Wine Advocate",
+      "score": 96
+    },
+    {
+      "author": "Decanter",
+      "score": 97
+    },
+    {
+      "author": "Jasper Morris - Inside Burgundy",
+      "score": 97
+    },
+    {
+      "author": "Tim Atkin",
+      "score": 97
+    },
+    {
+      "author": "Falstaff",
+      "score": 97
+    }
+  ],
+  "cheapestPriceAmount": 1695,
+  "cheapestPriceCurrency": "GBP",
+  "cheapestPriceMerchant": "Mann Fine Wine",
+  "cheapestPriceEur": 2033.13,
+  "bottlesPerUnit": 1,
+  "offersCount": 6,
+  "offersPages": 1,
+  "wineryName": "Domaine Armand Rousseau",
+  "wineryUrl": "https://www.wine-searcher.com/merchant/46936-domaine-armand-rousseau",
+  "winePopularity": "46th",
+  "scrapedAt": "2026-11-01T04:36:26.828Z",
+  "cheapestPriceConverted": 1695,
+  "winePopularityRank": 46,
+  "criticScores": {
+    "Robert Parker The Wine Advocate": 96,
+    "Decanter": 97,
+    "Jasper Morris - Inside Burgundy": 97,
+    "Tim Atkin": 97,
+    "Falstaff": 97
+  },
+  "status": "ok",
+  "targetCurrency": "GBP"
+},
+{
+  "inputValue": "1996 La Tache, DRC",
+  "inputType": "wineName",
+  "wineSearcherUrl": "https://www.wine-searcher.com/find/1996+La+Tache+DRC",
+  "wineName": "1996 Domaine de la Romanee-Conti La Tache Grand Cru Monopole",
+  "appellation": "Cote de Nuits, France",
+  "score": 93,
+  "criticReviewsCount": 10,
+  "style": "Red - Savory and Classic",
+  "grapeVariety": "Pinot Noir",
+  "vintage": 1996,
+  "labelImageUrl": "https://www.wine-searcher.com/images/labels/76/76/11647676.jpg",
+  "criticReviews": [
+    {
+      "author": "Wine Spectator",
+      "score": 96
+    },
+    {
+      "author": "Robert Parker The Wine Advocate",
+      "score": 98
+    },
+    {
+      "author": "Adrian van Velsen - vvWine.ch",
+      "score": 96
+    },
+    {
+      "author": "Falstaff",
+      "score": 92
+    },
+    {
+      "author": "Jean-Marc Quarin",
+      "score": 92
+    },
+    {
+      "author": "La Revue du Vin de France",
+      "score": 76
+    },
+    {
+      "author": "CellarTracker",
+      "score": 96
+    }
+  ],
+  "cheapestPriceAmount": 4600,
+  "cheapestPriceCurrency": "GBP",
+  "cheapestPriceMerchant": "Turville Valley Wines",
+  "cheapestPriceEur": 5517.64,
+  "bottlesPerUnit": 1,
+  "offersCount": 6,
+  "offersPages": 1,
+  "wineryName": "Domaine de la Romanee-Conti",
+  "wineryUrl": "https://www.wine-searcher.com/merchant/22643-domaine-de-la-romanee-conti",
+  "winePopularity": "17th",
+  "scrapedAt": "2026-11-01T04:36:59.310Z",
+  "cheapestPriceConverted": 4600,
+  "winePopularityRank": 17,
+  "criticScores": {
+    "Wine Spectator": 96,
+    "Robert Parker The Wine Advocate": 98,
+    "Falstaff": 92,
+    "Jean-Marc Quarin": 92,
+    "La Revue du Vin de France": 76,
+    "CellarTracker": 96,
+    "Adrian van Velsen - vvWine.ch": 96
+  },
+  "status": "ok",
+  "targetCurrency": "GBP"
+}]
