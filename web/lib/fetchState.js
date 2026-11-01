@@ -81,3 +81,13 @@ export function listStateMessage(state, { empty, errorLabel = "Couldn't load" })
   const isEmpty = Array.isArray(state.data) ? state.data.length === 0 : !state.data;
   return isEmpty ? { text: empty, isError: false } : null;
 }
+
+/** A reload after an action (a delete, a duplicate): the current list stays
+ * on screen until the answer arrives, rather than blinking to "Loading…" —
+ * and a failure still lands as `error`, never as the old list. */
+export function refreshInto(setState, promise) {
+  return promise.then(
+    (data) => setState(ok(data)),
+    (error) => setState(failed(error)),
+  );
+}

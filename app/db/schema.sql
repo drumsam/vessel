@@ -1404,3 +1404,48 @@ CREATE TRIGGER fulfilment_no_mutation
 ALTER TABLE snapshot_merchant ADD COLUMN scope_wine_id uuid REFERENCES wine(wine_id);
 ALTER TABLE snapshot_merchant ADD CONSTRAINT snapshot_merchant_wine_scope
     CHECK (scope_wine_id IS NULL OR scope_producer_key IS NOT NULL);
+
+-- ============================== workbench, offer actions, counterparties (0050)
+
+-- Delete is a soft delete: the raw capture is never destroyed and nothing
+-- cascades. A discarded offer is hidden everywhere and cannot be priced or
+-- confirmed. duplicated_from is Duplicate's provenance.
+ALTER TABLE inbound_offer ADD COLUMN discarded_at timestamptz;
+ALTER TABLE inbound_offer ADD COLUMN discarded_by uuid REFERENCES operator(operator_id);
+ALTER TABLE inbound_offer ADD CONSTRAINT inbound_offer_discard_attributed
+    CHECK ((discarded_at IS NULL) = (discarded_by IS NULL));
+ALTER TABLE inbound_offer ADD COLUMN duplicated_from uuid
+    REFERENCES inbound_offer(inbound_offer_id);
+
+-- A supplier's usual commercial terms; none required at trade capture.
+ALTER TABLE supplier ADD COLUMN default_currency char(3);
+ALTER TABLE supplier ADD COLUMN usual_stock_location text;
+ALTER TABLE supplier ADD COLUMN usual_bond_status text;
+ALTER TABLE supplier ADD COLUMN payment_terms text;
+
+-- The client register: a confirmed trade's buyer as a record, not free text.
+-- Deliberately separate from `member` (VESSEL Private Sale's invite-only
+-- buyers). No scoring, no pipeline.
+CREATE TABLE client (
+    client_id        uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    name             text NOT NULL UNIQUE,
+    contact_name     text,
+    email            text,
+    phone            text,
+    default_currency char(3),
+    delivery_notes   text,
+    payment_terms    text,
+    notes            text,
+    active           boolean NOT NULL DEFAULT true,
+    created_by       uuid NOT NULL REFERENCES operator(operator_id),
+    created_at       timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE client_alias (
+    client_id  uuid NOT NULL REFERENCES client(client_id),
+    alias      text NOT NULL,
+    PRIMARY KEY (client_id, alias)
+);
+
+-- buyer_name stays the frozen text of what was agreed; client_id links it.
+ALTER TABLE fulfilment ADD COLUMN client_id uuid REFERENCES client(client_id);

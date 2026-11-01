@@ -29,6 +29,7 @@ from app.core.flags import MIN_TRADE_MARGIN, REVIEW_FLAGS
 from app.db import repo
 from app.db.connection import transaction
 from app.evaluate import walkaway
+from app.counterparty import repo as cp
 from app.feed import mrbridge
 from app.identity.want_list import match_want_list
 from app.inbound import repo as inbound_repo
@@ -169,6 +170,9 @@ def confirm_identity(inbound_offer_id: UUID, body: s.ConfirmIdentityIn,
     for one to override."""
     if inbound_repo.get_fulfilment(conn, str(inbound_offer_id)):
         raise HTTPException(409, "this trade is already confirmed — what was agreed can't change")
+    current = inbound_repo.get_inbound_offer(conn, str(inbound_offer_id))
+    if current is not None and current["discarded_at"] is not None:
+        raise HTTPException(409, "this offer was deleted")
     wine = repo.get_wine(conn, str(body.wine_id))
     if wine is None:
         raise HTTPException(404, "wine not found")
@@ -223,8 +227,10 @@ def create_supplier(body: s.SupplierIn, conn: psycopg.Connection = Depends(db),
 
 
 @router.get("/suppliers", response_model=list[s.SupplierOut])
-def list_suppliers(conn: psycopg.Connection = Depends(db)):
-    return inbound_repo.list_suppliers(conn)
+def list_suppliers(all: bool = False, conn: psycopg.Connection = Depends(db)):
+    """The active chip-row list, most recently used first; `all=true` is the
+    register view, inactive suppliers included (decision 0050)."""
+    return cp.all_suppliers(conn) if all else inbound_repo.list_suppliers(conn)
 
 
 def _round2(d: Decimal) -> Decimal:
@@ -300,6 +306,9 @@ def _pocket_facts(conn: psycopg.Connection, offer: dict, line_row: dict,
         market_steer=mrbridge.steer(conn, wine_id=str(line_row["wine_id"]),
                                     vintage=line_row["vintage"], bottle_ml=line_row["bottle_ml"]),
         committed=_committed(conn, str(line_row["line_id"])))
+    supplier = inbound_repo.get_supplier(conn, str(offer["supplier_id"])) if offer["supplier_id"] else None
+    facts["supplier_id"] = offer["supplier_id"]
+    facts["supplier_name"] = supplier["name"] if supplier else None
     unit = pricer.quote_unit(offer["confirmed_asking_basis"], pack_size)
     facts["quote_unit"] = unit
     ask_unit = _ask_unit(offer, line_row)
@@ -481,6 +490,8 @@ def _trade_context(conn: psycopg.Connection, inbound_offer_id: UUID) -> tuple[di
         raise HTTPException(404, "inbound offer not found")
     if inbound_repo.get_fulfilment(conn, str(inbound_offer_id)):
         raise HTTPException(409, "this trade is already confirmed — what was agreed can't change")
+    if offer["discarded_at"] is not None:
+        raise HTTPException(409, "this offer was deleted")
     if offer["confirmed_wine_id"] is None or offer["deal_id"] is None:
         raise HTTPException(422, "check the market for this wine first")
     line_row = repo.deal_lines(conn, str(offer["deal_id"]))[0]
@@ -567,7 +578,12 @@ def confirm_trade(inbound_offer_id: UUID, body: s.ConfirmTradeIn,
     """CONFIRM: the buyer said yes. Freezes the committed offer into one
     fulfilment row — copied, never joined — and nothing about it can change
     afterwards (the table's own trigger)."""
-    buyer = body.buyer_name.strip()
+    client = None
+    if body.client_id is not None:
+        client = cp.get_client(conn, str(body.client_id))
+        if client is None:
+            raise HTTPException(404, "client not found")
+    buyer = client["name"] if client else (body.buyer_name or "").strip()
     if not buyer:
         raise HTTPException(422, "name the buyer")
     offer, line_row, wine = _trade_context(conn, inbound_offer_id)
@@ -601,7 +617,8 @@ def confirm_trade(inbound_offer_id: UUID, body: s.ConfirmTradeIn,
                 availability=offer["availability"], currency=pricing["sell_currency"],
                 supplier_price=supplier_price, vessel_sell_price=sell,
                 gross_total=(sell - supplier_price) * quantity,
-                confirmed_by=operator["operator_id"])
+                confirmed_by=operator["operator_id"],
+                client_id=str(client["client_id"]) if client else None)
     except psycopg.Error as e:
         raise translate(e)
     return _view(conn, offer)

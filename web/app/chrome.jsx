@@ -56,18 +56,22 @@ export default function Chrome({ children }) {
   const operator = session.operator;
 
   const link = (href, label) => (
-    <Link href={href} className={pathname === href ? "on" : ""}>{label}</Link>
+    <Link href={href} className={pathname === href || pathname.startsWith(href + "/") ? "on" : ""}>
+      {label}
+    </Link>
   );
 
   return (
     <>
       <header className="top">
         <div className="inner">
-          <span className="brand">UK Fine Wine Pricer</span>
+          {/* VESSEL is the way home from every operator page: the Workbench. */}
+          <Link href="/" className="brand">VESSEL</Link>
           <nav>
-            {link("/", "Deals")}
             {link("/pocket", "Pocket")}
-            {link("/queue", "Exceptions")}
+            {link("/trades", "Trades")}
+            {link("/suppliers", "Suppliers")}
+            {link("/clients", "Clients")}
           </nav>
           <span className="who">
             {operator.display_name}{" · "}

@@ -26,6 +26,8 @@ from app.api.vessel import router as vessel_router
 from app.api.member import router as member_router
 from app.api.inbound import router as inbound_router
 from app.api.feed import router as feed_router
+from app.api.workbench import router as workbench_router
+from app.api.counterparties import router as counterparties_router
 from app.auction import repo as auction_repo
 from app.auction.evidence import InvalidAuctionEvidence
 from app.core.enums import StockType
@@ -785,3 +787,5 @@ app.include_router(vessel_operator_router)
 app.include_router(member_router)
 app.include_router(inbound_router)
 app.include_router(feed_router)
+app.include_router(workbench_router)
+app.include_router(counterparties_router)

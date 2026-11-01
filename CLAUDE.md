@@ -802,6 +802,14 @@ approved. A feed capture is scoped to its one wine (`snapshot_merchant.
 scope_wine_id`) so it can never mask a sibling wine of the same producer and
 vintage. Acquisition is a separate concern: no scraper lives behind this pipe.
 
+The operator's home is the Workbench (decision 0050): `/`, reached from the
+`VESSEL` brand, nav `VESSEL | Pocket | Trades | Suppliers | Clients`. Work is
+shown by human action, never by technical exception category; status and
+next action are derived on read. Offers carry a three-dot menu (Edit · Share
+again · Duplicate · Delete, Delete a soft delete; a confirmed trade is View ·
+Share again · Duplicate and never deleted). Suppliers and clients are a
+register, not a CRM. Agreed later work is in `docs/backlog.md`.
+
 Not built yet: the LWIN import (decision 0012 — waiting on the file), Albany and
 Vinum, the remaining merchant adapters, AI provider implementations. A client-
 and buyer-facing exported document (HTML/PDF) is specified

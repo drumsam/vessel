@@ -952,6 +952,10 @@ class InboundOfferOut(_Out):
     #: blocked) but required by ConfirmIdentityIn below.
     supplier_id: Optional[UUID] = None
     availability: Optional[str] = None
+    discarded_at: Optional[datetime] = None
+    duplicated_from: Optional[UUID] = None
+    #: The message exactly as it arrived — shown one click deeper, never edited.
+    raw_body: Optional[str] = None
 
 
 class InboundOfferProposalOut(_Out):
@@ -1013,6 +1017,72 @@ class SupplierOut(_Out):
     active: bool
     #: Most-recently-used ordering for the chip row; null if never picked.
     last_used_at: Optional[datetime] = None
+    default_currency: Optional[str] = None
+    usual_stock_location: Optional[str] = None
+    usual_bond_status: Optional[str] = None
+    payment_terms: Optional[str] = None
+
+
+class CounterpartyDetail(_Out):
+    aliases: list[str] = []
+    trades: int = 0
+
+
+class SupplierDetailOut(SupplierOut, CounterpartyDetail):
+    pass
+
+
+class SupplierPatchIn(_In):
+    name: Optional[str] = Field(default=None, min_length=1)
+    contact_name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    notes: Optional[str] = None
+    active: Optional[bool] = None
+    default_currency: Optional[Currency] = None
+    usual_stock_location: Optional[str] = None
+    usual_bond_status: Optional[str] = None
+    payment_terms: Optional[str] = None
+
+
+class CounterpartyAliasIn(_In):
+    alias: str = Field(min_length=1, max_length=200)
+
+
+class ClientIn(_In):
+    """Inline quick-add: a name, and a phone if to hand — nothing else."""
+    name: str = Field(min_length=1, max_length=200)
+    phone: Optional[str] = None
+
+
+class ClientOut(_Out):
+    client_id: UUID
+    name: str
+    contact_name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    default_currency: Optional[str] = None
+    delivery_notes: Optional[str] = None
+    payment_terms: Optional[str] = None
+    notes: Optional[str] = None
+    active: bool
+    last_used_at: Optional[datetime] = None
+
+
+class ClientDetailOut(ClientOut, CounterpartyDetail):
+    pass
+
+
+class ClientPatchIn(_In):
+    name: Optional[str] = Field(default=None, min_length=1)
+    contact_name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    default_currency: Optional[Currency] = None
+    delivery_notes: Optional[str] = None
+    payment_terms: Optional[str] = None
+    notes: Optional[str] = None
+    active: Optional[bool] = None
 
 
 class CandidateWineGroupOut(_Out):
@@ -1097,6 +1167,8 @@ class EvaluateOut(_Out):
     never looks broken when it is working correctly."""
     deal_id: UUID
     line_id: UUID
+    supplier_id: Optional[UUID] = None
+    supplier_name: Optional[str] = None
     state: Optional[Literal["NOT_SEARCHED", "NO_MARKET", "REVIEW", "READY"]] = None
     as_of: Optional[datetime] = None
     comp_count: int = 0
@@ -1224,6 +1296,8 @@ class FulfilmentOut(_Out):
     vessel_sell_price: Money
     gross_total: Money
     quote_unit: Literal["case", "bottle"] = "bottle"
+    client_id: Optional[UUID] = None
+    client_name: Optional[str] = None
     state: Literal["OPEN", "COMPLETE"]
     confirmed_at: datetime
     completed_at: Optional[datetime] = None
@@ -1239,7 +1313,74 @@ class CreatePocketOfferIn(_In):
 
 
 class ConfirmTradeIn(_In):
-    buyer_name: str = Field(min_length=1, max_length=200)
+    """The buyer: a client from the register (its name is frozen onto the
+    trade), or — for a one-off — a free-text name. At least one."""
+    client_id: Optional[UUID] = None
+    buyer_name: Optional[str] = Field(default=None, max_length=200)
+
+
+TradeStatus = Literal["UNREADABLE", "NEEDS_IDENTITY", "WHISKY", "READY_TO_PRICE",
+                      "OFFER_OUT", "CONFIRMED", "COMPLETE"]
+
+
+class TradeItemOut(_Out):
+    """One Pocket offer as the Workbench and Trades list show it: what, who,
+    where it stands, and the next thing to do. Raw text only as a short
+    snippet, and only until the wine is confirmed."""
+    inbound_offer_id: UUID
+    status: TradeStatus
+    title: str
+    snippet: Optional[str] = None
+    supplier_id: Optional[UUID] = None
+    supplier_name: Optional[str] = None
+    client_id: Optional[UUID] = None
+    buyer_name: Optional[str] = None
+    vessel_sell: Optional[Money] = None
+    quote_unit: Optional[Literal["case", "bottle"]] = None
+    pack_size: Optional[int] = None
+    quantity: Optional[int] = None
+    bottle_ml: Optional[int] = None
+    next_action: str
+    when: datetime
+
+
+class CellarItemOut(_Out):
+    deal_id: UUID
+    name: str
+    seller: Optional[str] = None
+    lines: int
+    ready: int
+    review: int
+    no_market: int
+    waiting: int
+    next_action: str
+    when: datetime
+
+
+class ActivityOut(_Out):
+    inbound_offer_id: UUID
+    text: str
+    when: datetime
+
+
+class ReviewCountsOut(_Out):
+    cellar_lines: int
+    lwin_conflicts: int
+    alias_suggestions: int
+
+
+class WorkbenchOut(_Out):
+    to_review: list[TradeItemOut]
+    review_counts: ReviewCountsOut
+    ready_to_price: list[TradeItemOut]
+    offers_out: list[TradeItemOut]
+    confirmed: list[TradeItemOut]
+    recent: list[ActivityOut]
+
+
+class TradesOut(_Out):
+    pocket: list[TradeItemOut]
+    cellars: list[CellarItemOut]
 
 
 class PocketTradeOut(_Out):

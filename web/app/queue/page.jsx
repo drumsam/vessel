@@ -33,7 +33,7 @@ export default function QueuePage() {
 
   return (
     <>
-      <h1>Exceptions</h1>
+      <h1>To review</h1>
       <p className="sub">Everything a person has to decide, across every deal.</p>
       {error && <div className="notice bad">{error}</div>}
 

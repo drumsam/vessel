@@ -248,6 +248,13 @@ def ensure_evaluation_line(conn: psycopg.Connection, inbound_offer: dict, *,
     evidence."""
     if inbound_offer["confirmed_wine_id"] is None:
         raise NotReadyToEvaluate("identity has not been confirmed yet")
+    # Two EVALUATEs at once (a double tap; React's dev double effect) both
+    # read deal_id NULL before either commits and each made a deal — the
+    # orphan then listed as a cellar. The row lock makes the second wait and
+    # see the first's deal.
+    locked = conn.execute("SELECT deal_id FROM inbound_offer WHERE inbound_offer_id = %s FOR UPDATE",
+                          (str(inbound_offer["inbound_offer_id"]),)).fetchone()
+    inbound_offer = {**inbound_offer, "deal_id": locked["deal_id"]}
     if inbound_offer["deal_id"]:
         line = conn.execute("SELECT line_id FROM seller_line WHERE deal_id = %s LIMIT 1",
                             (str(inbound_offer["deal_id"]),)).fetchone()
@@ -318,8 +325,9 @@ def set_availability(conn: psycopg.Connection, inbound_offer_id: str,
 
 def get_fulfilment(conn: psycopg.Connection, inbound_offer_id: str) -> Optional[dict]:
     return conn.execute(
-        """SELECT f.*, s.name AS supplier_name FROM fulfilment f
+        """SELECT f.*, s.name AS supplier_name, c.name AS client_name FROM fulfilment f
              JOIN supplier s USING (supplier_id)
+             LEFT JOIN client c ON c.client_id = f.client_id
             WHERE f.inbound_offer_id = %s""", (inbound_offer_id,)).fetchone()
 
 
@@ -329,13 +337,14 @@ def create_fulfilment(conn: psycopg.Connection, **facts) -> dict:
                (inbound_offer_id, line_id, pricing_id, pricing_requires_ack, ack_id, supplier_id,
                 buyer_name, wine_id, wine_name, vintage, bottle_ml, pack_size, quantity,
                 packaging, bond_status, stock_location, availability, currency,
-                supplier_price, vessel_sell_price, gross_total, confirmed_by)
+                supplier_price, vessel_sell_price, gross_total, confirmed_by, client_id)
            VALUES (%(inbound_offer_id)s, %(line_id)s, %(pricing_id)s, %(pricing_requires_ack)s,
                    %(ack_id)s, %(supplier_id)s, %(buyer_name)s, %(wine_id)s, %(wine_name)s,
                    %(vintage)s, %(bottle_ml)s, %(pack_size)s, %(quantity)s, %(packaging)s,
                    %(bond_status)s, %(stock_location)s, %(availability)s, %(currency)s,
-                   %(supplier_price)s, %(vessel_sell_price)s, %(gross_total)s, %(confirmed_by)s)
-           RETURNING inbound_offer_id""", facts).fetchone()
+                   %(supplier_price)s, %(vessel_sell_price)s, %(gross_total)s, %(confirmed_by)s,
+                   %(client_id)s)
+           RETURNING inbound_offer_id""", {"client_id": None, **facts}).fetchone()
     return get_fulfilment(conn, str(row["inbound_offer_id"]))
 
 
@@ -366,5 +375,94 @@ def list_trades(conn: psycopg.Connection, limit: int = 30) -> list[dict]:
           JOIN wine w ON w.wine_id = l.wine_id
           LEFT JOIN supplier s ON s.supplier_id = io.supplier_id
           LEFT JOIN fulfilment f ON f.inbound_offer_id = io.inbound_offer_id
+         WHERE io.discarded_at IS NULL
          ORDER BY latest.priced_at DESC
          LIMIT %s""", (limit,)).fetchall()
+
+
+# ------------------------------------------------- offer actions (decision 0050)
+
+
+class NotDiscardable(Exception):
+    """A confirmed trade is immutable: it can be viewed, never deleted."""
+
+
+def discard_offer(conn: psycopg.Connection, inbound_offer_id: str, *, discarded_by: str) -> dict:
+    """Delete, as a soft delete: the raw capture, the line and its prices all
+    stay (the original is never destroyed); the offer is hidden everywhere and
+    can no longer be priced or confirmed. Nothing cascades."""
+    if get_fulfilment(conn, inbound_offer_id):
+        raise NotDiscardable("a confirmed trade can't be deleted")
+    row = conn.execute(
+        """UPDATE inbound_offer SET discarded_at = now(), discarded_by = %s
+            WHERE inbound_offer_id = %s AND discarded_at IS NULL RETURNING *""",
+        (discarded_by, inbound_offer_id)).fetchone()
+    if row is None:
+        raise LookupError("offer not found, or already deleted")
+    return row
+
+
+def duplicate_offer(conn: psycopg.Connection, inbound_offer_id: str, *, created_by: str) -> dict:
+    """A new, unconfirmed draft from the same raw message. Identity is NOT
+    carried over: a want-list wine needs its acknowledgement every time, so
+    the copy is confirmed afresh (the source's values prefill the form)."""
+    src = get_inbound_offer(conn, inbound_offer_id)
+    if src is None:
+        raise LookupError("offer not found")
+    return conn.execute(
+        """INSERT INTO inbound_offer (channel, raw_body, raw_media, media_mime, parsed_at,
+                                      parse_state, category, supplier_id, availability,
+                                      duplicated_from, created_by)
+           VALUES (%s, %s, %s, %s, now(), %s, %s, %s, %s, %s, %s) RETURNING *""",
+        (src["channel"], src["raw_body"], src["raw_media"], src["media_mime"],
+         src["parse_state"], src["category"], src["supplier_id"], src["availability"],
+         inbound_offer_id, created_by)).fetchone()
+
+
+def pocket_offers(conn: psycopg.Connection, limit: int = 200) -> list[dict]:
+    """Every live Pocket offer with what the Workbench and Trades need to say
+    where it stands: its wine (once confirmed), supplier, committed VESSEL sell
+    and confirmation. Discarded offers are not live."""
+    return conn.execute("""
+        WITH latest AS (
+            SELECT DISTINCT ON (line_id) line_id, sell_price, priced_at
+              FROM pricing_result WHERE price_basis = 'parcel_trade'
+             ORDER BY line_id, priced_at DESC, pricing_id DESC)
+        SELECT io.inbound_offer_id, io.received_at, io.channel, io.parse_state, io.parse_error,
+               io.category, left(io.raw_body, 120) AS raw_snippet,
+               io.raw_media IS NOT NULL AS has_media, io.identity_confirmed_at,
+               io.confirmed_vintage AS vintage, io.confirmed_quantity AS quantity,
+               io.confirmed_pack_size AS pack_size, io.confirmed_bottle_ml AS bottle_ml,
+               io.confirmed_asking_basis AS asking_basis, io.duplicated_from,
+               io.confirmed_asking_price AS asking_price,
+               io.confirmed_asking_currency AS asking_currency, io.deal_id,
+               w.producer, w.cuvee, io.supplier_id, s.name AS supplier_name,
+               latest.sell_price AS vessel_sell, latest.priced_at,
+               f.fulfilment_id, f.state AS fulfilment_state, f.buyer_name, f.client_id,
+               c.name AS client_name, f.confirmed_at
+          FROM inbound_offer io
+          LEFT JOIN wine w ON w.wine_id = io.confirmed_wine_id
+          LEFT JOIN supplier s ON s.supplier_id = io.supplier_id
+          LEFT JOIN seller_line l ON l.deal_id = io.deal_id
+          LEFT JOIN latest ON latest.line_id = l.line_id
+          LEFT JOIN fulfilment f ON f.inbound_offer_id = io.inbound_offer_id
+          LEFT JOIN client c ON c.client_id = f.client_id
+         WHERE io.discarded_at IS NULL
+         ORDER BY GREATEST(io.received_at, coalesce(latest.priced_at, io.received_at),
+                           coalesce(f.confirmed_at, io.received_at)) DESC
+         LIMIT %s""", (limit,)).fetchall()
+
+
+def pocket_deal_ids(conn: psycopg.Connection) -> set[str]:
+    """Every deal a Pocket offer made for itself — linked from the offer, or
+    marked by its line's raw_row, which also catches the orphans an
+    EVALUATE race left before ensure_evaluation_line locked the row."""
+    return {str(r["deal_id"]) for r in conn.execute(
+        """SELECT deal_id FROM inbound_offer WHERE deal_id IS NOT NULL
+           UNION SELECT deal_id FROM seller_line WHERE raw_row ? 'inbound_offer_id'""")}
+
+
+def cellar_deals(conn: psycopg.Connection) -> list[dict]:
+    """Deals that are cellars, not the deal a Pocket offer creates for itself."""
+    pocket = pocket_deal_ids(conn)
+    return [d for d in deal_repo.list_deals(conn) if str(d["deal_id"]) not in pocket]

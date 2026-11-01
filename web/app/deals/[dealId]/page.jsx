@@ -207,7 +207,7 @@ export default function CellarDesk({ params }) {
   return (
     <>
       <p className="muted" style={{ marginBottom: 4 }}>
-        <Link href="/">← Deals</Link>
+        <Link href="/trades">← Trades</Link>
       </p>
       <h1>Cellar Desk</h1>
       <p className="sub" style={{ marginTop: -8 }}>

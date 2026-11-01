@@ -48,7 +48,9 @@ header.top .inner {
   align-items: center;
 }
 
-header.top .brand { font-weight: 650; color: var(--ink); margin-right: auto; }
+header.top .brand {
+  font-weight: 700; letter-spacing: 0.14em; color: var(--ink); margin-right: auto; text-decoration: none;
+}
 header.top nav { display: flex; gap: 14px; flex-wrap: wrap; }
 header.top nav a { text-decoration: none; color: var(--muted); }
 header.top nav a.on { color: var(--primary); font-weight: 600; }
@@ -93,7 +95,7 @@ button {
   cursor: pointer;
 }
 button.quiet { background: #fff; color: var(--navy); border-color: var(--line); }
-button:not(.quiet):not(.ev):not(.pcell):not(.pill):not(.pocket-row-head):not(.pocket-trade):not(:disabled):hover {
+button:not(.quiet):not(.ev):not(.pcell):not(.pill):not(.pocket-row-head):not(:disabled):hover {
   background: var(--primary-hover); border-color: var(--primary-hover);
 }
 button.quiet:not(:disabled):hover { background: var(--neutral-soft); }
@@ -315,10 +317,6 @@ table.oev .u { color: var(--muted); font-size: .8rem; }
   white-space: pre-wrap; font: inherit; background: var(--bg); border-radius: 8px;
   padding: 10px 12px; margin: 8px 0 0;
 }
-.pocket-trade {
-  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
-  background: var(--card); color: var(--ink); border: 1px solid var(--line); margin-bottom: 8px;
-}
 
 .pocket-currency { font-size: 20px; font-weight: 600; color: var(--muted); align-self: center; }
 
@@ -334,3 +332,76 @@ main.public h1, main.public h2, main.public strong, main.public th { font-weight
 main.public .card { border-color: var(--line); }
 main.public button { background: #161B22; border-color: #161B22; font-weight: 400; }
 main.public button.quiet { background: #ffffff; color: #161B22; }
+
+/* ---- Workbench, Trades and the registers (decision 0050). Rows are a grid
+   of WHAT | WHO | STATUS | NEXT ACTION | menu on a wide screen and stack on a
+   phone — never a table that scrolls sideways. */
+a.button {
+  display: inline-block; padding: 9px 14px; border-radius: 8px; text-decoration: none;
+  border: 1px solid var(--primary); background: var(--primary); color: #fff;
+}
+a.button:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
+a.button.quiet { background: #fff; color: var(--navy); border-color: var(--line); }
+a.button.quiet:hover { background: var(--neutral-soft); }
+a.button.small { padding: 6px 10px; font-size: 13px; }
+.t-small { font-size: 13px; }
+
+.wb-new { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+.wb-count { font-weight: 400; }
+.wb-technical { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0 0 10px; font-size: 14px; }
+.wb-recent { padding: 4px 16px; }
+.wb-recent a {
+  display: flex; justify-content: space-between; gap: 12px; padding: 8px 0;
+  border-bottom: 1px solid var(--line); color: var(--ink); text-decoration: none; font-size: 14px;
+}
+.wb-recent a:last-child { border-bottom: 0; }
+.wb-recent a span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.wb-recent a span:last-child { white-space: nowrap; }
+
+.tlist.card { padding: 0 16px; }
+.trow {
+  display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(0, 1.4fr) auto minmax(0, 1.6fr) 40px;
+  gap: 4px 16px; align-items: start; padding: 12px 0; border-bottom: 1px solid var(--line);
+}
+.tlist .trow:last-child { border-bottom: 0; }
+.trow.thead {
+  font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); padding: 10px 0 8px;
+}
+.t-what, .t-who, .t-next { min-width: 0; overflow-wrap: anywhere; }
+.t-title { font-weight: 600; color: var(--ink); text-decoration: none; }
+.t-title:hover { text-decoration: underline; }
+.t-action { color: var(--primary); font-weight: 500; text-decoration: none; }
+.t-action:hover { text-decoration: underline; }
+@media (max-width: 640px) {
+  .trow { grid-template-columns: minmax(0, 1fr) 40px; }
+  .trow.thead { display: none; }
+  .trow > :not(.menu) { grid-column: 1; }
+  .trow > .menu { grid-column: 2; grid-row: 1; }
+  .t-status { margin-top: 2px; }
+}
+
+.menu { position: relative; justify-self: end; }
+.menu-dots { padding: 2px 10px; font-size: 18px; line-height: 1.2; letter-spacing: 0.05em; }
+.menu-list {
+  position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; min-width: 150px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08); padding: 4px 0;
+}
+.menu-list a, .menu-list button, .menu-list span {
+  display: block; width: 100%; text-align: left; padding: 8px 14px; font-size: 14px;
+  background: none; border: 0; border-radius: 0; color: var(--ink); text-decoration: none; cursor: pointer;
+}
+.menu-list a:hover, .menu-list button:hover { background: var(--neutral-soft) !important; }
+.menu-list .off { color: var(--muted); cursor: default; }
+.menu-list .danger { color: var(--stop); }
+.menu-error { position: absolute; right: 0; top: 100%; width: 220px; font-size: 12px; color: var(--stop); }
+
+.reg-row {
+  display: flex; justify-content: space-between; gap: 12px; padding: 12px 0;
+  border-bottom: 1px solid var(--line); color: var(--ink); text-decoration: none;
+}
+.reg-row:last-child { border-bottom: 0; }
+.reg-row > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.reg-row > span:last-child { white-space: nowrap; }
+.reg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.reg-grid .wide { grid-column: 1 / -1; }

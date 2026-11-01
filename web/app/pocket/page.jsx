@@ -1,13 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { api, BASE } from "../../lib/api";
-import { LOADING, ok, failed, fetchInto } from "../../lib/fetchState";
+import { LOADING, ok, failed, fetchInto, refreshInto } from "../../lib/fetchState";
 import { adminHandoff, quotePrice, supplierHandoff, tombstone } from "../../lib/pocketMessages";
 import {
   ceilToStep, fmt, formatBp, fromQuote, inputText, markupBp, parsePounds, quoteLabel,
   splitStatedPrice, stepQuote, toMoney, toPence, toQuote, vsMarketBp,
 } from "../../lib/vesselSell";
+import { TradeRow } from "../trade-row";
 
 /** VESSEL Pocket, build brief Phase 1b step 2: Screen 1 (NEW) and Screen 2
  * (CANDIDATE). Capture first, structure afterwards — the only thing this
@@ -21,6 +24,35 @@ import {
  * 0040) — never a half-built candidate that looks like a clean parse.
  */
 export default function PocketPage() {
+  return (
+    <Suspense fallback={<p className="muted">Loading…</p>}>
+      <Pocket />
+    </Suspense>
+  );
+}
+
+/** A confirm form filled from what an offer already records — Edit reopens
+ * the workflow with its own confirmed facts; a Duplicate starts from its
+ * source's. Nothing is confirmed by prefilling: the operator still confirms. */
+function formFromOffer(o, supplierId) {
+  const str = (v) => (v == null ? "" : String(v));
+  return {
+    wine_id: str(o.confirmed_wine_id), vintage: str(o.confirmed_vintage),
+    bottle_ml: str(o.confirmed_bottle_ml), pack_size: str(o.confirmed_pack_size),
+    quantity: str(o.confirmed_quantity), packaging: str(o.confirmed_packaging),
+    bond_status: str(o.confirmed_bond_status), stock_location: str(o.confirmed_stock_location),
+    asking_price: str(o.confirmed_asking_price), asking_currency: str(o.confirmed_asking_currency),
+    asking_basis: str(o.confirmed_asking_basis), want_list_ack: false,
+    supplier_id: str(supplierId || o.supplier_id),
+  };
+}
+
+function Pocket() {
+  const router = useRouter();
+  const search = useSearchParams();
+  const openParam = search.get("open");
+  const shareParam = search.get("share") === "1";
+  const [opening, setOpening] = useState(ok(null));
   const [wines, setWines] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [pasteText, setPasteText] = useState("");
@@ -66,6 +98,8 @@ export default function PocketPage() {
   const matchedSupplierIds = candidate?.matched_supplier_ids || [];
 
   function startOver() {
+    if (openParam) router.replace("/pocket");
+    setOpening(ok(null));
     setCreate(ok(null));
     setRetryId(null);
     setPasteText("");
@@ -126,6 +160,38 @@ export default function PocketPage() {
     }
   }, [proposal]);
 
+  // Edit, View, Share again and Duplicate all arrive as ?open=<offer>: a
+  // confirmed identity goes straight to its pricing screen; anything else
+  // reopens the confirm form, prefilled from what is already recorded.
+  async function openOffer(id, { editing = false } = {}) {
+    setOpening(LOADING);
+    try {
+      const o = await api.get(`/inbound-offers/${id}`);
+      if (o.identity_confirmed_at && !editing) {
+        setCreate(ok(null));
+        setOpenOfferId(id);
+      } else {
+        const src = !o.confirmed_wine_id && o.duplicated_from
+          ? await api.get(`/inbound-offers/${o.duplicated_from}`) : o;
+        setOpenOfferId(null);
+        setConfirmForm(formFromOffer(src, o.supplier_id));
+        setStated({});
+        setCommercialFork(null);
+        setConfirmState(ok(null));
+        setCandidateGroups(ok([]));
+        setShowAllWines(false);
+        setCreate(ok({ offer: o, proposal: null, matched_supplier_ids: [], editing }));
+      }
+      setOpening(ok(null));
+    } catch (e) {
+      setOpening(failed(e));
+    }
+  }
+  useEffect(() => {
+    if (openParam) openOffer(openParam);
+    else { setOpenOfferId(null); setCreate(ok(null)); setOpening(ok(null)); }
+  }, [openParam]); // eslint-disable-line react-hooks/exhaustive-deps
+
   async function create_(body) {
     setCreate(LOADING);
     setRetryId(null);
@@ -185,7 +251,7 @@ export default function PocketPage() {
       });
       refreshSuppliers(); // most-recently-used ordering just changed
       setConfirmState(ok(updated));
-      setCreate(ok({ ...candidate, offer: updated }));
+      setCreate(ok({ ...candidate, offer: updated, editing: false }));
     } catch (e) {
       setConfirmState(failed(e));
     }
@@ -198,17 +264,25 @@ export default function PocketPage() {
     <div className="card">
       <h1 style={{ marginTop: 0 }}>Pocket</h1>
 
-      {openOfferId ? (
-        <PricingScreen offerId={openOfferId} onStartOver={startOver} />
+      {opening.status === "loading" ? (
+        <p className="muted">Opening…</p>
+      ) : opening.status === "error" ? (
+        <div className="notice bad">
+          Couldn&apos;t open this offer ({opening.error}).{" "}
+          <button type="button" className="small" onClick={startOver}>Back to Pocket</button>
+        </div>
+      ) : openOfferId ? (
+        <PricingScreen offerId={openOfferId} onStartOver={startOver} share={shareParam}
+                       onEditDetails={() => openOffer(openOfferId, { editing: true })} />
       ) : !candidate ? (
         <>
           <NewScreen pasteText={pasteText} setPasteText={setPasteText} onPaste={submitPaste}
                     onPhoto={(f) => submitFile("photo", f)} onUpload={(f) => submitFile("upload", f)}
                     create={create} retryId={retryId} onRetry={retry} />
-          <TradesList onOpen={setOpenOfferId} />
+          <TradesList />
         </>
       ) : (
-        <CandidateScreen offer={offer} proposal={proposal} wines={wines}
+        <CandidateScreen offer={offer} proposal={proposal} wines={wines} editing={!!candidate.editing}
                          candidateGroups={candidateGroups} showAllWines={showAllWines}
                          setShowAllWines={setShowAllWines}
                          suppliers={suppliers} matchedSupplierIds={matchedSupplierIds}
@@ -218,6 +292,7 @@ export default function PocketPage() {
                          stated={stated} setStated={setStated} commercialFork={commercialFork}
                          needsWantListAck={needsWantListAck} confirmState={confirmState}
                          onConfirm={confirmIdentity} onReparse={retry} onStartOver={startOver}
+                         onEditDetails={() => openOffer(offer.inbound_offer_id, { editing: true })}
                          reparsing={create.status === "loading"} />
       )}
     </div>
@@ -274,6 +349,9 @@ function NewScreen({ pasteText, setPasteText, onPaste, onPhoto, onUpload, create
  * own correction asked for. Omitted entirely before a value exists to
  * tag (e.g. the fork hasn't been resolved yet), rather than guessing. */
 function StatedTag({ stated }) {
+  // Undefined when the form was prefilled from the offer's own record
+  // (Edit, Duplicate): there is no message reading to label then.
+  if (stated === undefined) return null;
   return (
     <span className={stated ? "tag ready" : "tag plain"}
           style={{ marginLeft: 6, fontSize: 10, verticalAlign: "middle" }}>
@@ -282,12 +360,12 @@ function StatedTag({ stated }) {
   );
 }
 
-function CandidateScreen({ offer, proposal, wines, candidateGroups, showAllWines, setShowAllWines,
+function CandidateScreen({ offer, proposal, wines, editing, candidateGroups, showAllWines, setShowAllWines,
                           suppliers, matchedSupplierIds, onSupplierCreated,
                           confirmForm, setConfirmForm, stated, setStated, commercialFork,
                           needsWantListAck,
-                          confirmState, onConfirm, onReparse, onStartOver, reparsing }) {
-  const confirmed = !!offer.identity_confirmed_at;
+                          confirmState, onConfirm, onReparse, onStartOver, onEditDetails, reparsing }) {
+  const confirmed = !!offer.identity_confirmed_at && !editing;
 
   if (offer.category === "whisky") {
     return (
@@ -300,7 +378,7 @@ function CandidateScreen({ offer, proposal, wines, candidateGroups, showAllWines
     );
   }
 
-  if (offer.parse_state === "unparseable") {
+  if (offer.parse_state === "unparseable" || (offer.parse_state !== "parsed" && !proposal)) {
     return (
       <div className="notice bad">
         Couldn&apos;t identify a wine or whisky offer here
@@ -324,6 +402,25 @@ function CandidateScreen({ offer, proposal, wines, candidateGroups, showAllWines
              alt="captured" style={{ maxWidth: "100%", maxHeight: 320, borderRadius: 8, marginBottom: 12 }} />
       )}
 
+      {!proposal ? (
+        <div className="card" style={{ background: "var(--bg)" }}>
+          <div className="muted" style={{ fontSize: 13 }}>
+            {editing ? "Editing what you confirmed." : offer.duplicated_from
+              ? "A copy of an earlier offer — check every detail, then confirm."
+              : "Pick up where you left off."}
+          </div>
+          {offer.raw_body && (
+            <details style={{ marginTop: 6 }}>
+              <summary className="muted" style={{ cursor: "pointer", fontSize: 13 }}>Message as received</summary>
+              <pre className="pocket-message">{offer.raw_body}</pre>
+            </details>
+          )}
+          <button type="button" className="small quiet" style={{ marginTop: 8 }} onClick={onReparse}
+                  disabled={reparsing}>
+            {reparsing ? "Reading…" : "Read the message again"}
+          </button>
+        </div>
+      ) : (
       <div className="card" style={{ background: "var(--bg)" }}>
         <strong>{proposal.producer || "(producer not stated)"}</strong> · {proposal.cuvee || "(cuvée not stated)"}
         {proposal.vintage ? ` · ${proposal.vintage}` : ""}
@@ -350,10 +447,11 @@ function CandidateScreen({ offer, proposal, wines, candidateGroups, showAllWines
           {proposal.reasoning}
         </div>
       </div>
+      )}
 
       {!confirmed ? (
         <form onSubmit={onConfirm} className="card" style={{ marginTop: 12 }}>
-          <h2 style={{ marginTop: 0 }}>Confirm identity</h2>
+          <h2 style={{ marginTop: 0 }}>{editing ? "Edit details" : "Confirm identity"}</h2>
           <p className="muted" style={{ fontSize: 13 }}>
             A proposal, never an identity — pick the exact wine yourself.
           </p>
@@ -361,10 +459,12 @@ function CandidateScreen({ offer, proposal, wines, candidateGroups, showAllWines
             <div className="grow">
               <div className="row" style={{ alignItems: "baseline", gap: 8 }}>
                 <label htmlFor="pwine" style={{ marginBottom: 0 }}>Wine</label>
-                <button type="button" className="small quiet"
-                        onClick={() => setShowAllWines(!showAllWines)}>
-                  {showAllWines ? "Show proposed producer only" : "Show all wines"}
-                </button>
+                {proposal && (
+                  <button type="button" className="small quiet"
+                          onClick={() => setShowAllWines(!showAllWines)}>
+                    {showAllWines ? "Show proposed producer only" : "Show all wines"}
+                  </button>
+                )}
               </div>
               <WineSelect wines={wines} candidateGroups={candidateGroups} showAllWines={showAllWines}
                          value={confirmForm.wine_id}
@@ -534,7 +634,7 @@ function CandidateScreen({ offer, proposal, wines, candidateGroups, showAllWines
                              || !confirmForm.quantity || !confirmForm.supplier_id
                              || askBasisMissing(confirmForm)
                              || (needsWantListAck && !confirmForm.want_list_ack)}>
-              {confirmState.status === "loading" ? "Confirming…" : "Confirm identity"}
+              {confirmState.status === "loading" ? "Confirming…" : editing ? "Save details" : "Confirm identity"}
             </button>
           </div>
         </form>
@@ -542,11 +642,9 @@ function CandidateScreen({ offer, proposal, wines, candidateGroups, showAllWines
         <>
           <div className="notice good" style={{ marginTop: 12 }}>
             Identity confirmed by {offer.identity_confirmed_by?.display_name}.
-            {offer.supplier_id && (
-              <> From {suppliers.find((sp) => sp.supplier_id === offer.supplier_id)?.name || "—"}.</>
-            )}
           </div>
-          <PricingScreen offerId={offer.inbound_offer_id} onStartOver={onStartOver} />
+          <PricingScreen offerId={offer.inbound_offer_id} onStartOver={onStartOver}
+                         onEditDetails={onEditDetails} />
         </>
       )}
     </>
@@ -688,6 +786,74 @@ function SupplierPicker({ suppliers, matchedSupplierIds, value, onChange, onCrea
   );
 }
 
+/** Who said yes (decision 0050): a client from the register, most recently
+ * traded first, or a new one from a name — the rest of the record can wait. */
+function ClientPicker({ value, onChange }) {
+  const [clients, setClients] = useState(LOADING);
+  const [adding, setAdding] = useState(false);
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  useEffect(() => { fetchInto(setClients, api.get("/clients")); }, []);
+
+  async function submitNew(event) {
+    event.preventDefault();
+    if (!name.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const c = await api.post("/clients", { name: name.trim(), phone: phone.trim() || null });
+      setClients((prev) => ok([c, ...(prev.data || [])]));
+      onChange(c.client_id);
+      setAdding(false);
+      setName("");
+      setPhone("");
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const active = clients.status === "ok" ? clients.data.filter((c) => c.active) : [];
+  return (
+    <div>
+      <label style={{ marginBottom: 6 }}>Buyer said yes? Who</label>
+      {clients.status === "error" && (
+        <p className="notice bad" style={{ fontSize: 13 }}>Couldn&apos;t load clients ({clients.error}).</p>
+      )}
+      <div className="row" style={{ gap: 8 }}>
+        {active.map((c) => (
+          <button key={c.client_id} type="button" className={value === c.client_id ? "small" : "small quiet"}
+                  onClick={() => onChange(value === c.client_id ? "" : c.client_id)}>
+            {c.name}
+          </button>
+        ))}
+        <button type="button" className="small quiet" onClick={() => setAdding(!adding)}>+ new client</button>
+      </div>
+      {adding && (
+        <div className="row" style={{ marginTop: 8, alignItems: "flex-end" }}>
+          <div className="grow">
+            <label htmlFor="cl_name">Name</label>
+            <input id="cl_name" value={name} onChange={(e) => setName(e.target.value)}
+                   onKeyDown={(e) => { if (e.key === "Enter") submitNew(e); }} />
+          </div>
+          <div className="grow">
+            <label htmlFor="cl_phone">Phone</label>
+            <input id="cl_phone" value={phone} onChange={(e) => setPhone(e.target.value)}
+                   onKeyDown={(e) => { if (e.key === "Enter") submitNew(e); }} />
+          </div>
+          <button type="button" className="small" onClick={submitNew} disabled={busy || !name.trim()}>
+            {busy ? "Adding…" : "Add"}
+          </button>
+        </div>
+      )}
+      {error && <p className="notice bad" style={{ fontSize: 13 }}>{error}</p>}
+    </div>
+  );
+}
+
 /** Screen 2's own filtered list: the proposed producer's wines only,
  * closest cuvée first, grouped by producer so an always_review fork
  * (bare "Leroy") is visible as two groups in the list itself, not only
@@ -754,34 +920,27 @@ function monthYear(iso) {
   return new Date(iso).toLocaleDateString("en-GB", { month: "short", year: "numeric" });
 }
 
-/** Offers out and confirmed trades, newest first — the way back to a trade
- * when the buyer replies hours later. */
-function TradesList({ onOpen }) {
+/** The latest offers, newest first — the way back to a trade when the buyer
+ * replies hours later. Every one has its menu; the full list is Trades. */
+function TradesList() {
   const [trades, setTrades] = useState(LOADING);
-  useEffect(() => { fetchInto(setTrades, api.get("/pocket/trades")); }, []);
+  useEffect(() => { fetchInto(setTrades, api.get("/trades")); }, []);
+  const refresh = () => refreshInto(setTrades, api.get("/trades"));
   if (trades.status === "loading") return null;
   if (trades.status === "error") {
     return <p className="notice bad" style={{ marginTop: 16 }}>Couldn&apos;t load your offers ({trades.error}).</p>;
   }
-  if (!trades.data.length) return null;
-  const label = { OFFERED: "Offer out", CONFIRMED: "Confirmed", COMPLETE: "Complete" };
+  const latest = trades.data.pocket.slice(0, 8);
+  if (!latest.length) return null;
   return (
     <div style={{ marginTop: 20 }}>
-      <h2 style={{ marginTop: 0 }}>Offers</h2>
-      {trades.data.map((t) => (
-        <button key={t.inbound_offer_id} type="button" className="pocket-trade"
-                onClick={() => onOpen(t.inbound_offer_id)}>
-          <span className="grow">
-            <strong>{t.wine_name}</strong>
-            <span className="muted"> · {t.quantity} × {t.pack_size > 1 ? `${t.pack_size} × ` : ""}{t.bottle_ml / 10}cl</span>
-            <span className="muted" style={{ display: "block", fontSize: 13 }}>
-              {quotePrice(t.vessel_sell, t.quote_unit, t.pack_size, "GBP", { whole: true })}
-              {t.buyer_name ? ` · ${t.buyer_name}` : ""}{` · ${shortDate(t.priced_at)}`}
-            </span>
-          </span>
-          <span className={t.state === "OFFERED" ? "tag" : "tag ready"}>{label[t.state]}</span>
-        </button>
-      ))}
+      <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>
+        <h2 style={{ margin: 0 }}>Offers</h2>
+        <Link href="/trades" className="t-small">All trades →</Link>
+      </div>
+      <div className="tlist" style={{ marginTop: 8 }}>
+        {latest.map((t) => <TradeRow key={t.inbound_offer_id} t={t} onChanged={refresh} />)}
+      </div>
     </div>
   );
 }
@@ -836,7 +995,7 @@ function PriceRow({ label, value, sub, note, children, open, onToggle }) {
  * commercial unit. A VESSEL sell is always a whole 5 in the quote unit,
  * rounded UP. Gates that would need an accept are previewed here and decided
  * by the server at CREATE OFFER. */
-function PricingScreen({ offerId, onStartOver }) {
+function PricingScreen({ offerId, onStartOver, onEditDetails, share = false }) {
   const [view, setView] = useState(LOADING);
   const [collect, setCollect] = useState(ok(null));
   const [sell, setSell] = useState(null);          // in the quote unit, pence, a whole 5
@@ -844,7 +1003,8 @@ function PricingScreen({ offerId, onStartOver }) {
   const [availability, setAvailability] = useState("");
   const [create, setCreate] = useState(ok(null));
   const [gate, setGate] = useState(null);
-  const [buyer, setBuyer] = useState("");
+  const [clientId, setClientId] = useState("");
+  const offerCard = useRef(null);
   const [confirm, setConfirm] = useState(ok(null));
   const [complete, setComplete] = useState(ok(null));
   const [openRow, setOpenRow] = useState(null);
@@ -872,6 +1032,10 @@ function PricingScreen({ offerId, onStartOver }) {
     }
   }
   useEffect(() => { load(); }, [offerId]);
+  // Share again: the existing offer, scrolled to — never a new one.
+  useEffect(() => {
+    if (share && view.status === "ok") offerCard.current?.scrollIntoView({ block: "center" });
+  }, [share, view.status]);
 
   async function runCollect() {
     setCollect(LOADING);
@@ -908,7 +1072,7 @@ function PricingScreen({ offerId, onStartOver }) {
   async function confirmTrade() {
     setConfirm(LOADING);
     try {
-      adopt(await api.post(`/inbound-offers/${offerId}/confirm`, { buyer_name: buyer.trim() }),
+      adopt(await api.post(`/inbound-offers/${offerId}/confirm`, { client_id: clientId }),
             { keepSell: true });
       setConfirm(ok(true));
     } catch (e) {
@@ -953,9 +1117,15 @@ function PricingScreen({ offerId, onStartOver }) {
   const perBottleToQuote = (bottlePence) => (unit === "case" ? bottlePence * pack : bottlePence);
   const units = unit === "case" ? `${v.quantity} cs` : `${v.quantity * pack} btl`;
 
+  const committed = v.committed;
+  const offerText = committed && tombstone({
+    wineName: title, quantity: v.quantity, pack_size: pack, bottle_ml: v.bottle_ml,
+    bond_status: v.bond_status, stock_location: v.stock_location,
+    availability: v.availability, vesselSell: committed.vessel_sell, quoteUnit: unit });
+
   if (v.fulfilment) {
     return <ConfirmedTrade f={v.fulfilment} complete={complete} onComplete={markComplete}
-                           onStartOver={onStartOver} />;
+                           onStartOver={onStartOver} offerText={offerText} share={share} />;
   }
 
   const supplierUnit = v.ask ? toPence(v.ask.per_unit) : null;
@@ -966,7 +1136,6 @@ function PricingScreen({ offerId, onStartOver }) {
   const minBp = Math.round(Number(v.min_trade_margin) * 10000);
   const grossUnit = supplierUnit != null && sellUnit != null ? sellUnit - supplierUnit : null;
   const vsMarket = floorUnit && sellUnit != null ? vsMarketBp(sellUnit, floorUnit) : null;
-  const committed = v.committed;
   const dirty = committed && (toPence(committed.vessel_sell) !== sellUnit
                               || (availability.trim() || null) !== (v.availability || null));
   const canCreate = sell != null && sell > 0 && create.status !== "loading";
@@ -998,11 +1167,6 @@ function PricingScreen({ offerId, onStartOver }) {
     "bond status not stated",
   ].filter(Boolean).join(" · ");
 
-  const offerText = committed && tombstone({
-    wineName: title, quantity: v.quantity, pack_size: pack, bottle_ml: v.bottle_ml,
-    bond_status: v.bond_status, stock_location: v.stock_location,
-    availability: v.availability, vesselSell: committed.vessel_sell, quoteUnit: unit });
-
   return (
     <div className="pocket">
       <div className="pocket-head">
@@ -1010,6 +1174,12 @@ function PricingScreen({ offerId, onStartOver }) {
         <div className="pocket-wine">{[v.cuvee, v.vintage === 1000 ? "NV" : v.vintage].filter(Boolean).join(" ")}</div>
         <div className="muted">{lineText}{where ? ` · ${where}` : ""}</div>
         {v.packaging && <div className="muted">{v.packaging}</div>}
+        <div className="muted t-small" style={{ marginTop: 4 }}>
+          {v.supplier_id ? <>From <Link href={`/suppliers/${v.supplier_id}`}>{v.supplier_name}</Link></> : "No supplier"}
+          {onEditDetails && (
+            <>{" · "}<button type="button" className="ev" onClick={onEditDetails}>Edit details</button></>
+          )}
+        </div>
       </div>
 
       <PriceRow label="SUPPLIER"
@@ -1130,19 +1300,17 @@ function PricingScreen({ offerId, onStartOver }) {
       )}
 
       {committed && (
-        <div className="card" style={{ marginTop: 14 }}>
+        <div className="card" style={{ marginTop: 14 }} ref={offerCard}>
           <div className="pocket-label">OFFER</div>
           <pre className="pocket-message">{offerText}</pre>
           {dirty && <p className="notice" style={{ fontSize: 13 }}>Price changed — update the offer before sharing.</p>}
           <ShareButtons disabled={dirty} text={offerText} />
 
           <div style={{ marginTop: 16 }}>
-            <label htmlFor="pbuyer">Buyer said yes? Who</label>
-            <input id="pbuyer" value={buyer} placeholder="Buyer name"
-                   onChange={(e) => setBuyer(e.target.value)} />
+            <ClientPicker value={clientId} onChange={setClientId} />
             {confirm.status === "error" && <div className="notice bad" style={{ marginTop: 8 }}>{confirm.error}</div>}
             <button type="button" style={{ marginTop: 8, width: "100%" }}
-                    disabled={dirty || !buyer.trim() || confirm.status === "loading"}
+                    disabled={dirty || !clientId || confirm.status === "loading"}
                     onClick={confirmTrade}>
               {confirm.status === "loading" ? "Confirming…"
                 : `CONFIRM at ${quotePrice(committed.vessel_sell, unit, pack, "GBP", { whole: true })}`}
@@ -1161,13 +1329,27 @@ function PricingScreen({ offerId, onStartOver }) {
 }
 
 /** CONFIRMED: the frozen record and the two handoffs, copy or share. */
-function ConfirmedTrade({ f, complete, onComplete, onStartOver }) {
+function ConfirmedTrade({ f, complete, onComplete, onStartOver, offerText, share }) {
+  const card = useRef(null);
+  useEffect(() => { if (share) card.current?.scrollIntoView({ block: "center" }); }, [share]);
   return (
     <div className="pocket">
       <div className="notice good" style={{ marginTop: 12 }}>
-        <strong>CONFIRMED</strong> · {f.buyer_name} · {f.wine_name}
+        <strong>CONFIRMED</strong> ·{" "}
+        {f.client_id ? <Link href={`/clients/${f.client_id}`}>{f.buyer_name}</Link> : f.buyer_name}
+        {" · "}{f.wine_name}
         {f.state === "COMPLETE" && " · complete"}
       </div>
+
+      {offerText && (
+        <div className="card" ref={card}>
+          <details open={share}>
+            <summary className="pocket-label" style={{ cursor: "pointer" }}>OFFER AS SENT</summary>
+            <pre className="pocket-message">{offerText}</pre>
+            <ShareButtons text={offerText} />
+          </details>
+        </div>
+      )}
 
       <div className="card">
         <div className="pocket-label">TO SUPPLIER · {f.supplier_name}</div>

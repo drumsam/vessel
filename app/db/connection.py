@@ -18,7 +18,7 @@ from psycopg.rows import dict_row
 #: not bundled into the deployed function (see .vercelignore), so this
 #: constant -- not a live read of migrations/versions/ -- is the only way
 #: the running API can tell "reachable" apart from "actually usable".
-EXPECTED_HEAD_REVISION = "0039_feed_scope_wine"
+EXPECTED_HEAD_REVISION = "0040_counterparties"
 
 
 def database_url() -> str:
