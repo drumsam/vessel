@@ -15,12 +15,41 @@ exactly and is never reconstructed here.
 """
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Optional
+from urllib.parse import parse_qsl, urlparse
 
+import psycopg
+
+from app.core.flags import MAX_OFFER_AGE_DAYS
 from app.identity.resolver import norm
 
 SOURCE = "wine-searcher-via-mrbridge"
+
+#: Wine-Searcher's own winery spellings that differ from the register's
+#: producer for the SAME house — a source naming quirk, fixed here in the
+#: adapter rather than as dozens of per-wine aliases (decision 0049). Keyed
+#: by norm(); the register's display name is never changed.
+_WINERY_TO_REGISTER = {
+    "domaine du comte liger belair": "Comte Liger-Belair",
+}
+
+#: The bottle size a Wine-Searcher URL states EXPLICITLY through its own
+#: `Xbottle_size` filter (the parameter its robots.txt names). Only these
+#: values are read as 750ml; anything else — including a price MrBridge
+#: merely normalised to 75cl — leaves the size unknown. The value spellings
+#: are unconfirmed against a live filtered URL: fail closed until they are.
+_URL_750 = {"750", "750ml", "75cl"}
+
+
+def bottle_ml_from_url(url: Optional[str]) -> Optional[int]:
+    if not url:
+        return None
+    for key, value in parse_qsl(urlparse(url).query, keep_blank_values=True):
+        if key.lower() == "xbottle_size" and value.strip().lower() in _URL_750:
+            return 750
+    return None
 
 #: Words a Wine-Searcher name carries between the winery and the cuvée, or
 #: after it, that are never part of a register cuvée. Stripped only at those
@@ -52,7 +81,8 @@ def split_name(wine_name: str, winery: str, vintage: Optional[int]) -> tuple[str
         if len(tokens) > len(tail) and tuple(tokens[-len(tail):]) == tail:
             tokens = tokens[:-len(tail)]
             break
-    return winery, " ".join(tokens)
+    producer = _WINERY_TO_REGISTER.get(norm(winery), winery)
+    return producer, " ".join(tokens)
 
 
 def _observation(row: dict) -> dict:
@@ -61,15 +91,17 @@ def _observation(row: dict) -> dict:
     per_unit = row.get("bottlesPerUnit")
     amount = row.get("cheapestPriceAmount")
     # A single-bottle listing's normalised price IS its price. A multi-bottle
-    # listing's price is only known divided and rounded — never multiplied
-    # back into a figure the merchant did not print.
-    price = (f"{Decimal(str(amount)):.2f}" if per_unit == 1 and amount is not None else None)
+    # listing's price is only known divided and rounded: it travels as a
+    # per-bottle EQUIVALENT (stored as an indication, never Floor) and is
+    # never multiplied back into a figure the merchant did not print.
+    price = f"{Decimal(str(amount)):.2f}" if amount is not None else None
+    single = per_unit == 1
     return {
-        "kind": "CURRENT_LISTING",
+        "kind": "CURRENT_LISTING" if single else "BOTTLE_EQUIVALENT",
         "wine": {"producer": producer, "name": cuvee},
         "vintage": vintage,
-        "bottle_ml": None,                 # not stated by this source
-        "pack_size": per_unit,
+        "bottle_ml": bottle_ml_from_url(row.get("wineSearcherUrl")),   # only if the URL says so
+        "pack_size": 1,
         "merchant": {"name": row.get("cheapestPriceMerchant"),
                      "reference": row.get("wineSearcherUrl")},
         "price": price,
@@ -83,7 +115,8 @@ def _observation(row: dict) -> dict:
             "cheapestPriceConverted", "cheapestPriceEur", "targetCurrency",
             "cheapestPriceMerchant", "bottlesPerUnit", "offersCount", "offersPages",
             "scrapedAt", "status")}
-            | {"price_basis": "cheapest offer, normalised per 75cl bottle"},
+            | {"price_basis": "cheapest offer, normalised per 75cl bottle",
+               "bottle_equivalent_of": None if single else per_unit},
     }
 
 
@@ -98,3 +131,37 @@ def to_batch(rows: list[dict]) -> tuple[dict, list[dict]]:
             continue
         observations.append(_observation(row))
     return {"source": SOURCE, "observations": observations}, skipped
+
+
+def steer(conn: psycopg.Connection, *, wine_id: str, vintage: int, bottle_ml: int,
+          as_of: Optional[datetime] = None) -> Optional[dict]:
+    """The latest fresh Wine-Searcher observation for exactly this wine, vintage
+    and bottle size — context for the MARKET row, never Floor (decision 0049).
+    Merchant approval decides Floor, not visibility, so it is not filtered
+    here. Freshness is the same MAX_OFFER_AGE_DAYS the core applies."""
+    as_of = as_of or datetime.now(timezone.utc)
+    row = conn.execute(
+        """SELECT o.price, o.pack_size, o.currency, o.price_kind, o.captured_at, o.raw,
+                  m.name AS merchant
+             FROM offer o
+             JOIN snapshot s ON s.snapshot_id = o.snapshot_id
+             JOIN merchant m ON m.merchant_id = o.merchant_id
+            WHERE o.wine_id = %s AND o.vintage = %s AND o.bottle_ml = %s
+              AND o.raw->>'acquisition_source' = %s AND NOT s.is_demo
+              AND o.captured_at <= %s AND o.captured_at > %s
+            ORDER BY o.captured_at DESC, o.price ASC
+            LIMIT 1""",
+        (wine_id, vintage, bottle_ml, SOURCE, as_of,
+         as_of - timedelta(days=MAX_OFFER_AGE_DAYS))).fetchone()
+    if row is None:
+        return None
+    source_raw = (row["raw"].get("observation") or {}).get("raw") or {}
+    return {
+        "source": "Wine-Searcher",
+        "merchant": row["merchant"],
+        "price_per_bottle": (Decimal(str(row["price"])) / row["pack_size"]).quantize(Decimal("0.01")),
+        "currency": row["currency"],
+        "offers_count": source_raw.get("offersCount"),
+        "bottle_equivalent_of": source_raw.get("bottle_equivalent_of"),
+        "observed_at": row["captured_at"],
+    }

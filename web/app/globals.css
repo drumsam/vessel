@@ -291,6 +291,7 @@ table.oev .u { color: var(--muted); font-size: .8rem; }
 .pocket-row-head .pocket-label { grid-column: 1; align-self: center; }
 .pocket-value { grid-column: 2; font-size: 18px; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
 .pocket-sub { grid-column: 2; font-size: 13px; color: var(--muted); text-align: right; }
+.pocket-note { grid-column: 1 / -1; font-size: 12px; color: var(--muted); text-align: right; margin-top: 2px; }
 .pocket-detail { padding: 0 0 12px; font-size: 14px; }
 .pocket-comp { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; }
 .pocket-sell {

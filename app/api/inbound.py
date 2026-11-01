@@ -29,6 +29,7 @@ from app.core.flags import MIN_TRADE_MARGIN, REVIEW_FLAGS
 from app.db import repo
 from app.db.connection import transaction
 from app.evaluate import walkaway
+from app.feed import mrbridge
 from app.identity.want_list import match_want_list
 from app.inbound import repo as inbound_repo
 from app.pricing import pricer
@@ -296,6 +297,8 @@ def _pocket_facts(conn: psycopg.Connection, offer: dict, line_row: dict,
         stock_location=offer["confirmed_stock_location"], availability=offer["availability"],
         supplier_currency=offer["confirmed_asking_currency"], min_trade_margin=MIN_TRADE_MARGIN,
         market=_market(conn, run, pack_size), market_note=_market_note(run),
+        market_steer=mrbridge.steer(conn, wine_id=str(line_row["wine_id"]),
+                                    vintage=line_row["vintage"], bottle_ml=line_row["bottle_ml"]),
         committed=_committed(conn, str(line_row["line_id"])))
     unit = pricer.quote_unit(offer["confirmed_asking_basis"], pack_size)
     facts["quote_unit"] = unit

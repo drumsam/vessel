@@ -1238,3 +1238,31 @@ def test_bottle_priced_case_stock_is_quoted_per_bottle(client, monkeypatch, conn
         "bottle", "665.00", "4320.00")
     assert _offer(client, offer_id, "4326.00", accept=True).status_code == 422
     assert _offer(client, offer_id, "4320.00", accept=True).status_code == 200
+
+
+
+@pg
+def test_the_wine_searcher_steer_rides_under_market_and_moves_nothing(client, monkeypatch, conn):
+    """Decision 0049: a Wine-Searcher observation for the exact wine, vintage and
+    size appears as `market_steer`; Floor, the market state and the default
+    sell are exactly what they were without it."""
+    from app.feed import importer, mrbridge
+    offer_id, before = _priced_offer(client, conn, monkeypatch)
+    row = {"inputValue": "2015 Clos St Jacques Rousseau", "inputType": "wineName", "status": "ok",
+           "wineSearcherUrl": "https://www.wine-searcher.com/find/x?Xbottle_size=750",
+           "wineName": "2015 Armand Rousseau Clos St Jacques", "wineryName": "Armand Rousseau",
+           "vintage": 2015, "cheapestPriceAmount": 2500, "cheapestPriceCurrency": "GBP",
+           "cheapestPriceMerchant": "Somebody New Wines", "bottlesPerUnit": 1, "offersCount": 4,
+           "scrapedAt": datetime_now_iso()}
+    importer.import_batch(conn, mrbridge.to_batch([row])[0])
+    after = client.post(f"/inbound-offers/{offer_id}/evaluate").json()
+    steer = after["market_steer"]
+    assert (steer["source"], steer["price_per_bottle"], steer["offers_count"]) == (
+        "Wine-Searcher", "2500.00", 4)
+    for key in ("state", "market", "default_vessel_sell", "comp_count"):
+        assert after[key] == before[key], key
+
+
+def datetime_now_iso():
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).isoformat()

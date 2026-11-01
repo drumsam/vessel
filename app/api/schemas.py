@@ -1136,6 +1136,10 @@ class EvaluateOut(_Out):
     #: NO_MARKET) — never a flag constant.
     market_note: Optional[str] = None
     auction: Optional["AuctionOut"] = None
+    #: Decision 0049: the latest Wine-Searcher observation for this exact wine,
+    #: vintage and size — context only, never Floor, never "% below market",
+    #: never a gate.
+    market_steer: Optional["MarketSteerOut"] = None
     #: Decision 0047: "case" (/cs of pack_size) or "bottle" (/btl) -- the
     #: supplier's own commercial unit, which every Pocket price is shown in.
     quote_unit: Optional[Literal["case", "bottle"]] = None
@@ -1166,6 +1170,17 @@ class MarketOut(_Out):
     #: The newest capture among the comps, not when the benchmark ran.
     checked_at: Optional[datetime] = None
     comps: list[MarketCompOut] = []
+
+
+class MarketSteerOut(_Out):
+    source: str
+    merchant: str
+    price_per_bottle: Money
+    currency: str
+    offers_count: Optional[int] = None
+    #: Set when the figure is a per-bottle equivalent of a multi-bottle listing.
+    bottle_equivalent_of: Optional[int] = None
+    observed_at: datetime
 
 
 class AuctionOut(_Out):

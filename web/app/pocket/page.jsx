@@ -815,13 +815,14 @@ function ShareButtons({ text, disabled }) {
   );
 }
 
-function PriceRow({ label, value, sub, children, open, onToggle }) {
+function PriceRow({ label, value, sub, note, children, open, onToggle }) {
   return (
     <div className="pocket-row">
       <button type="button" className="pocket-row-head" onClick={onToggle} disabled={!onToggle}>
         <span className="pocket-label">{label}</span>
         <span className="pocket-value">{value}</span>
         {sub && <span className="pocket-sub">{sub}</span>}
+        {note && <span className="pocket-note">{note}</span>}
       </button>
       {open && children && <div className="pocket-detail">{children}</div>}
     </div>
@@ -987,6 +988,16 @@ function PricingScreen({ offerId, onStartOver }) {
     warnings.push(`The market ${v.market_note} — needs your accept.`);
   }
 
+  // Decision 0049: Wine-Searcher context under MARKET. Never Floor, never
+  // "% below market", never a gate — shown, quietly labelled, and nothing else.
+  const steer = v.market_steer;
+  const steerNote = steer && [
+    `Wine-Searcher ${fmt(toPence(steer.price_per_bottle), steer.currency, { whole: true })} /btl`,
+    steer.offers_count ? `${steer.offers_count} offers` : null,
+    steer.bottle_equivalent_of ? `per-bottle equivalent of a ${steer.bottle_equivalent_of}-btl listing` : null,
+    "bond status not stated",
+  ].filter(Boolean).join(" · ");
+
   const offerText = committed && tombstone({
     wineName: title, quantity: v.quantity, pack_size: pack, bottle_ml: v.bottle_ml,
     bond_status: v.bond_status, stock_location: v.stock_location,
@@ -1009,6 +1020,7 @@ function PricingScreen({ offerId, onStartOver }) {
         <PriceRow label="MARKET" value={`${fmt(quoteOf(floorUnit), "GBP", { whole: true })} ${label}`}
                   sub={`${v.market.comp_count} source${v.market.comp_count === 1 ? "" : "s"}`
                        + (v.market.checked_at ? ` · checked ${shortDate(v.market.checked_at)}` : "")}
+                  note={steerNote}
                   open={openRow === "market"}
                   onToggle={() => setOpenRow(openRow === "market" ? null : "market")}>
           {v.market.comps.map((c) => (
@@ -1032,6 +1044,7 @@ function PricingScreen({ offerId, onStartOver }) {
                          : v.state === "NO_MARKET" ? "No current market evidence found" : "Not checked"}
                   sub={collectFailed ? "the collection failed — not the same as no market"
                        : v.state === "NO_MARKET" ? `${v.checked_merchants.length} merchants checked` : null}
+                  note={steerNote}
                   open={openRow === "market"}
                   onToggle={() => setOpenRow(openRow === "market" ? null : "market")}>
           {v.state === "NO_MARKET" && (

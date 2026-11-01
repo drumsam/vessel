@@ -32,6 +32,12 @@ from app.worker import jobs
 
 FEED_SCHEMA_VERSION = "feed-1"
 
+#: CURRENT_LISTING is a merchant's ask. BOTTLE_EQUIVALENT is a per-bottle
+#: figure a provider derived from a multi-bottle listing — real evidence, but
+#: not a price anyone quoted, so it is stored as an INDICATION, which the
+#: core's KIND screen keeps out of Floor whatever else is known (decision 0049).
+_KINDS = {"CURRENT_LISTING": PriceKind.ASK, "BOTTLE_EQUIVALENT": PriceKind.INDICATION}
+
 _DUTY = {"IN_BOND": DutyStatus.IN_BOND, "DUTY_PAID": DutyStatus.DUTY_PAID,
          "UNKNOWN": DutyStatus.UNKNOWN, None: DutyStatus.UNKNOWN}
 
@@ -101,8 +107,9 @@ class FeedAdapter:
         vintage = _vintage(obs.get("vintage"))
         if vintage is None:
             return Rejected(raw, Reject.VINTAGE, f"vintage {obs.get('vintage')!r} is not a year or NV")
-        if obs.get("kind", "CURRENT_LISTING") != "CURRENT_LISTING":
-            return Rejected(raw, Reject.KIND, f"{obs.get('kind')}: kept as evidence, not a live ask")
+        kind = obs.get("kind", "CURRENT_LISTING")
+        if kind not in _KINDS:
+            return Rejected(raw, Reject.KIND, f"{kind}: kept as evidence, not a live ask")
         if not isinstance(obs.get("bottle_ml"), int) or obs["bottle_ml"] <= 0:
             return Rejected(raw, Reject.SIZE, "bottle size not stated")
         if not isinstance(obs.get("pack_size"), int) or obs["pack_size"] <= 0:
@@ -122,7 +129,7 @@ class FeedAdapter:
             offer_id=f"feed:{self.source}:{raw['index']}", merchant_id=self.id,
             merchant=self.merchant, wine_id="", vintage=vintage, bottle_ml=obs["bottle_ml"],
             pack_size=obs["pack_size"], price=price, currency=str(obs.get("currency") or ""),
-            duty_status=duty, price_kind=PriceKind.ASK,
+            duty_status=duty, price_kind=_KINDS[kind],
             # A current listing is an offer for sale unless it says otherwise.
             is_buyable=obs.get("availability") != "OUT_OF_STOCK",
             offered_units=obs.get("quantity"), stock_type=StockType.UNKNOWN,
@@ -214,7 +221,15 @@ def import_batch(conn: psycopg.Connection, batch: dict) -> dict:
         rejected += r
         if not approval[merchant_id]:
             unapproved_written += w
-        if scope is not None:
+        # A capture claims coverage only when it carries something that could
+        # set Floor (an In Bond ask). Otherwise it would supersede the same
+        # merchant's fuller capture of this wine — Farr's own In Bond price
+        # hidden behind a feed row that cannot count — and lift the Floor.
+        floor_capable = any(
+            r_["observation"].get("duty_status") == "IN_BOND"
+            and r_["observation"].get("kind", "CURRENT_LISTING") == "CURRENT_LISTING"
+            for r_ in records)
+        if scope is not None and floor_capable:
             wine_id, vintage = scope
             latest = max(datetime.fromisoformat(r_["observation"]["observed_at"])
                          if r_["observation"].get("observed_at") else observed_at

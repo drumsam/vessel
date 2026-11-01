@@ -34,8 +34,34 @@ No row sets Floor: three lack a bottle size, one (La Romanée) a vintage. All
 four are stored with their reasons and raw data (`offersCount` kept); their
 merchants are created unapproved (decision 0048).
 
-## Open
+## Resolved, 1 November 2026 (Doug)
 
-1. **Bottle size.** Not in the output; prices are per-75cl equivalents.
-2. **Duty status.** Not in the output; Floor requires UK In Bond (invariant 5).
-3. **Multi-bottle listings.** Only a divided, rounded per-bottle figure exists.
+1. **Bottle size** is recorded as 750ml only when the row's Wine-Searcher URL
+   states it through its own `Xbottle_size` filter (`750`/`750ml`/`75cl`) —
+   never because MrBridge normalised a price to 75cl. The value spellings are
+   unconfirmed against a live filtered URL, so the rule fails closed: any
+   other URL leaves the size unknown.
+2. **Duty status** stays unknown, so the locked Floor rules keep this source
+   out of Floor. Instead Pocket's MARKET row carries a quiet secondary line —
+   `Wine-Searcher GBP 1,695 /btl · 6 offers · bond status not stated` — from
+   the latest fresh (`MAX_OFFER_AGE_DAYS`) observation for exactly the line's
+   wine, vintage and bottle size. It never sets Floor, never drives "% below
+   market", never gates. Merchant approval controls Floor, not visibility, so
+   the line shows from an unapproved merchant too.
+3. **Multi-bottle listings** travel as a per-bottle EQUIVALENT (kind
+   `BOTTLE_EQUIVALENT`, stored as an `INDICATION`, which the core's KIND
+   screen keeps out of Floor whatever else is ever known), labelled
+   "per-bottle equivalent of a 6-btl listing". Never multiplied back.
+4. **Comte Liger-Belair**: Wine-Searcher's "Domaine du Comte Liger-Belair" is
+   mapped to the register's producer in the converter, so every Liger-Belair
+   wine resolves without dozens of per-wine aliases (a producer-only register
+   alias is refused for a multi-wine producer, invariant 13). The canonical
+   name is unchanged.
+
+## Importer change (decision 0048)
+
+A feed capture now claims coverage of its wine only when it carries an In
+Bond ask — something that could set Floor. Otherwise a duty-unknown
+Wine-Searcher row whose cheapest merchant is one we also collect directly
+(Farr) would supersede that merchant's own In Bond price for the wine and
+lift the Floor. Such rows are still stored and still feed the steer line.
