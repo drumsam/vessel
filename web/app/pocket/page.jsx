@@ -992,9 +992,9 @@ function PricingScreen({ offerId, onStartOver }) {
   // "% below market", never a gate — shown, quietly labelled, and nothing else.
   const steer = v.market_steer;
   const steerNote = steer && [
-    `Wine-Searcher ${fmt(toPence(steer.price_per_bottle), steer.currency, { whole: true })} /btl`,
+    `Wine-Searcher ${fmt(toPence(steer.price), steer.currency, { whole: true })} /${steer.unit}`,
     steer.offers_count ? `${steer.offers_count} offers` : null,
-    steer.bottle_equivalent_of ? `per-bottle equivalent of a ${steer.bottle_equivalent_of}-btl listing` : null,
+    steer.bottle_equivalent_of ? `from a ${steer.bottle_equivalent_of}-btl listing` : null,
     "bond status not stated",
   ].filter(Boolean).join(" · ");
 

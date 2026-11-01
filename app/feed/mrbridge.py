@@ -90,17 +90,19 @@ def _observation(row: dict) -> dict:
     producer, cuvee = split_name(row.get("wineName") or "", row.get("wineryName") or "", vintage)
     per_unit = row.get("bottlesPerUnit")
     amount = row.get("cheapestPriceAmount")
-    # A single-bottle listing's normalised price IS its price. A multi-bottle
-    # listing's price is only known divided and rounded: it travels as a
-    # per-bottle EQUIVALENT (stored as an indication, never Floor) and is
-    # never multiplied back into a figure the merchant did not print.
+    # A real listing only when the URL itself confirms 750ml AND the listing is
+    # one bottle: then the normalised price is that bottle's price. Anything
+    # else is a per-75cl EQUIVALENT — MrBridge's own normalisation, or a
+    # multi-bottle listing divided — context only, never evidence of format,
+    # never multiplied back into a price nobody printed.
     price = f"{Decimal(str(amount)):.2f}" if amount is not None else None
-    single = per_unit == 1
+    stated_ml = bottle_ml_from_url(row.get("wineSearcherUrl"))
+    listing = per_unit == 1 and stated_ml == 750
     return {
-        "kind": "CURRENT_LISTING" if single else "BOTTLE_EQUIVALENT",
+        "kind": "CURRENT_LISTING" if listing else "EQUIVALENT_75CL",
         "wine": {"producer": producer, "name": cuvee},
         "vintage": vintage,
-        "bottle_ml": bottle_ml_from_url(row.get("wineSearcherUrl")),   # only if the URL says so
+        "bottle_ml": stated_ml if listing else None,
         "pack_size": 1,
         "merchant": {"name": row.get("cheapestPriceMerchant"),
                      "reference": row.get("wineSearcherUrl")},
@@ -116,7 +118,8 @@ def _observation(row: dict) -> dict:
             "cheapestPriceMerchant", "bottlesPerUnit", "offersCount", "offersPages",
             "scrapedAt", "status")}
             | {"price_basis": "cheapest offer, normalised per 75cl bottle",
-               "bottle_equivalent_of": None if single else per_unit},
+               "format_stated": stated_ml is not None,
+               "bottle_equivalent_of": per_unit if per_unit and per_unit > 1 else None},
     }
 
 
@@ -135,33 +138,55 @@ def to_batch(rows: list[dict]) -> tuple[dict, list[dict]]:
 
 def steer(conn: psycopg.Connection, *, wine_id: str, vintage: int, bottle_ml: int,
           as_of: Optional[datetime] = None) -> Optional[dict]:
-    """The latest fresh Wine-Searcher observation for exactly this wine, vintage
-    and bottle size — context for the MARKET row, never Floor (decision 0049).
+    """The latest fresh Wine-Searcher observation for exactly this wine and
+    vintage — context for the MARKET row, never Floor (decision 0049). Two kinds:
+
+    - a listing whose URL confirmed 750ml (an `offer`, shown "/btl"), only for a
+      line of that same bottle size;
+    - a 75cl EQUIVALENT (a retained reject carrying its resolved wine, shown
+      "/75cl eq"), never read as evidence of any format.
+
     Merchant approval decides Floor, not visibility, so it is not filtered
-    here. Freshness is the same MAX_OFFER_AGE_DAYS the core applies."""
+    here. Freshness is the same MAX_OFFER_AGE_DAYS the core applies, measured
+    from when the source observed the price."""
     as_of = as_of or datetime.now(timezone.utc)
+    oldest = as_of - timedelta(days=MAX_OFFER_AGE_DAYS)
     row = conn.execute(
-        """SELECT o.price, o.pack_size, o.currency, o.price_kind, o.captured_at, o.raw,
-                  m.name AS merchant
+        """SELECT o.price, o.currency, o.captured_at AS observed_at, o.raw, m.name AS merchant,
+                  'btl' AS unit
              FROM offer o
              JOIN snapshot s ON s.snapshot_id = o.snapshot_id
              JOIN merchant m ON m.merchant_id = o.merchant_id
-            WHERE o.wine_id = %s AND o.vintage = %s AND o.bottle_ml = %s
-              AND o.raw->>'acquisition_source' = %s AND NOT s.is_demo
-              AND o.captured_at <= %s AND o.captured_at > %s
-            ORDER BY o.captured_at DESC, o.price ASC
-            LIMIT 1""",
-        (wine_id, vintage, bottle_ml, SOURCE, as_of,
-         as_of - timedelta(days=MAX_OFFER_AGE_DAYS))).fetchone()
+            WHERE o.wine_id = %(wine_id)s::uuid AND o.vintage = %(vintage)s AND o.bottle_ml = %(ml)s
+              AND o.raw->>'acquisition_source' = %(source)s AND NOT s.is_demo
+              AND o.captured_at <= %(as_of)s AND o.captured_at > %(oldest)s
+           UNION ALL
+           SELECT (r.raw->'observation'->>'price')::numeric, r.raw->'observation'->>'currency',
+                  (r.raw->'observation'->>'observed_at')::timestamptz, r.raw, m.name, '75cl eq'
+             FROM offer_reject r
+             JOIN snapshot s ON s.snapshot_id = r.snapshot_id
+             JOIN merchant m ON m.merchant_id = r.merchant_id
+            WHERE r.reason = %(reason)s AND NOT s.is_demo
+              AND r.raw->>'acquisition_source' = %(source)s
+              AND r.raw->>'resolved_wine_id' = %(wine_id)s::text
+              AND (r.raw->>'vintage')::int = %(vintage)s
+              AND r.raw->'observation'->'raw'->>'status' = 'ok'
+              AND r.raw->'observation'->>'observed_at' IS NOT NULL
+              AND (r.raw->'observation'->>'observed_at')::timestamptz <= %(as_of)s
+              AND (r.raw->'observation'->>'observed_at')::timestamptz > %(oldest)s
+           ORDER BY observed_at DESC, price ASC LIMIT 1""",
+        {"wine_id": str(wine_id), "vintage": vintage, "ml": bottle_ml, "source": SOURCE,
+         "as_of": as_of, "oldest": oldest, "reason": "EQUIVALENT_ONLY"}).fetchone()
     if row is None:
         return None
     source_raw = (row["raw"].get("observation") or {}).get("raw") or {}
     return {
         "source": "Wine-Searcher",
         "merchant": row["merchant"],
-        "price_per_bottle": (Decimal(str(row["price"])) / row["pack_size"]).quantize(Decimal("0.01")),
+        "price": Decimal(str(row["price"])).quantize(Decimal("0.01")),
+        "unit": row["unit"],
         "currency": row["currency"],
         "offers_count": source_raw.get("offersCount"),
         "bottle_equivalent_of": source_raw.get("bottle_equivalent_of"),
-        "observed_at": row["captured_at"],
+        "observed_at": row["observed_at"],
     }

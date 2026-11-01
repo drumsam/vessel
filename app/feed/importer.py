@@ -32,11 +32,16 @@ from app.worker import jobs
 
 FEED_SCHEMA_VERSION = "feed-1"
 
-#: CURRENT_LISTING is a merchant's ask. BOTTLE_EQUIVALENT is a per-bottle
-#: figure a provider derived from a multi-bottle listing — real evidence, but
-#: not a price anyone quoted, so it is stored as an INDICATION, which the
-#: core's KIND screen keeps out of Floor whatever else is known (decision 0049).
-_KINDS = {"CURRENT_LISTING": PriceKind.ASK, "BOTTLE_EQUIVALENT": PriceKind.INDICATION}
+#: CURRENT_LISTING is a merchant's ask, the only kind that becomes an offer.
+_KINDS = {"CURRENT_LISTING": PriceKind.ASK}
+
+#: A per-75cl EQUIVALENT a provider derived (its own normalisation, or a
+#: multi-bottle listing divided) — real context, but not a price anyone quoted
+#: and not evidence of the listing's format. Kept as a retained reject carrying
+#: its RESOLVED wine (decision 0049): visible as context, never an offer, so the
+#: core never reads it and it can never reach Floor, "% below market" or a gate.
+EQUIVALENT_KIND = "EQUIVALENT_75CL"
+EQUIVALENT_REASON = "EQUIVALENT_ONLY"
 
 _DUTY = {"IN_BOND": DutyStatus.IN_BOND, "DUTY_PAID": DutyStatus.DUTY_PAID,
          "UNKNOWN": DutyStatus.UNKNOWN, None: DutyStatus.UNKNOWN}
@@ -192,6 +197,24 @@ def import_batch(conn: psycopg.Connection, batch: dict) -> dict:
         if was_created:
             created.append(merchant_id)
         adapter = adapters.setdefault(merchant_id, FeedAdapter(merchant_id, name, source, observed_at))
+        if obs.get("kind") == EQUIVALENT_KIND:
+            # Validated exactly as a listing would be (a nominal 750ml only to
+            # pass the shape check — nothing here records that size).
+            probe = adapter.normalise({**record, "observation": {**obs, "kind": "CURRENT_LISTING",
+                                                                 "bottle_ml": 750}}, observed_at)
+            wine_id = (registry.resolve_candidate(probe.producer_text, probe.cuvee_text, probe.lwin7)
+                       if isinstance(probe, Candidate) else None)
+            if isinstance(probe, Rejected):
+                reason, detail = probe.reason.name, probe.detail
+            elif wine_id is None:
+                reason, detail = Reject.UNRESOLVED_IDENTITY.name, "75cl equivalent; identity unresolved"
+            else:
+                reason, detail = EQUIVALENT_REASON, "75cl equivalent: context only, not a listing"
+            repo.write_reject(conn, snapshot_id, merchant_id, reason, detail,
+                              {**record, "acquisition_source": source, "resolved_wine_id": wine_id,
+                               "vintage": probe.offer.vintage if isinstance(probe, Candidate) else None})
+            rejected += 1
+            continue
         out = adapter.normalise(record, observed_at)
         scope = None
         if isinstance(out, Candidate):

@@ -1175,10 +1175,13 @@ class MarketOut(_Out):
 class MarketSteerOut(_Out):
     source: str
     merchant: str
-    price_per_bottle: Money
+    price: Money
+    #: "btl" only where the source URL confirmed a 750ml single bottle;
+    #: "75cl eq" otherwise — a normalised figure, never proof of a format.
+    unit: Literal["btl", "75cl eq"]
     currency: str
     offers_count: Optional[int] = None
-    #: Set when the figure is a per-bottle equivalent of a multi-bottle listing.
+    #: Set when the equivalent came from a multi-bottle listing.
     bottle_equivalent_of: Optional[int] = None
     observed_at: datetime
 

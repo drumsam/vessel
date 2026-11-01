@@ -62,19 +62,29 @@ def test_the_converter_passes_on_only_what_a_row_states():
     assert batch["source"] == "wine-searcher-via-mrbridge" and skipped == []
     by_input = {o["raw"]["inputValue"]: o for o in batch["observations"]}
     rousseau = by_input["2023 Chambertin Grand Cru Rousseau 2023"]
-    assert (rousseau["price"], rousseau["currency"], rousseau["pack_size"]) == ("1695.00", "GBP", 1)
+    # No URL states a size, so every row is a 75cl EQUIVALENT, never a listing
+    assert (rousseau["kind"], rousseau["price"], rousseau["currency"]) == (
+        "EQUIVALENT_75CL", "1695.00", "GBP")
     assert rousseau["merchant"]["name"] == "Mann Fine Wine"
     assert rousseau["bottle_ml"] is None and rousseau["duty_status"] == "UNKNOWN"   # never stated
-    assert rousseau["kind"] == "CURRENT_LISTING"
-    assert rousseau["raw"]["offersCount"] == 6                                      # context kept
+    assert rousseau["raw"]["offersCount"] == 6 and rousseau["raw"]["bottlesPerUnit"] == 1
+    assert rousseau["raw"]["format_stated"] is False
     assert rousseau["observed_at"] == "2026-11-01T04:36:26.828Z"
-    # Leroy: 3333.33 per 75cl from a 6-bottle listing — a bottle-equivalent,
-    # never multiplied back into a case price nobody printed
+    # Leroy: 3333.33 per 75cl from a 6-bottle listing — never multiplied back
     leroy = by_input["2001 Clos Vougeot, Leroy"]
-    assert (leroy["kind"], leroy["price"], leroy["pack_size"]) == ("BOTTLE_EQUIVALENT", "3333.33", 1)
-    assert leroy["raw"]["bottle_equivalent_of"] == 6
+    assert (leroy["kind"], leroy["price"]) == ("EQUIVALENT_75CL", "3333.33")
+    assert leroy["raw"]["bottlesPerUnit"] == 6 and leroy["raw"]["bottle_equivalent_of"] == 6
     # La Romanée: a generic page, no vintage — kept as null, never guessed
     assert by_input["La Romanée Grand Cru Comte Liger-Belair"]["vintage"] is None
+
+
+def test_only_a_url_confirmed_750ml_single_bottle_becomes_a_listing():
+    row = {**_row("Rousseau"), "wineSearcherUrl": _row("Rousseau")["wineSearcherUrl"] + "?Xbottle_size=750"}
+    obs = mrbridge.to_batch([row])[0]["observations"][0]
+    assert (obs["kind"], obs["bottle_ml"]) == ("CURRENT_LISTING", 750)
+    case = {**_row("Leroy"), "wineSearcherUrl": _row("Leroy")["wineSearcherUrl"] + "?Xbottle_size=750"}
+    obs = mrbridge.to_batch([case])[0]["observations"][0]
+    assert (obs["kind"], obs["bottle_ml"]) == ("EQUIVALENT_75CL", None)     # 6-btl: still an equivalent
 
 
 def test_750ml_only_when_the_wine_searcher_url_states_it():
@@ -129,22 +139,6 @@ def test_real_rows_resolve_where_the_names_agree_and_fail_closed_where_they_do_n
     assert names[resolved["La Romanée Grand Cru Comte Liger-Belair"]] == "Comte Liger-Belair / La Romanée"
 
 
-@pg
-def test_under_todays_rules_no_row_sets_market_and_every_row_is_kept(conn):
-    """The data states no bottle size and no duty status, so the existing
-    screens keep all four out of Floor — stored, with their reasons, and the
-    merchants created unapproved. Nothing here changes the pricing core."""
-    batch, _ = mrbridge.to_batch(ROWS)
-    summary = importer.import_batch(conn, batch)
-    assert (summary["written"], summary["rejected"]) == (0, 4)
-    assert summary["rejected_by_reason"] == {"SIZE": 3, "VINTAGE": 1}
-    assert sorted(summary["merchants_created"]) == [
-        "farthinghoe-fine-wine", "mann-fine-wine", "turville-valley-wines", "wilkinson-vintners"]
-    raws = [r["raw"] for r in conn.execute("SELECT raw FROM offer_reject").fetchall()]
-    assert all(r["observation"]["raw"]["offersCount"] == 6 for r in raws)
-    assert all(r["observation"]["raw"]["inputValue"] for r in raws)
-
-
 SIZED = [{**r, "wineSearcherUrl": r["wineSearcherUrl"] + "?Xbottle_size=750"} for r in ROWS]
 
 
@@ -153,47 +147,83 @@ def _wine_id(conn, producer, cuvee):
                             (producer, cuvee)).fetchone()["wine_id"])
 
 
+
+def _when():
+    from datetime import datetime, timezone
+    return datetime(2026, 11, 2, tzinfo=timezone.utc)
+
+
 @pg
-def test_with_size_stated_the_rows_store_as_evidence_that_can_never_set_floor(conn):
-    batch, _ = mrbridge.to_batch(SIZED)
-    summary = importer.import_batch(conn, batch)
-    assert (summary["written"], summary["rejected"]) == (3, 1)
-    assert summary["rejected_by_reason"] == {"VINTAGE": 1}          # La Romanée, no vintage
-    kinds = {r["merchant_id"]: (r["price_kind"], r["duty_status"], r["pack_size"])
-             for r in conn.execute("SELECT merchant_id, price_kind, duty_status, pack_size FROM offer")}
-    assert kinds["mann-fine-wine"] == ("ASK", "UNKNOWN", 1)
-    assert kinds["farthinghoe-fine-wine"] == ("INDICATION", "UNKNOWN", 1)   # bottle-equivalent
-    # nothing that cannot set Floor claims a capture, so nothing is masked
+def test_the_real_export_gives_75cl_eq_steers_and_never_an_offer_the_core_can_read(conn):
+    """Doug's real four-row export, no URL filtering: Rousseau 2023, DRC La Tache
+    1996 and Leroy Clos de Vougeot 2001 each give a /75cl eq steer; La Romanee
+    (no vintage) gives none. Not one row becomes an offer, so Floor cannot move."""
+    summary = importer.import_batch(conn, mrbridge.to_batch(ROWS)[0])
+    assert (summary["written"], summary["rejected"]) == (0, 4)
+    assert summary["rejected_by_reason"] == {"EQUIVALENT_ONLY": 3, "VINTAGE": 1}
+    assert conn.execute("SELECT count(*) AS n FROM offer").fetchone()["n"] == 0
     assert conn.execute("SELECT count(*) AS n FROM snapshot_merchant").fetchone()["n"] == 0
 
+    rousseau = _wine_id(conn, "Domaine Armand Rousseau", "Chambertin")
+    s = mrbridge.steer(conn, wine_id=rousseau, vintage=2023, bottle_ml=750, as_of=_when())
+    assert (s["source"], s["merchant"], str(s["price"]), s["unit"], s["currency"],
+            s["offers_count"], s["bottle_equivalent_of"]) == (
+        "Wine-Searcher", "Mann Fine Wine", "1695.00", "75cl eq", "GBP", 6, None)
+    drc = _wine_id(conn, "Domaine de la Romanée-Conti", "La Tâche")
+    s = mrbridge.steer(conn, wine_id=drc, vintage=1996, bottle_ml=750, as_of=_when())
+    assert (str(s["price"]), s["unit"]) == ("4600.00", "75cl eq")
+    leroy = _wine_id(conn, "Domaine Leroy", "Clos de Vougeot")
+    s = mrbridge.steer(conn, wine_id=leroy, vintage=2001, bottle_ml=750, as_of=_when())
+    assert (str(s["price"]), s["unit"], s["bottle_equivalent_of"]) == ("3333.33", "75cl eq", 6)
+    romanee = _wine_id(conn, "Comte Liger-Belair", "La Romanée")
+    for vintage in (2019, 2020, 2023):
+        assert mrbridge.steer(conn, wine_id=romanee, vintage=vintage, bottle_ml=750, as_of=_when()) is None
+
 
 @pg
-def test_the_steer_shows_for_exactly_this_wine_vintage_and_size_from_any_merchant(conn):
+def test_an_equivalent_is_never_recorded_as_a_750ml_bottle(conn):
+    importer.import_batch(conn, mrbridge.to_batch(ROWS)[0])
+    raws = [r["raw"] for r in conn.execute(
+        "SELECT raw FROM offer_reject WHERE reason = 'EQUIVALENT_ONLY'").fetchall()]
+    assert len(raws) == 3
+    assert all(r["observation"]["bottle_ml"] is None for r in raws)            # no size claimed
+    assert all(r["acquisition_source"] == "wine-searcher-via-mrbridge" for r in raws)
+    assert sorted(r["observation"]["raw"]["bottlesPerUnit"] for r in raws) == [1, 1, 6]
+
+
+@pg
+def test_a_steer_is_exactly_this_wine_and_vintage_and_goes_stale(conn):
     from datetime import datetime, timezone
-    importer.import_batch(conn, mrbridge.to_batch(SIZED)[0])
+    importer.import_batch(conn, mrbridge.to_batch(ROWS)[0])
     rousseau = _wine_id(conn, "Domaine Armand Rousseau", "Chambertin")
-    leroy = _wine_id(conn, "Domaine Leroy", "Clos de Vougeot")
-    when = datetime(2026, 11, 2, tzinfo=timezone.utc)
-    s = mrbridge.steer(conn, wine_id=rousseau, vintage=2023, bottle_ml=750, as_of=when)
-    assert (s["source"], s["merchant"], str(s["price_per_bottle"]), s["currency"],
-            s["offers_count"], s["bottle_equivalent_of"]) == (
-        "Wine-Searcher", "Mann Fine Wine", "1695.00", "GBP", 6, None)     # unapproved, still shown
-    s = mrbridge.steer(conn, wine_id=leroy, vintage=2001, bottle_ml=750, as_of=when)
-    assert (str(s["price_per_bottle"]), s["bottle_equivalent_of"]) == ("3333.33", 6)
-    assert mrbridge.steer(conn, wine_id=rousseau, vintage=2022, bottle_ml=750, as_of=when) is None
-    assert mrbridge.steer(conn, wine_id=rousseau, vintage=2023, bottle_ml=1500, as_of=when) is None
+    beze = _wine_id(conn, "Domaine Armand Rousseau", "Chambertin Clos de Bèze")
+    assert mrbridge.steer(conn, wine_id=rousseau, vintage=2022, bottle_ml=750, as_of=_when()) is None
+    assert mrbridge.steer(conn, wine_id=beze, vintage=2023, bottle_ml=750, as_of=_when()) is None
     stale = datetime(2026, 11, 20, tzinfo=timezone.utc)                  # > 14 days after the scrape
     assert mrbridge.steer(conn, wine_id=rousseau, vintage=2023, bottle_ml=750, as_of=stale) is None
 
 
 @pg
+def test_a_url_confirmed_750ml_bottle_is_a_listing_shown_per_btl_that_still_sets_no_floor(conn):
+    summary = importer.import_batch(conn, mrbridge.to_batch(SIZED)[0])
+    assert summary["written"] == 2                     # Rousseau + DRC: single bottles, 750 confirmed
+    assert summary["rejected_by_reason"] == {"EQUIVALENT_ONLY": 1, "VINTAGE": 1}   # Leroy 6-btl
+    kinds = {(r["price_kind"], r["duty_status"], r["bottle_ml"]) for r in conn.execute(
+        "SELECT price_kind, duty_status, bottle_ml FROM offer")}
+    assert kinds == {("ASK", "UNKNOWN", 750)}
+    assert conn.execute("SELECT count(*) AS n FROM snapshot_merchant").fetchone()["n"] == 0
+    rousseau = _wine_id(conn, "Domaine Armand Rousseau", "Chambertin")
+    s = mrbridge.steer(conn, wine_id=rousseau, vintage=2023, bottle_ml=750, as_of=_when())
+    assert (str(s["price"]), s["unit"]) == ("1695.00", "btl")
+    assert mrbridge.steer(conn, wine_id=rousseau, vintage=2023, bottle_ml=1500, as_of=_when()) is None
+
+
+@pg
 def test_a_feed_row_that_cannot_count_never_hides_a_merchants_own_in_bond_price(conn):
     """Wine-Searcher's cheapest is sometimes a merchant we also collect directly.
-    A feed capture used to supersede that merchant's capture of the same wine —
-    Farr's own In Bond ask hidden behind a duty-unknown feed row, the Floor
-    lifted to the next merchant. A capture now claims coverage only when it
-    carries something that could set Floor."""
-    from datetime import datetime, timedelta, timezone
+    A capture claims coverage only when it carries something that could set
+    Floor, so Farr's own In Bond ask still counts."""
+    from datetime import datetime, timezone
     from decimal import Decimal
     from app.core.enums import DutyStatus, PriceKind
     from app.core.models import Offer
@@ -210,8 +240,7 @@ def test_a_feed_row_that_cannot_count_never_hides_a_merchants_own_in_bond_price(
     farr_name = conn.execute("SELECT name FROM merchant WHERE merchant_id = 'farr'").fetchone()["name"]
     row = {**SIZED[2], "cheapestPriceMerchant": farr_name}                 # Rousseau, cheapest = Farr
     importer.import_batch(conn, mrbridge.to_batch([row])[0])
-    res = repo.resolve_offers(conn, wine_id=rousseau, vintage=2023,
-                              as_of=datetime(2026, 11, 2, tzinfo=timezone.utc))
+    res = repo.resolve_offers(conn, wine_id=rousseau, vintage=2023, as_of=_when())
     farr = [o for o in res.offers if o.merchant_id == "farr"]
     assert [(o.duty_status, str(o.price)) for o in farr] == [(DutyStatus.IN_BOND, "1500.00")]
 

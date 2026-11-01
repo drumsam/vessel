@@ -65,3 +65,26 @@ Bond ask — something that could set Floor. Otherwise a duty-unknown
 Wine-Searcher row whose cheapest merchant is one we also collect directly
 (Farr) would supersede that merchant's own In Bond price for the wine and
 lift the Floor. Such rows are still stored and still feed the steer line.
+
+## Revised, 1 November 2026 (Doug): no manual URL filtering
+
+Requiring size-filtered Wine-Searcher URLs put manual work back into the
+workflow. For the **steer line only**, MrBridge's normalised per-75cl figure
+is now used whenever the wine and vintage resolve exactly and the row's
+status is ok:
+
+- **A real listing** (`CURRENT_LISTING` → an `offer`, shown `/btl`) only when
+  the URL itself confirms 750ml AND the listing is one bottle.
+- **Everything else is a 75cl EQUIVALENT** (`EQUIVALENT_75CL`), shown
+  `/75cl eq`: stored as a retained reject (`EQUIVALENT_ONLY`) carrying its
+  resolved wine and vintage, its acquisition source, and the full raw row
+  (`bottlesPerUnit` included). It is never an offer, so the core never reads
+  it: it cannot set Floor, drive "% below market" or touch a gate, and no
+  bottle size is ever recorded for it — it is not evidence the listing was
+  750ml. This replaces the earlier `BOTTLE_EQUIVALENT`-as-`INDICATION`
+  route, which the core's indication check (no duty screen) would have shown
+  as a 750ml indication on a loose-bottle line.
+
+On Doug's real four-row export this gives `/75cl eq` steers for Rousseau
+Chambertin 2023, DRC La Tâche 1996 and Leroy Clos de Vougeot 2001 (the last
+"from a 6-btl listing"); La Romanée gives none until a vintage is present.

@@ -1257,8 +1257,8 @@ def test_the_wine_searcher_steer_rides_under_market_and_moves_nothing(client, mo
     importer.import_batch(conn, mrbridge.to_batch([row])[0])
     after = client.post(f"/inbound-offers/{offer_id}/evaluate").json()
     steer = after["market_steer"]
-    assert (steer["source"], steer["price_per_bottle"], steer["offers_count"]) == (
-        "Wine-Searcher", "2500.00", 4)
+    assert (steer["source"], steer["price"], steer["unit"], steer["offers_count"]) == (
+        "Wine-Searcher", "2500.00", "btl", 4)
     for key in ("state", "market", "default_vessel_sell", "comp_count"):
         assert after[key] == before[key], key
 
